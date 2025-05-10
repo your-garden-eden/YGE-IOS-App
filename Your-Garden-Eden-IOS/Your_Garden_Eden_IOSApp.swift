@@ -1,14 +1,12 @@
-//
-//  Your_Garden_Eden_IOSApp.swift
-//  Your-Garden-Eden-IOS
-//
-//  Created by Josef Ewert on 10.05.25.
-//
-
 import SwiftUI
-
+import FirebaseCore 
 @main
 struct Your_Garden_Eden_IOSApp: App {
+    init() {
+        FirebaseApp.configure()
+        print("Firebase configured!")
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
