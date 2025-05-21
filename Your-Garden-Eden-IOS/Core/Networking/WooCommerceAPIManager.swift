@@ -1,32 +1,41 @@
 import Foundation
 
+// AnyEncodable Struct
+struct AnyEncodable: Encodable { /* ... Definition ... */ }
+
 class WooCommerceAPIManager {
     static let shared = WooCommerceAPIManager()
-    private let proxyService = FirebaseProxyService.shared
+    // private let proxyService = FirebaseProxyService.shared // Wird für Simulation nicht direkt gebraucht
 
     private init() {}
 
-    // --- PRODUCTS ---
-    // func getProducts(categoryId: Int?, perPage: Int, page: Int, completion: @escaping (Result<[WooCommerceProduct], Error>) -> Void) {
-    //     let functionName = "getProducts" // Name deiner Cloud Function
-    //     let requestData = ["categoryId": categoryId, "perPage": perPage, "page": page] // Beispiel
-    //     proxyService.callFunction(functionName: functionName, data: requestData) { (result: Result<[WooCommerceProduct], FirebaseProxyService.ProxyServiceError>) in
-    //         // Konvertiere ProxyServiceError ggf. in einen spezifischeren Fehler oder gib es direkt weiter
-    //         completion(result.mapError { $0 as Error })
-    //     }
-    // }
+    func getCategories(parent: Int? = nil,
+                       perPage: Int = 100,
+                       page: Int = 1,
+                       hideEmpty: Bool = true,
+                       orderby: String = "menu_order",
+                       order: String = "asc",
+                       completion: @escaping (Result<[WooCommerceCategory], Error>) -> Void) {
+        
+        print("WooCommerceAPIManager: getCategories aufgerufen - SIMULIERE Daten, da Cloud Function noch nicht aktiv.")
 
-    // func getProductById(productId: Int, completion: @escaping (Result<WooCommerceProduct, Error>) -> Void) { ... }
-    
-    // --- CATEGORIES ---
-    // func getCategories(completion: @escaping (Result<[WooCommerceCategory], Error>) -> Void) { ... }
-
-    // --- CART (Store API) ---
-    // func getCart(completion: @escaping (Result<WooCommerceStoreCart, Error>) -> Void) { ... }
-    // func addItemToCart(productId: Int, quantity: Int, variationId: Int?, completion: @escaping (Result<WooCommerceStoreCart, Error>) -> Void) { ... }
-    // ... weitere Warenkorb-Funktionen
-
-    // --- ORDERS ---
-    // func createOrder(cart: WooCommerceStoreCart, customerDetails: ..., completion: @escaping (Result<WooCommerceOrder, Error>) -> Void) { ... }
-    // (Benötigt WooCommerceOrder Modell)
+        // --- BEGINN SIMULATION ---
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { // Kurze Verzögerung
+            let mockCategories: [WooCommerceCategory] = [
+                .placeholder,
+                WooCommerceCategory(id: 2, name: "Gartenwerkzeuge (Sim)", slug: "werkzeuge-sim", parent: 0, description: "Simulierte Daten", display: "products", image: nil, menuOrder: 2, count: 7),
+                WooCommerceCategory(id: 3, name: "Pflanzen (Sim)", slug: "pflanzen-sim", parent: 0, description: "Simulierte Daten", display: "products", image: nil, menuOrder: 3, count: 22)
+            ]
+            completion(.success(mockCategories))
+            
+            // Oder um einen Fehler zu simulieren:
+            // let error = NSError(domain: "APIManagerSim", code: 1, userInfo: [NSLocalizedDescriptionKey: "Simulierter Fehler beim Laden der Kategorien."])
+            // completion(.failure(error))
+            
+            // Oder um leere Daten zu simulieren:
+            // completion(.success([]))
+        }
+        // --- ENDE SIMULATION ---
+    }
+    // ...
 }

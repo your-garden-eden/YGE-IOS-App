@@ -45,33 +45,9 @@
 		0CE04CDA2DCF6EB900F9E972 /* Your-Garden-Eden-IOSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Your-Garden-Eden-IOSUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		0C8F6E2F2DDDF36400BF6826 /* Exceptions for "Your-Garden-Eden-IOS" folder in "Your-Garden-Eden-IOS" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Models/WooCommerce/WooCommerceProduct.swift,
-			);
-			target = 0CE04CC22DCF6EB600F9E972 /* Your-Garden-Eden-IOS */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
-/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
-		0C8F6E302DDDF36400BF6826 /* Exceptions for "Your-Garden-Eden-IOS" folder in "Copy Bundle Resources" phase from "Your-Garden-Eden-IOS" target */ = {
-			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
-			buildPhase = 0CE04CC12DCF6EB600F9E972 /* Resources */;
-			membershipExceptions = (
-				Models/WooCommerce/WooCommerceProduct.swift,
-			);
-		};
-/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		0CE04CC52DCF6EB600F9E972 /* Your-Garden-Eden-IOS */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				0C8F6E2F2DDDF36400BF6826 /* Exceptions for "Your-Garden-Eden-IOS" folder in "Your-Garden-Eden-IOS" target */,
-				0C8F6E302DDDF36400BF6826 /* Exceptions for "Your-Garden-Eden-IOS" folder in "Copy Bundle Resources" phase from "Your-Garden-Eden-IOS" target */,
-			);
 			path = "Your-Garden-Eden-IOS";
 			sourceTree = "<group>";
 		};

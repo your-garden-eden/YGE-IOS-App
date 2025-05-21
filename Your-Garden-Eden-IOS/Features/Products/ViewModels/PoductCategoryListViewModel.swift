@@ -6,22 +6,32 @@ class ProductCategoryListViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
 
+    private let wooAPIManager = WooCommerceAPIManager.shared // Wieder einkommentieren
+
     init() {
-        print("ProductCategoryListViewModel initialized - Datenladen vorerst deaktiviert.")
+        print("ProductCategoryListViewModel initialized")
     }
 
-    func loadCategories() {
-        print("ProductCategoryListViewModel: loadCategories called - Laden ist aktuell deaktiviert.")
+    func loadCategories(parent: Int? = nil) {
+        print("ProductCategoryListViewModel: loadCategories called - ruft APIManager auf.")
         self.isLoading = true
         self.errorMessage = nil
-        self.categories = []
+        // self.categories = [] // Optional leeren
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            self.isLoading = false
-            // Optional: Setze eine Nachricht, wenn keine Daten geladen werden (wird in der View angezeigt)
-            // if self.categories.isEmpty {
-            //     self.errorMessage = "Kategorieladefunktion ist noch nicht aktiv."
-            // }
+        wooAPIManager.getCategories(parent: parent) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                self.isLoading = false
+                switch result {
+                case .success(let fetchedCategories):
+                    self.categories = fetchedCategories
+                    if fetchedCategories.isEmpty && self.errorMessage == nil { // Nur setzen, wenn kein anderer Fehler da ist
+                        self.errorMessage = "Keine Kategorien vom APIManager erhalten (evtl. Simulation)."
+                    }
+                case .failure(let error):
+                    self.errorMessage = error.localizedDescription
+                }
+            }
         }
     }
 }

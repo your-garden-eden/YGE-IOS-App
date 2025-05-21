@@ -1,64 +1,88 @@
 import Foundation
-import FirebaseFunctions // Stelle sicher, dass FirebaseFunctions via SPM hinzugefügt ist
+import FirebaseFunctions
 
 class FirebaseProxyService {
-    private lazy var functions = Functions.functions(region: "europe-west1") // Deine Firebase Region
+    private lazy var functions = Functions.functions(region: "europe-west1")
     static let shared = FirebaseProxyService()
 
-    enum ProxyServiceError: Error {
+    enum ProxyServiceError: Error, LocalizedError {
         case noDataReceived
+        case encodingRequestDataFailed(Error)
         case decodingError(Error)
         case functionError(Error)
         case unknownError
+
+        var errorDescription: String? {
+            switch self {
+            case .noDataReceived: return "No data was received from the server function."
+            case .encodingRequestDataFailed(let error): return "Failed to prepare request data: \(error.localizedDescription)"
+            case .decodingError(let error):
+                if let decodingError = error as? DecodingError {
+                    switch decodingError {
+                    case .typeMismatch(let type, let context):
+                        return "Decoding Error: Type mismatch for \(type) - Path: \(context.codingPath.map { $0.stringValue }.joined(separator: ".")) - \(context.debugDescription)"
+                    case .valueNotFound(let type, let context):
+                        return "Decoding Error: Value not found for \(type) - Path: \(context.codingPath.map { $0.stringValue }.joined(separator: ".")) - \(context.debugDescription)"
+                    case .keyNotFound(let key, let context):
+                        return "Decoding Error: Key '\(key.stringValue)' not found - Path: \(context.codingPath.map { $0.stringValue }.joined(separator: ".")) - \(context.debugDescription)"
+                    case .dataCorrupted(let context):
+                        return "Decoding Error: Data corrupted - Path: \(context.codingPath.map { $0.stringValue }.joined(separator: ".")) - \(context.debugDescription)"
+                    @unknown default:
+                        return "Failed to decode response: An unknown decoding error occurred."
+                    }
+                }
+                return "Failed to decode response: \(error.localizedDescription)"
+            case .functionError(let error):
+                let nsError = error as NSError
+                if nsError.domain == FunctionsErrorDomain {
+                    let code = FunctionsErrorCode(rawValue: nsError.code) ?? .unknown
+                    let message = nsError.userInfo[FunctionsErrorDetailsKey] as? String ?? nsError.localizedDescription
+                    return "Function error (code \(code.rawValue)): \(message)"
+                }
+                return "Function call failed: \(error.localizedDescription)"
+            case .unknownError: return "An unknown error occurred."
+            }
+        }
     }
     
-    private init() {} // Singleton
+    private init() {}
 
     func callFunction<RequestData: Encodable, ResponseData: Decodable>(
         functionName: String,
         data: RequestData?,
         completion: @escaping (Result<ResponseData, ProxyServiceError>) -> Void
     ) {
-        var encodableData: Any? = nil
-        if let data = data {
+        var preparedDataForFirebase: Any? = nil
+
+        if let dataToEncode = data {
             do {
-                // Wir müssen das Encodable in ein Dictionary oder Array umwandeln,
-                // wie es Firebase Functions erwartet.
-                let jsonData = try JSONEncoder().encode(data)
-                encodableData = try JSONSerialization.jsonObject(with: jsonData, options: .allowFragments)
+                let jsonData = try JSONEncoder().encode(dataToEncode)
+                preparedDataForFirebase = try JSONSerialization.jsonObject(with: jsonData, options: .allowFragments)
             } catch {
-                completion(.failure(.decodingError(error))) // Hier eher EncodingError, aber für Einfachheit
+                completion(.failure(.encodingRequestDataFailed(error)))
                 return
             }
         }
 
-        functions.httpsCallable(functionName).call(encodableData) { result in
+        functions.httpsCallable(functionName).call(preparedDataForFirebase) { result in
             switch result {
             case .success(let httpsCallableResult):
-                guard let responseDataObject = httpsCallableResult.data as? [String: Any] else {
-                    // Manchmal geben Functions auch direkt Arrays oder primitive Typen zurück
-                    // Oder wenn ResponseData ein einfacher Typ ist, der nicht in einem Dict verpackt ist.
-                    // Diese Logik muss ggf. an die tatsächlichen Antworten deiner CFs angepasst werden.
-                    if let directData = httpsCallableResult.data {
-                        do {
-                             // Versuch, direkt zu dekodieren, wenn es kein Dictionary ist
-                            let jsonData = try JSONSerialization.data(withJSONObject: directData, options: [])
-                            let decodedObject = try JSONDecoder().decode(ResponseData.self, from: jsonData)
-                            completion(.success(decodedObject))
-                        } catch {
-                            completion(.failure(.decodingError(error)))
+                guard let responseRawData = httpsCallableResult.data else {
+                    if ResponseData.self == VoidDecodable.self || ResponseData.self == Optional<VoidDecodable>.self {
+                        if let successValue = VoidDecodable() as? ResponseData {
+                             completion(.success(successValue))
+                        } else {
+                            completion(.failure(.decodingError(DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "Expected VoidDecodable but casting failed")))))
                         }
                     } else {
-                         completion(.failure(.noDataReceived))
+                        completion(.failure(.noDataReceived))
                     }
                     return
                 }
                 
                 do {
-                    let jsonData = try JSONSerialization.data(withJSONObject: responseDataObject, options: [])
+                    let jsonData = try JSONSerialization.data(withJSONObject: responseRawData, options: [])
                     let decoder = JSONDecoder()
-                    // Hier ggf. DateDecodingStrategy oder KeyDecodingStrategy setzen, falls nötig
-                    // z.B. decoder.dateDecodingStrategy = .iso8601
                     let decodedObject = try decoder.decode(ResponseData.self, from: jsonData)
                     completion(.success(decodedObject))
                 } catch {
@@ -66,24 +90,13 @@ class FirebaseProxyService {
                 }
                 
             case .failure(let error):
-                // Firebase Functions Fehler genauer prüfen
-                let nsError = error as NSError
-                if nsError.domain == FunctionsErrorDomain {
-                    // let code = FunctionsErrorCode(rawValue: nsError.code)
-                    // let message = nsError.localizedDescription
-                    // let details = nsError.userInfo[FunctionsErrorDetailsKey]
-                    // Hier könntest du spezifischere Fehler basierend auf code, message, details behandeln
-                }
                 completion(.failure(.functionError(error)))
             }
         }
     }
-
-    // Überladene Funktion für Aufrufe ohne Request-Daten
-    func callFunction<ResponseData: Decodable>(
-        functionName: String,
-        completion: @escaping (Result<ResponseData, ProxyServiceError>) -> Void
-    ) {
-        callFunction(functionName: functionName, data: Optional<Int>.none, completion: completion) // Verwende einen Dummy Encodable Typ
-    }
+    // Der auskommentierte Block wurde komplett entfernt
 }
+
+// Hilfs-Structs für die callFunction (am Ende der Datei oder in einer Utils-Datei)
+// private struct NoData: Encodable {} // Nicht mehr direkt hier benötigt, wenn die überladene Funktion weg ist
+struct VoidDecodable: Decodable {}

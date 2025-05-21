@@ -1,3 +1,11 @@
+//
+//  WooCommerceProduct.swift
+//  Your-Garden-Eden-IOS
+//
+//  Created by Josef Ewert on 21.05.25.
+//
+
+
 import Foundation
 
 struct WooCommerceProduct: Codable, Identifiable, Hashable, Equatable {
