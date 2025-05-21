@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "@woocommerce/woocommerce-rest-api": "^1.0.1"
+  },
+  "devDependencies": {
+    "@types/woocommerce__woocommerce-rest-api": "^1.0.5"
+  }
+}

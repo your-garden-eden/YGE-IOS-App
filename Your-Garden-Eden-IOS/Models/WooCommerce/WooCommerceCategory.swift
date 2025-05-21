@@ -1,18 +1,28 @@
-//
-//  WooCommerceCategory.swift
-//  Your-Garden-Eden-IOS
-//
-//  Created by Josef Ewert on 21.05.25.
-//
+import Foundation
 
-import SwiftUI
+struct WooCommerceCategory: Codable, Identifiable, Hashable, Equatable {
+    let id: Int
+    let name: String
+    let slug: String
+    let parent: Int
+    let description: String
+    let display: String
+    let image: WooCommerceImage?
+    let menuOrder: Int
+    let count: Int
 
-struct WooCommerceCategory: View {
-    var body: some View {
-        Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
+    enum CodingKeys: String, CodingKey {
+        case id, name, slug, parent, description, display, image, count
+        case menuOrder = "menu_order"
     }
-}
 
-#Preview {
-    WooCommerceCategory()
+    // Statische Placeholder-Instanz für Previews
+    static var placeholder: WooCommerceCategory {
+        WooCommerceCategory(
+            id: 1, name: "Beispiel Kategorie", slug: "beispiel-kategorie", parent: 0,
+            description: "Dies ist eine Beispielkategorie.", display: "products",
+            image: WooCommerceImage.placeholder, // Nutzt den Placeholder von WooCommerceImage
+            menuOrder: 1, count: 5
+        )
+    }
 }

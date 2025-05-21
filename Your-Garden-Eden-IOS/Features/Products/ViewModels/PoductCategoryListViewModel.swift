@@ -1,18 +1,27 @@
-//
-//  PoductCategoryListViewModel.swift
-//  Your-Garden-Eden-IOS
-//
-//  Created by Josef Ewert on 21.05.25.
-//
+import Foundation
+import Combine
 
-import SwiftUI
+class ProductCategoryListViewModel: ObservableObject {
+    @Published var categories: [WooCommerceCategory] = []
+    @Published var isLoading: Bool = false
+    @Published var errorMessage: String?
 
-struct PoductCategoryListViewModel: View {
-    var body: some View {
-        Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
+    init() {
+        print("ProductCategoryListViewModel initialized - Datenladen vorerst deaktiviert.")
     }
-}
 
-#Preview {
-    PoductCategoryListViewModel()
+    func loadCategories() {
+        print("ProductCategoryListViewModel: loadCategories called - Laden ist aktuell deaktiviert.")
+        self.isLoading = true
+        self.errorMessage = nil
+        self.categories = []
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.isLoading = false
+            // Optional: Setze eine Nachricht, wenn keine Daten geladen werden (wird in der View angezeigt)
+            // if self.categories.isEmpty {
+            //     self.errorMessage = "Kategorieladefunktion ist noch nicht aktiv."
+            // }
+        }
+    }
 }

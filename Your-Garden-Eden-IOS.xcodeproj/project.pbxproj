@@ -7,6 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0C8F6E802DDE058700BF6826 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 0C8F6E7F2DDE058700BF6826 /* FirebaseCore */; };
+		0C8F6E832DDE066B00BF6826 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 0C8F6E822DDE066B00BF6826 /* GoogleSignIn */; };
+		0C8F6E852DDE066B00BF6826 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 0C8F6E842DDE066B00BF6826 /* GoogleSignInSwift */; };
+		0C8F6E882DDE069C00BF6826 /* Algorithms in Frameworks */ = {isa = PBXBuildFile; productRef = 0C8F6E872DDE069C00BF6826 /* Algorithms */; };
+		0C8F6E8B2DDE06B500BF6826 /* ArgumentParser in Frameworks */ = {isa = PBXBuildFile; productRef = 0C8F6E8A2DDE06B500BF6826 /* ArgumentParser */; };
+		0C8F6E8D2DDE06B500BF6826 /* generate-manual in Frameworks */ = {isa = PBXBuildFile; productRef = 0C8F6E8C2DDE06B500BF6826 /* generate-manual */; };
+		0C8F6E902DDE06D000BF6826 /* SwiftASN1 in Frameworks */ = {isa = PBXBuildFile; productRef = 0C8F6E8F2DDE06D000BF6826 /* SwiftASN1 */; };
+		0C8F6E932DDE071E00BF6826 /* AsyncAlgorithms in Frameworks */ = {isa = PBXBuildFile; productRef = 0C8F6E922DDE071E00BF6826 /* AsyncAlgorithms */; };
 		0C91A54E2DCF7B5800C3EF2A /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 0C91A54D2DCF7B5800C3EF2A /* FirebaseAnalytics */; };
 		0C91A5502DCF7B5800C3EF2A /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 0C91A54F2DCF7B5800C3EF2A /* FirebaseAuth */; };
 		0C91A5522DCF7B5800C3EF2A /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 0C91A5512DCF7B5800C3EF2A /* FirebaseFirestore */; };
@@ -74,11 +82,19 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0C8F6E882DDE069C00BF6826 /* Algorithms in Frameworks */,
 				0C91A54E2DCF7B5800C3EF2A /* FirebaseAnalytics in Frameworks */,
 				0C91A5502DCF7B5800C3EF2A /* FirebaseAuth in Frameworks */,
+				0C8F6E8D2DDE06B500BF6826 /* generate-manual in Frameworks */,
 				0C91A5522DCF7B5800C3EF2A /* FirebaseFirestore in Frameworks */,
+				0C8F6E902DDE06D000BF6826 /* SwiftASN1 in Frameworks */,
+				0C8F6E932DDE071E00BF6826 /* AsyncAlgorithms in Frameworks */,
+				0C8F6E852DDE066B00BF6826 /* GoogleSignInSwift in Frameworks */,
 				0C91A5562DCF7B5800C3EF2A /* FirebaseStorage in Frameworks */,
+				0C8F6E802DDE058700BF6826 /* FirebaseCore in Frameworks */,
 				0C91A5542DCF7B5800C3EF2A /* FirebaseFunctions in Frameworks */,
+				0C8F6E8B2DDE06B500BF6826 /* ArgumentParser in Frameworks */,
+				0C8F6E832DDE066B00BF6826 /* GoogleSignIn in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -99,10 +115,18 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		0C8F6E7E2DDE058700BF6826 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		0CE04CBA2DCF6EB600F9E972 = {
 			isa = PBXGroup;
 			children = (
 				0CE04CC52DCF6EB600F9E972 /* Your-Garden-Eden-IOS */,
+				0C8F6E7E2DDE058700BF6826 /* Frameworks */,
 				0CE04CC42DCF6EB600F9E972 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -142,6 +166,14 @@
 				0C91A5512DCF7B5800C3EF2A /* FirebaseFirestore */,
 				0C91A5532DCF7B5800C3EF2A /* FirebaseFunctions */,
 				0C91A5552DCF7B5800C3EF2A /* FirebaseStorage */,
+				0C8F6E7F2DDE058700BF6826 /* FirebaseCore */,
+				0C8F6E822DDE066B00BF6826 /* GoogleSignIn */,
+				0C8F6E842DDE066B00BF6826 /* GoogleSignInSwift */,
+				0C8F6E872DDE069C00BF6826 /* Algorithms */,
+				0C8F6E8A2DDE06B500BF6826 /* ArgumentParser */,
+				0C8F6E8C2DDE06B500BF6826 /* generate-manual */,
+				0C8F6E8F2DDE06D000BF6826 /* SwiftASN1 */,
+				0C8F6E922DDE071E00BF6826 /* AsyncAlgorithms */,
 			);
 			productName = "Your-Garden-Eden-IOS";
 			productReference = 0CE04CC32DCF6EB600F9E972 /* Your-Garden-Eden-IOS.app */;
@@ -221,6 +253,11 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				0C91A54C2DCF7B5800C3EF2A /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				0C8F6E812DDE066B00BF6826 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+				0C8F6E862DDE069C00BF6826 /* XCRemoteSwiftPackageReference "swift-algorithms" */,
+				0C8F6E892DDE06B500BF6826 /* XCRemoteSwiftPackageReference "swift-argument-parser" */,
+				0C8F6E8E2DDE06D000BF6826 /* XCRemoteSwiftPackageReference "swift-asn1" */,
+				0C8F6E912DDE071E00BF6826 /* XCRemoteSwiftPackageReference "swift-async-algorithms" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 0CE04CC42DCF6EB600F9E972 /* Products */;
@@ -579,6 +616,46 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		0C8F6E812DDE066B00BF6826 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.0.0;
+			};
+		};
+		0C8F6E862DDE069C00BF6826 /* XCRemoteSwiftPackageReference "swift-algorithms" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-algorithms.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.2.1;
+			};
+		};
+		0C8F6E892DDE06B500BF6826 /* XCRemoteSwiftPackageReference "swift-argument-parser" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-argument-parser.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.5.0;
+			};
+		};
+		0C8F6E8E2DDE06D000BF6826 /* XCRemoteSwiftPackageReference "swift-asn1" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-asn1.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.3.2;
+			};
+		};
+		0C8F6E912DDE071E00BF6826 /* XCRemoteSwiftPackageReference "swift-async-algorithms" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-async-algorithms.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.4;
+			};
+		};
 		0C91A54C2DCF7B5800C3EF2A /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
@@ -590,6 +667,46 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		0C8F6E7F2DDE058700BF6826 /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0C91A54C2DCF7B5800C3EF2A /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+		0C8F6E822DDE066B00BF6826 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0C8F6E812DDE066B00BF6826 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		0C8F6E842DDE066B00BF6826 /* GoogleSignInSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0C8F6E812DDE066B00BF6826 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignInSwift;
+		};
+		0C8F6E872DDE069C00BF6826 /* Algorithms */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0C8F6E862DDE069C00BF6826 /* XCRemoteSwiftPackageReference "swift-algorithms" */;
+			productName = Algorithms;
+		};
+		0C8F6E8A2DDE06B500BF6826 /* ArgumentParser */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0C8F6E892DDE06B500BF6826 /* XCRemoteSwiftPackageReference "swift-argument-parser" */;
+			productName = ArgumentParser;
+		};
+		0C8F6E8C2DDE06B500BF6826 /* generate-manual */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0C8F6E892DDE06B500BF6826 /* XCRemoteSwiftPackageReference "swift-argument-parser" */;
+			productName = "generate-manual";
+		};
+		0C8F6E8F2DDE06D000BF6826 /* SwiftASN1 */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0C8F6E8E2DDE06D000BF6826 /* XCRemoteSwiftPackageReference "swift-asn1" */;
+			productName = SwiftASN1;
+		};
+		0C8F6E922DDE071E00BF6826 /* AsyncAlgorithms */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0C8F6E912DDE071E00BF6826 /* XCRemoteSwiftPackageReference "swift-async-algorithms" */;
+			productName = AsyncAlgorithms;
+		};
 		0C91A54D2DCF7B5800C3EF2A /* FirebaseAnalytics */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 0C91A54C2DCF7B5800C3EF2A /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
