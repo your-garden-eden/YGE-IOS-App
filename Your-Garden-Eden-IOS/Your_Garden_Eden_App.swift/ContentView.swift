@@ -1,10 +1,3 @@
-//
-//  ContentView.swift
-//  Your-Garden-Eden-IOS
-//
-//  Created by Josef Ewert on 10.05.25.
-//
-
 import SwiftUI
 
 struct ContentView: View {
