@@ -1,13 +1,7 @@
+// YGE-IOS-App/Core/Models/WooCommerce/CoreAPI/WooCommerceProductVariation.swift
 import Foundation
 
-struct WooCommerceProductVariationAttribute: Codable, Identifiable, Hashable, Equatable {
-    let id: Int
-    let name: String
-    let slug: String?
-    let option: String
-}
-
-struct WooCommerceProductVariation: Codable, Identifiable, Hashable, Equatable {
+struct WooCommerceProductVariation: Codable, Identifiable, Hashable {
     let id: Int
     let dateCreated: String
     let dateCreatedGmt: String
@@ -25,33 +19,38 @@ struct WooCommerceProductVariation: Codable, Identifiable, Hashable, Equatable {
     let dateOnSaleTo: String?
     let dateOnSaleToGmt: String?
     let onSale: Bool
-    let status: String
+    let status: String // z.B. "publish" - könnte auch ein Enum werden
     let purchasable: Bool
     let virtual: Bool
     let downloadable: Bool
-    let downloads: [WooCommerceProductDownload]?
-    let downloadLimit: Int?
-    let downloadExpiry: Int?
+    // downloads, downloadLimit, downloadExpiry bei Bedarf hinzufügen
     let taxStatus: String
     let taxClass: String?
     let manageStock: Bool
     let stockQuantity: Int?
-    let stockStatus: String
+    let stockStatus: StockStatus // Verwendet das Enum
     let backorders: String
     let backordersAllowed: Bool
     let backordered: Bool
     let lowStockAmount: Int?
     let weight: String?
-    let dimensions: WooCommerceProductDimension
+    let dimensions: WooCommerceProductDimension // Annahme: WooCommerceProductDimension ist definiert
     let shippingClass: String?
     let shippingClassId: Int
     let image: WooCommerceImage?
-    let attributes: [WooCommerceProductVariationAttribute]
+    let attributes: [VariationAttribute]
     let menuOrder: Int
-    let metaData: [WooCommerceMetaData]
+    let metaData: [WooCommerceMetaData] // Annahme: WooCommerceMetaData ist definiert
+
+    struct VariationAttribute: Codable, Hashable {
+        let id: Int
+        let name: String
+        let option: String
+        let slug: String? // Hinzugefügt, da es oft von der API kommt und nützlich ist
+    }
 
     enum CodingKeys: String, CodingKey {
-        case id, description, permalink, sku, price, status, purchasable, virtual, downloadable, downloads, attributes
+        case id, description, permalink, sku, price, virtual, downloadable, attributes
         case dateCreated = "date_created"
         case dateCreatedGmt = "date_created_gmt"
         case dateModified = "date_modified"
@@ -64,8 +63,7 @@ struct WooCommerceProductVariation: Codable, Identifiable, Hashable, Equatable {
         case dateOnSaleTo = "date_on_sale_to"
         case dateOnSaleToGmt = "date_on_sale_to_gmt"
         case onSale = "on_sale"
-        case downloadLimit = "download_limit"
-        case downloadExpiry = "download_expiry"
+        case status, purchasable
         case taxStatus = "tax_status"
         case taxClass = "tax_class"
         case manageStock = "manage_stock"
@@ -75,7 +73,7 @@ struct WooCommerceProductVariation: Codable, Identifiable, Hashable, Equatable {
         case backordersAllowed = "backorders_allowed"
         case backordered
         case lowStockAmount = "low_stock_amount"
-        case weight, dimensions
+        case weight, dimensions // dimensions braucht ein eigenes Struct
         case shippingClass = "shipping_class"
         case shippingClassId = "shipping_class_id"
         case image

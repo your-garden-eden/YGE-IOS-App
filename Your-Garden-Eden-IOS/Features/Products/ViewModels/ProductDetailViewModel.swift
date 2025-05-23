@@ -1,155 +1,193 @@
 // Your-Garden-Eden-IOS/Features/Products/ViewModels/ProductDetailViewModel.swift
+import SwiftUI
 
-import Foundation
-import Combine
-
+@MainActor
 class ProductDetailViewModel: ObservableObject {
     @Published var product: WooCommerceProduct?
+    @Published var variations: [WooCommerceProductVariation] = []
+    @Published var selectedAttributes: [String: String] = [:] // Key: Attribut-Slug (z.B. "pa_farbe"), Value: Options-Slug (z.B. "rot")
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
-    @Published var selectedQuantity: Int = 1
 
-    let productId: Int
-    private let wooAPIManager = WooCommerceAPIManager.shared
+    var productSlugForCurrentData: String? { product?.slug }
+    
+    private let initialProductSlug: String // Der Slug, mit dem das VM initialisiert wurde
+    private let initialProductData: WooCommerceProduct?
 
-    init(productId: Int, initialProductData: WooCommerceProduct? = nil) {
-        self.productId = productId
-        print("ProductDetailViewModel initialized for productId: \(productId)")
-
-        if let initialData = initialProductData {
+    init(productSlug: String, initialProductData: WooCommerceProduct? = nil) {
+        self.initialProductSlug = productSlug // Speichere den initialen Slug
+        self.initialProductData = initialProductData
+        
+        if let initialData = initialProductData, initialData.slug == productSlug {
             self.product = initialData
-            // Annahme: initialData.name ist nicht optional
-            print("Initial product data provided for \(initialData.name)")
-        } else {
-            loadProductDetails()
+        }
+        // Rufe fetchProductDetails immer auf, um sicherzustellen, dass die Daten aktuell sind
+        // und um Variationen zu laden, falls nötig.
+        fetchProductDetails()
+    }
+
+    func fetchProductDetails() {
+        // Verbesserte Logik, um unnötiges Neuladen zu vermeiden
+        if let p = product, p.slug == self.initialProductSlug {
+            // Produkt mit korrektem Slug ist bereits geladen.
+            // Prüfe, ob Variationen geladen werden müssen/sollten.
+            if p.type == .variable {
+                if variations.isEmpty && !p.variations.isEmpty {
+                    // Variationen fehlen, aber Produkt hat welche -> laden
+                } else {
+                    // Produkt und ggf. Variationen sind bereits geladen
+                     print("ProductDetailViewModel: Details für \(self.initialProductSlug) scheinen aktuell zu sein.")
+                    // Wenn initialProductData gesetzt war, aber isLoading noch true ist (z.B. von einem vorherigen abgebrochenen Ladevorgang),
+                    // dann isLoading zurücksetzen.
+                    if isLoading { isLoading = false }
+                    return
+                }
+            } else {
+                // Einfaches Produkt ist geladen
+                 print("ProductDetailViewModel: Details für \(self.initialProductSlug) scheinen aktuell zu sein.")
+                if isLoading { isLoading = false }
+                return
+            }
+        }
+
+        isLoading = true
+        errorMessage = nil
+        
+        Task {
+            do {
+                let fetchedProduct = try await WooCommerceAPIManager.shared.getProductBySlug(productSlug: self.initialProductSlug)
+                
+                guard let mainProduct = fetchedProduct else {
+                    self.errorMessage = "Produkt \"\(self.initialProductSlug)\" nicht gefunden."
+                    self.product = nil
+                    self.isLoading = false
+                    return
+                }
+                self.product = mainProduct
+                
+                if mainProduct.type == .variable && !mainProduct.variations.isEmpty {
+                    self.variations = try await WooCommerceAPIManager.shared.getProductVariations(productId: mainProduct.id)
+                } else {
+                    self.variations = []
+                }
+            } catch let error as WooCommerceAPIError { // Stelle sicher, dass WooCommerceAPIError hier bekannt ist
+                self.errorMessage = "Fehler beim Laden: \(error.localizedDescription)"
+                print("ProductDetailViewModel Error loading product \(self.initialProductSlug): \(error)")
+            } catch {
+                self.errorMessage = "Ein unbekannter Fehler ist aufgetreten: \(error.localizedDescription)"
+                print("ProductDetailViewModel Unknown Error loading product \(self.initialProductSlug): \(error)")
+            }
+            isLoading = false
         }
     }
 
-    func loadProductDetails() {
-        print("ProductDetailViewModel: loadProductDetails called for productId: \(productId)")
-        self.isLoading = true
-        self.errorMessage = nil
-        self.selectedQuantity = 1
+    @Published var isAddingToCart: Bool = false
+    @Published var addToCartError: String?
+    @Published var addToCartSuccessMessage: String?
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7, execute: { [weak self] in
-            guard let strongSelf = self else { return }
+    var selectedVariation: WooCommerceProductVariation? {
+        guard let p = product, p.type == .variable, !variations.isEmpty else { return nil }
+        // Stelle sicher, dass für jedes variierende Attribut eine Option ausgewählt wurde.
+        let varyingAttributes = p.attributes.filter { $0.variation }
+        guard !varyingAttributes.isEmpty else { return p.variations.isEmpty ? nil : variations.first } // Falls keine variierenden Attribute definiert, aber Variationen da sind? (Sonderfall)
 
-            strongSelf.isLoading = false
+        let allRequiredAttributesSelected = varyingAttributes.allSatisfy { attrDef in
+            let attrSlug = attrDef.slug ?? attrDef.name.lowercased().replacingOccurrences(of: " ", with: "-")
+            return selectedAttributes[attrSlug] != nil && !selectedAttributes[attrSlug]!.isEmpty
+        }
+        guard allRequiredAttributesSelected else { return nil }
 
-            // Stelle sicher, dass WooCommerceImage einen passenden init hat
-            let placeholderImage1 = WooCommerceImage(id: 2001, src: "https://via.placeholder.com/600x400/00AA00/FFFFFF?Text=Detail+1+ID+\(strongSelf.productId)", name: "Detailbild 1", alt: "Detailbild 1")
-            let placeholderImage2 = WooCommerceImage(id: 2002, src: "https://via.placeholder.com/600x400/00BB00/FFFFFF?Text=Detail+2+ID+\(strongSelf.productId)", name: "Detailbild 2", alt: "Detailbild 2")
-            
-            // Aufruf passt zur WooCommerceAttribute-Definition OHNE Datumsfelder
-            let attributeColor = WooCommerceAttribute( // ZEILE ~37
-                id: 1,
-                name: "Farbe",
-                slug: "pa_farbe",
-                position: 0,
-                visible: true,
-                variation: true,
-                options: ["Rot", "Grün", "Blau"]
-            )
-            let attributeSize = WooCommerceAttribute(
-                id: 2,
-                name: "Größe",
-                slug: "pa_groesse",
-                position: 1,
-                visible: true,
-                variation: true,
-                options: ["S", "M", "L"]
-            )
+        return variations.first { variation in
+            variation.attributes.allSatisfy { varAttr in // varAttr ist WooCommerceProductVariation.VariationAttribute
+                let attributeDefinition = p.attributes.first(where: { $0.id == varAttr.id || $0.name == varAttr.name })
+                let attributeSlugForSelection = attributeDefinition?.slug ?? attributeDefinition?.name.lowercased().replacingOccurrences(of: " ", with: "-") ?? ""
+                let selectedOptionSlug = selectedAttributes[attributeSlugForSelection]
+                
+                // Der Slug der Variation's Option
+                let variationOptionSlug = varAttr.slug ?? varAttr.option.lowercased().replacingOccurrences(of: " ", with: "-")
+                
+                return selectedOptionSlug == variationOptionSlug
+            }
+        }
+    }
+    
+    var canPurchase: Bool {
+        let currentProduct = self.product
+        let currentStockStatus: StockStatus?
+        let isPurchasable: Bool?
+        let areBackordersAllowed: Bool?
 
-            // Erstellung des simulierten Produkts
-            // Placeholder für komplexe Typen entfernt oder minimal initialisiert
-            let simulatedProduct = WooCommerceProduct(
-                id: strongSelf.productId,
-                name: "Detailliertes Sim-Produkt \(strongSelf.productId)",
-                slug: "detail-sim-produkt-\(strongSelf.productId)",
-                permalink: "http://example.com/product/detail-sim-produkt-\(strongSelf.productId)",
-                dateCreated: "2023-01-15T10:00:00",
-                dateCreatedGmt: "2023-01-15T10:00:00Z",
-                dateModified: "2023-01-16T11:00:00",
-                dateModifiedGmt: "2023-01-16T11:00:00Z",
-                type: "variable",
-                status: "publish",
-                featured: false,
-                catalogVisibility: "visible",
-                description: "Dies ist eine <strong>längere und detailliertere</strong> HTML-Beschreibung...",
-                shortDescription: "Fantastisches Detail-Produkt...",
-                sku: "DET-SIM-\(strongSelf.productId)",
-                price: "29.99",
-                regularPrice: "35.00",
-                salePrice: "29.99",
-                priceHtml: "<del>35.00€</del> <ins>29.99€</ins>",
-                dateOnSaleFrom: nil,
-                dateOnSaleFromGmt: nil,
-                dateOnSaleTo: nil,
-                dateOnSaleToGmt: nil,
-                onSale: true,
-                purchasable: true,
-                totalSales: 120,
-                virtual: false,
-                downloadable: false,
-                downloads: [], // Leeres Array (wenn WooCommerceProductDownload optional ist, sonst initialisieren)
-                downloadLimit: nil,
-                downloadExpiry: nil,
-                externalUrl: nil,
-                buttonText: nil,
-                taxStatus: "taxable",
-                taxClass: nil,
-                manageStock: true,
-                stockQuantity: 15,
-                stockStatus: "instock",
-                backorders: "no",
-                backordersAllowed: false,
-                backordered: false,
-                lowStockAmount: nil,
-                soldIndividually: false,
-                weight: "0.5 kg",
-                // dimensions ist NICHT optional in deinem WooCommerceProduct-Modell
-                // Stelle sicher, dass WooCommerceProductDimension einen passenden init hat
-                dimensions: WooCommerceProductDimension(length: "10", width: "5", height: "2"),
-                shippingRequired: true,
-                shippingTaxable: true,
-                shippingClass: nil,
-                shippingClassId: 0,
-                reviewsAllowed: true,
-                averageRating: "4.5",
-                ratingCount: 75,
-                relatedIds: [],
-                upsellIds: [],
-                crossSellIds: [],
-                parentId: 0,
-                purchaseNote: "Vielen Dank für Ihren Einkauf!",
-                // categories ist NICHT optional
-                // Stelle sicher, dass WooCommerceCategoryRef einen passenden init hat
-                categories: [WooCommerceCategoryRef(id: 1, name: "Simulierte Kategorie", slug: "sim-kat")],
-                tags: [],
-                // images ist NICHT optional
-                images: [placeholderImage1, placeholderImage2],
-                // attributes ist NICHT optional
-                attributes: [attributeColor, attributeSize],
-                // defaultAttributes ist NICHT optional
-                // Stelle sicher, dass WooCommerceDefaultAttribute einen passenden init hat
-                defaultAttributes: [], // Oder z.B. [WooCommerceDefaultAttribute(id: 0, name: "Farbe", option: "Rot")]
-                variations: [],
-                groupedProducts: nil,
-                menuOrder: 0,
-                // metaData ist NICHT optional
-                // Stelle sicher, dass WooCommerceMetaData einen passenden init hat
-                metaData: [] // Oder z.B. [WooCommerceMetaData(id:1, key: "_test", value: "testWert")]
-            )
-            strongSelf.product = simulatedProduct
-        })
+        if currentProduct?.type == .variable {
+            guard let variation = selectedVariation else { return false } // Ohne gewählte, passende Variation nicht kaufbar
+            isPurchasable = variation.purchasable
+            currentStockStatus = variation.stockStatus
+            areBackordersAllowed = variation.backordersAllowed
+        } else if let p = currentProduct {
+            isPurchasable = p.purchasable
+            currentStockStatus = p.stockStatus
+            areBackordersAllowed = p.backordersAllowed
+        } else {
+            return false // Kein Produkt geladen
+        }
+        
+        guard let purchasable = isPurchasable, purchasable else { return false }
+        guard let stock = currentStockStatus else { return false } // Sollte nicht passieren
+
+        if stock == .outofstock {
+            return areBackordersAllowed == true
+        }
+        return true // .instock oder .onbackorder (onbackorder ist per Definition kaufbar)
     }
 
     func addToCart() {
-        guard let product = product else {
-            errorMessage = "Kein Produkt zum Hinzufügen ausgewählt."
-            return
+        guard let mainProduct = product else {
+            addToCartError = "Produkt nicht geladen."; return
         }
-        // Annahme: product.name ist nicht optional
-        print("ProductDetailViewModel: Produkt '\(product.name)' (ID: \(self.productId)) mit Menge \(selectedQuantity) zum Warenkorb hinzugefügt (SIMULIERT).")
+        
+        let productIdToAdd: Int
+        var variationIdToAdd: Int? = nil
+        
+        if mainProduct.type == .variable {
+            guard let variation = selectedVariation else {
+                addToCartError = "Bitte wählen Sie alle Produktoptionen aus."; return
+            }
+            guard variation.purchasable && (variation.stockStatus != .outofstock || variation.backordersAllowed) else {
+                 addToCartError = "Ausgewählte Variante ist nicht verfügbar."; return
+            }
+            productIdToAdd = mainProduct.id // Hauptprodukt-ID für den API Call bei Variationen
+            variationIdToAdd = variation.id
+        } else {
+            guard mainProduct.purchasable && (mainProduct.stockStatus != .outofstock || mainProduct.backordersAllowed) else {
+                 addToCartError = "Produkt ist nicht verfügbar."; return
+            }
+            productIdToAdd = mainProduct.id
+        }
+
+        isAddingToCart = true
+        addToCartError = nil
+        addToCartSuccessMessage = nil
+
+        Task {
+            do {
+                try await CartAPIManager.shared.addItem(
+                    productId: productIdToAdd,
+                    quantity: 1, // TODO: Mengenauswahl aus der UI hier verwenden
+                    variationId: variationIdToAdd
+                )
+                addToCartSuccessMessage = "\(mainProduct.name) wurde zum Warenkorb hinzugefügt."
+            } catch {
+                addToCartError = "Fehler beim Hinzufügen: \(error.localizedDescription)"
+            }
+            isAddingToCart = false
+        }
+    }
+    
+    func selectAttribute(attributeDefinitionSlug: String, optionValueSlug: String) {
+        selectedAttributes[attributeDefinitionSlug] = optionValueSlug
+        // objectWillChange.send() // Oft nicht mehr nötig mit @Published für selectedAttributes,
+                               // aber wenn selectedVariation davon abhängt, kann es helfen.
+        // Wichtig: Reset cart messages, da die Auswahl die Kaufbarkeit ändern kann
+        addToCartError = nil
+        addToCartSuccessMessage = nil
     }
 }

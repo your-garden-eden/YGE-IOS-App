@@ -1,60 +1,99 @@
+// YGE-IOS-App/Features/Products/ProductListView.swift
 import SwiftUI
 
 struct ProductListView: View {
-    @StateObject private var viewModel: ProductListViewModel
-    private var gridItemLayout = [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)]
+    let categoryId: Int
+    let categoryName: String
 
-    init(categoryId: Int, categoryName: String) {
-        _viewModel = StateObject(wrappedValue: ProductListViewModel(categoryId: categoryId, categoryName: categoryName))
-    }
+    @StateObject private var viewModel = ProductListViewModel()
 
     var body: some View {
         VStack {
             if viewModel.isLoading {
                 ProgressView("Lade Produkte...")
             } else if let errorMessage = viewModel.errorMessage {
-                 VStack { Text("Fehler: \(errorMessage)"); Button("Erneut") { viewModel.loadProducts() } }
-            } else if $viewModel.products.isEmpty {
-                Text("Keine Produkte in dieser Kategorie gefunden. Ladefunktion ist ggf. deaktiviert.")
-                    .foregroundColor(.secondary)
+                Text("Fehler: \(errorMessage)").foregroundColor(.red).padding()
+                Button("Erneut versuchen") {
+                    // Sicherstellen, dass currentCategoryId im ViewModel korrekt gesetzt ist
+                    viewModel.fetchProducts(categoryId: categoryId, initialLoad: true)
+                }
+            } else if viewModel.products.isEmpty {
+                Text("Keine Produkte in dieser Kategorie gefunden.")
                     .padding()
-                    .multilineTextAlignment(.center)
             } else {
-                ScrollView {
-                    LazyVGrid(columns: gridItemLayout, spacing: 20) {
-                        ForEach(viewModel.products) { product in
-                            NavigationLink(value: product) {
-                                ProductCardView(product: product)
-                            }
-                            .buttonStyle(PlainButtonStyle())
+                List {
+                    ForEach(viewModel.products) { product in
+                        // ProductRow verwendet jetzt NavigationLink(value:), wenn Product Hashable ist
+                        NavigationLink(value: product) { // Navigiert mit dem Product-Objekt
+                             ProductRowView(product: product) // Umbenannt zu ProductRowView zur Klarheit
+                        }
+                        .onAppear {
+                            viewModel.loadMoreContentIfNeeded(currentItem: product)
                         }
                     }
-                    .padding()
+                    if viewModel.isLoadingMore {
+                        HStack {
+                            Spacer()
+                            ProgressView()
+                            Spacer()
+                        }
+                        .padding(.vertical)
+                    }
                 }
             }
         }
-        .navigationTitle(viewModel.categoryName)
-        .onAppear {
-            if $viewModel.products.isEmpty && !viewModel.isLoading { // Nur laden, wenn leer und nicht schon lädt
-                viewModel.loadProducts()
-            }
-        }
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button { viewModel.loadProducts() } label: { Image(systemName: "arrow.clockwise") }
-            }
-        }
+        .navigationTitle(categoryName)
         .navigationDestination(for: WooCommerceProduct.self) { product in
-            Text("Detailansicht für \(product.name) (Platzhalter)") // Später: ProductDetailView(product: product)
+             // Ziel für die Produkt-Navigation
+             ProductDetailView(productSlug: product.slug)
+        }
+        .onAppear {
+            // Nur laden, wenn Kategorie-ID neu oder Produkte leer und nicht schon geladen wird
+            if viewModel.currentCategoryId != categoryId || (viewModel.products.isEmpty && !viewModel.isLoading && !viewModel.isLoadingMore) {
+                viewModel.fetchProducts(categoryId: categoryId, initialLoad: true)
+            }
         }
     }
 }
 
-struct ProductListView_Previews: PreviewProvider {
-   static var previews: some View {
-       NavigationStack {
-           ProductListView(categoryId: WooCommerceCategory.placeholder.id, // Nutze Placeholder-Daten
-                           categoryName: WooCommerceCategory.placeholder.name)
-       }
-   }
+// Umbenannt zu ProductRowView, um Konflikte mit einer möglichen ProductRow-Datei zu vermeiden
+// und um klarzustellen, dass dies die Ansicht für eine Zeile ist.
+struct ProductRowView: View {
+    let product: WooCommerceProduct
+
+    var body: some View {
+        // Das NavigationLink wurde in die ProductListView verschoben
+        HStack {
+            // AsyncImage für Produktbild
+            if let firstImage = product.images.first, let imageUrl = URL(string: firstImage.src) {
+                AsyncImage(url: imageUrl) { phase in
+                    if let image = phase.image {
+                        image.resizable().aspectRatio(contentMode: .fit)
+                    } else if phase.error != nil {
+                        Image(systemName: "photo") // Platzhalter bei Fehler
+                            .resizable().aspectRatio(contentMode: .fit).opacity(0.3)
+                    } else {
+                        ProgressView()
+                    }
+                }
+                .frame(width: 70, height: 70)
+                .background(Color.gray.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else {
+                RoundedRectangle(cornerRadius: 8).fill(Color.gray.opacity(0.1)).frame(width: 70, height: 70)
+                    .overlay(Image(systemName: "photo").font(.title).opacity(0.3))
+            }
+
+            VStack(alignment: .leading) {
+                Text(product.name)
+                    .font(.headline)
+                    .lineLimit(2)
+                Text("Preis: \(product.price) \(product.metaData.first(where: {$0.key == "_currency_symbol"})?.value as? String ?? "€")")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+            Spacer() // Sorgt dafür, dass der Inhalt nach links gedrückt wird
+        }
+        .padding(.vertical, 4) // Etwas Abstand für die Zeilen
+    }
 }

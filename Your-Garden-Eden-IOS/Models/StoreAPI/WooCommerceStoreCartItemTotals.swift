@@ -1,29 +1,30 @@
-// YGE-IOS-App/Core/Models/WooCommerce/StoreAPI/WooCommerceStoreCartTotals.swift
+// YGE-IOS-App/Core/Models/WooCommerce/StoreAPI/WooCommerceStoreCartItemTotals.swift
 import Foundation
 
-struct WooCommerceStoreCartTotals: Codable, Hashable {
-    let totalItems: String
-    let totalItemsTax: String
-    let totalPrice: String
-    let totalTax: String
-    let totalShipping: String?
-    let totalShippingTax: String?
-    let totalDiscount: String?
-    let totalDiscountTax: String?
+struct WooCommerceStoreCartItemTotals: Codable, Hashable {
+    let lineSubtotal: String
+    let lineSubtotalTax: String
+    let lineTotal: String
+    let lineTotalTax: String
     let currencyCode: String
     let currencySymbol: String
-    // currency_minor_unit, etc. falls auf dieser Ebene auch benötigt, sonst aus Item-Totals ableiten
+    let currencyMinorUnit: Int
+    let currencyDecimalSeparator: String
+    let currencyThousandSeparator: String
+    let currencyPrefix: String
+    let currencySuffix: String
 
     enum CodingKeys: String, CodingKey {
-        case totalItems = "total_items"
-        case totalItemsTax = "total_items_tax"
-        case totalPrice = "total_price"
-        case totalTax = "total_tax"
-        case totalShipping = "total_shipping"
-        case totalShippingTax = "total_shipping_tax"
-        case totalDiscount = "total_discount"
-        case totalDiscountTax = "total_discount_tax"
+        case lineSubtotal = "line_subtotal"
+        case lineSubtotalTax = "line_subtotal_tax"
+        case lineTotal = "line_total"
+        case lineTotalTax = "line_total_tax"
         case currencyCode = "currency_code"
         case currencySymbol = "currency_symbol"
+        case currencyMinorUnit = "currency_minor_unit"
+        case currencyDecimalSeparator = "currency_decimal_separator"
+        case currencyThousandSeparator = "currency_thousand_separator"
+        case currencyPrefix = "currency_prefix"
+        case currencySuffix = "currency_suffix"
     }
 }

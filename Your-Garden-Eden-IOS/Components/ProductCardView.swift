@@ -1,7 +1,8 @@
+// YGE-IOS-App/Features/Products/Views/ProductCardView.swift (oder wo du sie ablegst)
 import SwiftUI
 
 struct ProductCardView: View {
-    var product: WooCommerceProduct // Diese Zeile stellt sicher, dass die View ein Produkt erwartet
+    var product: WooCommerceProduct // Erwartet die existierende WooCommerceProduct-Struktur
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -10,54 +11,70 @@ struct ProductCardView: View {
                 AsyncImage(url: imageUrl) { phase in
                     switch phase {
                     case .empty:
-                        ProgressView()
-                            .frame(height: 150) // Gib dem ProgressView eine definierte Höhe
+                        ZStack { // ZStack für Hintergrundfarbe während des Ladens
+                            Color(UIColor.systemGray5) // Heller Platzhalter-Hintergrund
+                            ProgressView()
+                        }
+                        .frame(height: 150)
                     case .success(let image):
                         image.resizable()
-                             .aspectRatio(contentMode: .fit) // .fit, damit das ganze Bild sichtbar ist
+                             .aspectRatio(contentMode: .fit) // .fit ist oft besser für Produktbilder
                     case .failure:
-                        Image(systemName: "photo.on.rectangle.angled")
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .foregroundColor(.gray)
+                        ZStack { // ZStack für Hintergrundfarbe bei Fehler
+                            Color(UIColor.systemGray5)
+                            Image(systemName: "photo.on.rectangle.angled")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .foregroundColor(.gray)
+                                .padding(30) // Etwas Padding für das Icon
+                        }
                     @unknown default:
                         EmptyView()
                     }
                 }
-                .frame(height: 150) // Definiere eine feste Höhe für den Bildbereich
-                .clipped() // Verhindert, dass das Bild über den Rahmen hinausgeht
+                .frame(height: 150)
+                .clipped()
             } else {
-                Image(systemName: "photo.on.rectangle.angled") // Platzhalter, wenn kein Bild vorhanden
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .foregroundColor(.gray)
-                    .frame(height: 150)
+                ZStack { // ZStack für Hintergrundfarbe bei fehlendem Bild
+                    Color(UIColor.systemGray5)
+                    Image(systemName: "photo.on.rectangle.angled")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .foregroundColor(.gray)
+                        .padding(30) // Etwas Padding für das Icon
+                }
+                .frame(height: 150)
             }
             
             // Produktname
             Text(product.name)
                 .font(.headline)
-                .lineLimit(2) // Begrenzt den Namen auf maximal 2 Zeilen
-                .padding(.top, 4) // Kleiner Abstand nach oben
+                .lineLimit(2)
+                .padding(.top, 8) // Etwas mehr Abstand
+                .padding(.horizontal, 4)
 
             // Preis
-            Text("€\(product.price)") // Du könntest hier auch product.priceHtml verwenden, falls es formatiert ist
+            // Extrahiere Währungssymbol sicherer, falls MetaData nicht vorhanden oder anders formatiert
+            let currencySymbol = product.metaData.first(where: { $0.key == "_currency_symbol" })?.value as? String ?? "€"
+            Text("\(currencySymbol)\(product.price)")
                 .font(.subheadline)
-                .foregroundColor(.secondary)
-                .padding(.bottom, 4) // Kleiner Abstand nach unten
+                .fontWeight(.semibold) // Preis etwas hervorheben
+                .foregroundColor(.primary) // Oder deine Akzentfarbe
+                .padding(.horizontal, 4)
+            
+            Spacer() // Drückt den Inhalt nach oben, falls die Karte mehr Platz hat
         }
-        .padding(8) // Innenabstand für den gesamten Inhalt der Karte
-        .background(Color(UIColor.systemGray6)) // Heller Hintergrund für die Karte
-        .cornerRadius(10) // Abgerundete Ecken
-        .shadow(radius: 2, x: 0, y: 1) // Subtiler Schatten für Tiefe (optional)
+        .padding(12) // Konsistenter Innenabstand
+        .background(Color(UIColor.systemBackground)) // Systemhintergrund für Light/Dark Mode
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.05), radius: 3, x: 0, y: 2) // Subtilerer Schatten
     }
 }
 
-struct ProductCardView_Previews: PreviewProvider {
-    static var previews: some View {
-        // Stellt sicher, dass WooCommerceProduct.placeholder in deinem WooCommerceProduct.swift definiert ist
-        ProductCardView(product: .placeholder)
-            .previewLayout(.fixed(width: 200, height: 280)) // Beispielhafte Größe für eine Produktkarte in der Preview
-            .padding() // Etwas Abstand um die Karte in der Preview
-    }
-}
+// ---- HIER IST DIE WICHTIGE ÄNDERUNG ----
+// Der Placeholder wird als Extension zur existierenden WooCommerceProduct-Struktur hinzugefügt.
+// Diese Extension kann in derselben Datei wie ProductCardView sein,
+// oder in WooCommerceProduct.swift, oder in einer eigenen Datei WooCommerceProduct+Placeholders.swift.
+
+
+

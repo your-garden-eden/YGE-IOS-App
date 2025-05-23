@@ -1,28 +1,30 @@
-import Foundation
-
-struct WooCommerceCategory: Codable, Identifiable, Hashable, Equatable {
+struct WooCommerceCategory: Codable, Identifiable, Hashable {
     let id: Int
     let name: String
     let slug: String
     let parent: Int
     let description: String
-    let display: String
-    let image: WooCommerceImage?
-    let menuOrder: Int
-    let count: Int
+    let display: String // Oder ein spezifischerer Enum, z.B. DisplayType: String, Codable, Hashable
+    let image: WooCommerceImage? // WooCommerceImage muss nicht Hashable sein, wenn manuell implementiert
+    let menuOrder: Int         // Korrigierter Name (camelCase)
+    let count: Int             // Korrigierter Typ (Int)
 
     enum CodingKeys: String, CodingKey {
         case id, name, slug, parent, description, display, image, count
         case menuOrder = "menu_order"
     }
 
-    // Statische Placeholder-Instanz für Previews
-    static var placeholder: WooCommerceCategory {
-        WooCommerceCategory(
-            id: 1, name: "Beispiel Kategorie", slug: "beispiel-kategorie", parent: 0,
-            description: "Dies ist eine Beispielkategorie.", display: "products",
-            image: WooCommerceImage.placeholder, // Nutzt den Placeholder von WooCommerceImage
-            menuOrder: 1, count: 5
-        )
+    // Manuelle Hashable Implementierung (nur id berücksichtigen)
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+
+    // Manuelle Equatable Implementierung (Teil von Hashable)
+    static func == (lhs: WooCommerceCategory, rhs: WooCommerceCategory) -> Bool {
+        return lhs.id == rhs.id
     }
 }
+
+// Und deine WooCommerceImage müsste dann nicht zwingend Hashable sein,
+// aber wenn sie es ist, ist die automatische Synthese für WooCommerceCategory einfacher.
+// struct WooCommerceImage: Codable, Identifiable /*, Hashable */ { ... }

@@ -4,8 +4,8 @@ import Foundation
 struct WooCommerceStoreProductPriceInfo: Codable, Hashable {
     let price: String
     let regularPrice: String
-    let salePrice: String
-    let priceRange: PriceRange? // Nested struct für price_range
+    let salePrice: String? // salePrice kann null sein, wenn das Produkt nicht im Angebot ist.
+    let priceRange: PriceRange?
     let currencyCode: String
 
     struct PriceRange: Codable, Hashable {

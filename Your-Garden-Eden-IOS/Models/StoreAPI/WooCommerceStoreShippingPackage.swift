@@ -1,11 +1,3 @@
-//
-//  WooCommerceStoreShippingPackage.swift
-//  Your-Garden-Eden-IOS
-//
-//  Created by Josef Ewert on 22.05.25.
-//
-
-
 // YGE-IOS-App/Core/Models/WooCommerce/StoreAPI/WooCommerceStoreShippingPackage.swift
 import Foundation
 
@@ -14,12 +6,11 @@ struct WooCommerceStoreShippingPackage: Codable, Hashable, Identifiable {
     let name: String
     let destination: WooCommerceStoreAddress
     let items: [ShippingPackageItem]
-    var shippingRates: [WooCommerceStoreShippingRate] // var, da 'selected' sich ändern kann
+    var shippingRates: [WooCommerceStoreShippingRate] // var, da 'selected' in Rate sich ändern kann
 
-    // Um Identifiable zu erfüllen
-    var id: String { packageId }
+    var id: String { packageId } // Für Identifiable
 
-    struct ShippingPackageItem: Codable, Hashable {
+    struct ShippingPackageItem: Codable, Hashable { // Innere Struktur
         let key: String
         let name: String
         let quantity: Int

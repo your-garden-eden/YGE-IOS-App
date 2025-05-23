@@ -3,8 +3,8 @@ import Foundation
 
 struct WooCommerceStoreCartCoupon: Codable, Hashable {
     let code: String
-    let discountType: String // z.B. "percent", "fixed_cart"
-    let totals: WooCommerceStoreCartTotals // Zeigt, wie sich der Coupon auf die Summen auswirkt
+    let discountType: String
+    let totals: WooCommerceStoreCartTotals // Verweist auf die korrigierte Struktur für Gesamtsummen
 
     enum CodingKeys: String, CodingKey {
         case code

@@ -1,4 +1,4 @@
-// Models/StoreAPI/WooCommerceStoreCartTotals.swift
+// YGE-IOS-App/Core/Models/WooCommerce/StoreAPI/WooCommerceStoreCartTotals.swift
 import Foundation
 
 struct WooCommerceStoreCartTotals: Codable, Hashable {
@@ -6,13 +6,14 @@ struct WooCommerceStoreCartTotals: Codable, Hashable {
     let totalItemsTax: String
     let totalPrice: String
     let totalTax: String
-    let totalShipping: String?
-    let totalShippingTax: String?
-    let totalDiscount: String?
-    let totalDiscountTax: String?
+    let totalShipping: String?        // Optional, falls nicht immer von der API geliefert
+    let totalShippingTax: String?     // Optional
+    let totalDiscount: String?        // Optional
+    let totalDiscountTax: String?     // Optional
     let currencyCode: String
     let currencySymbol: String
-    // currency_minor_unit, etc. sind hier nicht direkt, sondern in den ItemTotals
+    // Optional: Füge hier weitere Felder hinzu, wenn die API sie liefert,
+    // z.B. currency_minor_unit, currency_decimal_separator etc.
 
     enum CodingKeys: String, CodingKey {
         case totalItems = "total_items"
