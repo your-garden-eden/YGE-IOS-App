@@ -1,161 +1,210 @@
+// Your-Garden-Eden-IOS/Core/Managers/FirebaseAuthManager.swift
+
 import Foundation
 import FirebaseAuth
-// Importiere GoogleSignIn später, wenn du es implementierst
-// import GoogleSignIn
+import Combine // Für UUID und @Published
 
 class FirebaseAuthManager: ObservableObject {
-    @Published var user: FirebaseAuth.User?
-    @Published var errorMessage: String?
+    // MARK: - Published Properties
+    @Published var user: UserModel?
+    
+    @Published var authError: Error? {
+        didSet {
+            // Diese Logik stellt sicher, dass errorID aktualisiert wird,
+            // wenn authError sich ändert (ein neuer Fehler auftritt ODER ein Fehler gelöscht wird).
+            if authError != nil { // Ein neuer Fehler ist aufgetreten
+                errorID = UUID()
+            } else if oldValue != nil && authError == nil { // Ein alter Fehler wurde explizit gelöscht
+                errorID = UUID()
+            }
+            // Wenn authError und oldValue beide nil sind, keine Änderung an errorID nötig.
+        }
+    }
+    @Published private(set) var errorID: UUID = UUID() // Trigger für .onChange in der View
+    
     @Published var isLoading: Bool = false
 
+    // MARK: - Private Properties
     private var authStateHandler: AuthStateDidChangeListenerHandle?
+    private let firebaseProxyService: FirebaseProxyService
 
-    init() {
-        self.authStateHandler = Auth.auth().addStateDidChangeListener { [weak self] (_, user) in
+    // MARK: - Initializer
+    init(firebaseProxyService: FirebaseProxyService = .shared) {
+        self.firebaseProxyService = firebaseProxyService
+        registerAuthStateHandler()
+        print("FirebaseAuthManager initialized. Auth state listener registered.")
+    }
+
+    // MARK: - Deinitializer
+    deinit {
+        if let handle = authStateHandler {
+            Auth.auth().removeStateDidChangeListener(handle)
+            print("FirebaseAuthManager deinitialized. Auth state listener removed.")
+        }
+    }
+
+    // MARK: - Authentication State Handling
+    private func registerAuthStateHandler() {
+        authStateHandler = Auth.auth().addStateDidChangeListener { [weak self] (auth, firebaseAuthUser) in
+            guard let self = self else { return }
+            
             DispatchQueue.main.async {
-                self?.user = user
+                if let fbUser = firebaseAuthUser {
+                    // Nur neu setzen oder aktualisieren, wenn sich die UID ändert oder user vorher nil war
+                    if self.user?.id != fbUser.uid || self.user == nil {
+                        self.user = UserModel(firebaseUser: fbUser)
+                        print("FirebaseAuthManager: User state changed. Mapped to UserModel. UID: \(fbUser.uid)")
+                    }
+                } else {
+                    if self.user != nil { // Nur ändern, wenn vorher ein User da war
+                        self.user = nil
+                        print("FirebaseAuthManager: User is signed out.")
+                    }
+                }
             }
         }
     }
 
-    deinit {
-        if let authStateHandler = authStateHandler {
-            Auth.auth().removeStateDidChangeListener(authStateHandler)
-        }
-    }
-
+    // MARK: - Public Authentication Methods
     func signInWithEmail(email: String, password: String) {
         DispatchQueue.main.async {
             self.isLoading = true
-            self.errorMessage = nil
+            self.authError = nil // Fehler zurücksetzen -> löst errorID Update aus
         }
-        
+
         Auth.auth().signIn(withEmail: email, password: password) { [weak self] authResult, error in
+            guard let self = self else { return }
+            
             DispatchQueue.main.async {
-                self?.isLoading = false
+                self.isLoading = false
                 if let error = error {
-                    self?.errorMessage = error.localizedDescription
+                    self.authError = error // Fehler setzen -> löst errorID Update aus
+                    print("Error signing in: \(error.localizedDescription)")
                     return
+                }
+                
+                if authResult?.user != nil {
+                    // self.user wird durch den authStateHandler aktualisiert.
+                    // authError bleibt nil (wurde oben schon gesetzt)
+                    print("User signed in successfully: \(authResult?.user.uid ?? "N/A")")
+                } else {
+                    self.authError = NSError(
+                        domain: "FirebaseAuthManager.signIn",
+                        code: -2,
+                        userInfo: [NSLocalizedDescriptionKey: "Sign in failed: User data not available after operation."]
+                    )
+                    print("Sign in attempt completed, but user data not found.")
                 }
             }
         }
     }
 
-    func signUpWithEmail(email: String, password: String, additionalData: [String: Any]? = nil) {
+    func signUpWithEmail(email: String, password: String, firstName: String, lastName: String) {
         DispatchQueue.main.async {
             self.isLoading = true
-            self.errorMessage = nil
+            self.authError = nil // Fehler zurücksetzen -> löst errorID Update aus
         }
-        
+
         Auth.auth().createUser(withEmail: email, password: password) { [weak self] authResult, error in
-            DispatchQueue.main.async {
-                if let error = error {
-                    self?.isLoading = false
-                    self?.errorMessage = error.localizedDescription
-                    return
+            guard let self = self else { return }
+
+            if let error = error {
+                DispatchQueue.main.async {
+                    self.isLoading = false
+                    self.authError = error // Fehler setzen -> löst errorID Update aus
+                    print("Error signing up: \(error.localizedDescription)")
                 }
-                
-                guard let firebaseUser = authResult?.user else {
-                    self?.isLoading = false
-                    self?.errorMessage = "Firebase Nutzer konnte nicht erstellt werden."
-                    return
-                }
-                
-                self?.linkUserToWooCommerce(firebaseUser: firebaseUser, additionalData: additionalData)
+                return
             }
+
+            guard let firebaseUser = authResult?.user else {
+                DispatchQueue.main.async {
+                    self.isLoading = false
+                    self.authError = NSError(
+                        domain: "FirebaseAuthManager.signUp",
+                        code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "Sign up failed: User not found after creation."]
+                    )
+                    print("User not found after sign up.")
+                }
+                return
+            }
+            
+            // self.user wird durch den authStateHandler aktualisiert.
+            // Wir müssen es aber noch mit firstName und lastName anreichern.
+            DispatchQueue.main.async {
+                 if self.user != nil {
+                    self.user?.firstName = firstName
+                    self.user?.lastName = lastName
+                } else {
+                    // Fallback, falls der Listener noch nicht durchgelaufen ist
+                    self.user = UserModel(firebaseUser: firebaseUser)
+                    self.user?.firstName = firstName
+                    self.user?.lastName = lastName
+                }
+                print("UserModel updated/created with firstName and lastName.")
+            }
+           
+            print("User \(firebaseUser.uid) signed up successfully in Firebase.")
+            // isLoading bleibt true bis linkUserToWooCommerce fertig ist
+            self.linkUserToWooCommerce(firebaseUser: firebaseUser, firstName: firstName, lastName: lastName)
         }
     }
-    
-    // func signInWithGoogle(presentingViewController: UIViewController) { ... }
 
     func signOut() {
         DispatchQueue.main.async {
-            self.isLoading = true
-            self.errorMessage = nil
+            self.isLoading = true // Optional
+            self.authError = nil // Fehler zurücksetzen
         }
+        
         do {
             try Auth.auth().signOut()
+            // self.user wird durch den authStateHandler auf nil gesetzt.
+            print("User signed out successfully from Firebase.")
             DispatchQueue.main.async {
                 self.isLoading = false
             }
         } catch let signOutError as NSError {
+            print("Error signing out from Firebase: %@", signOutError.localizedDescription)
             DispatchQueue.main.async {
                 self.isLoading = false
-                self.errorMessage = "Error signing out: \(signOutError.localizedDescription)"
+                self.authError = signOutError // Fehler setzen
             }
         }
     }
 
-    private func linkUserToWooCommerce(firebaseUser: FirebaseAuth.User, additionalData: [String: Any]?) {
-        // isLoading ist bereits true vom signUpWithEmail Aufruf
-        
-        guard let email = firebaseUser.email else {
-            DispatchQueue.main.async {
-                self.isLoading = false
-                self.errorMessage = "Firebase Nutzerdaten unvollständig für WooCommerce Verknüpfung (E-Mail fehlt)."
-            }
-            // Hier könnte man optional den Firebase User wieder löschen, da die Verknüpfung kritisch ist
-            // firebaseUser.delete { _ in }
-            return
-        }
+    // MARK: - WooCommerce Linking
+    private func linkUserToWooCommerce(firebaseUser: FirebaseAuth.User, firstName: String?, lastName: String?) {
+        print("Attempting to link Firebase user \(firebaseUser.uid) to WooCommerce...")
+        // isLoading ist bereits true von signUpWithEmail
 
-        var requestData: [String: Any] = [
-            "firebaseUid": firebaseUser.uid,
-            "email": email
-        ]
-        if let firstName = additionalData?["firstName"] as? String, !firstName.isEmpty {
-            requestData["firstName"] = firstName
-        }
-        if let lastName = additionalData?["lastName"] as? String, !lastName.isEmpty {
-            requestData["lastName"] = lastName
-        }
-        
-        print("FirebaseAuthManager: VORBEREITUNG zum Aufruf der Cloud Function 'createOrLinkWooCommerceCustomer' mit Daten: \(requestData)")
-        print("FirebaseAuthManager: AKTUELL WIRD DER AUFRUF SIMULIERT / ÜBERSPRUNGEN, da die Cloud Function noch nicht implementiert ist.")
+        let requestData = CreateOrLinkWooCommerceCustomerRequest(
+            firebaseUid: firebaseUser.uid,
+            email: firebaseUser.email ?? "",
+            firstName: firstName,
+            lastName: lastName
+        )
 
-        // --- BEGINN SIMULATION / ÜBERSPRINGEN ---
-        // Setze isLoading auf false und tue so, als wäre es erfolgreich, damit die UI weitergeht.
-        // Der Nutzer ist in Firebase registriert, aber noch nicht mit WooCommerce verknüpft.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { // Kleine Verzögerung, um "Arbeit" zu simulieren
-            self.isLoading = false
-            // self.errorMessage = "Hinweis: Shop-Konto Verknüpfung ist noch nicht aktiv." // Optionaler Hinweis für dich beim Testen
-            print("FirebaseAuthManager: WooCommerce-Verknüpfung SIMULIERT/ÜBERSPRUNGEN. Nutzer ist in Firebase registriert.")
-            // Da self.user bereits durch den AuthStateChangeListener gesetzt wurde,
-            // sollte das Auth-Sheet sich jetzt schließen.
-        }
-        // --- ENDE SIMULATION / ÜBERSPRINGEN ---
-
-        /*
-        // --- ECHTER AUFRUF (später wieder aktivieren) ---
-        struct LinkWooCommerceResponse: Decodable { // Dummy-Struktur
-            let success: Bool
-            let message: String?
-            let woocommerceCustomerId: Int?
-        }
-
-        FirebaseProxyService.shared.callFunction(
+        firebaseProxyService.callFunction(
             functionName: "createOrLinkWooCommerceCustomer",
-            data: requestData
-        ) { [weak self] (result: Result<LinkWooCommerceResponse, FirebaseProxyService.ProxyServiceError>) in
+            requestDataObject: requestData
+        ) { [weak self] (result: Result<CreateOrLinkWooCommerceCustomerResponse, FirebaseError>) in
             DispatchQueue.main.async {
-                self?.isLoading = false
-                 switch result {
-                 case .success(let response):
-                     if response.success {
-                         print("WooCommerce Kunde erfolgreich verknüpft/erstellt. WC ID: \(response.woocommerceCustomerId ?? -1)")
-                     } else {
-                         print("Fehler von Cloud Function bei WooCommerce Kundenverknüpfung: \(response.message ?? "Unbekannter Fehler von CF")")
-                         self?.errorMessage = response.message ?? "Fehler bei der Verknüpfung mit dem Shop-Konto."
-                         // Hier Logik zum Löschen des Firebase Users einfügen, falls gewünscht
-                     }
-                 case .failure(let error):
-                     print("Netzwerk-/Funktionsfehler bei WooCommerce Kundenverknüpfung: \(error)")
-                     self?.errorMessage = "Netzwerkfehler oder technisches Problem bei der Verknüpfung mit dem Shop-Konto."
-                     // Hier Logik zum Löschen des Firebase Users einfügen, falls gewünscht
-                 }
+                guard let self = self else { return }
+                self.isLoading = false // Wichtig: isLoading hier beenden
+
+                switch result {
+                case .success(let response):
+                    print("Successfully linked/created WooCommerce customer. ID: \(response.wooCommerceCustomerId), Status: \(response.status)")
+                    if self.user != nil {
+                        self.user?.wooCommerceCustomerId = response.wooCommerceCustomerId
+                    }
+                    self.authError = nil // Erfolgreich, also Fehler löschen
+                case .failure(let firebaseError):
+                    print("Failed to link/create WooCommerce customer: \(firebaseError.localizedDescription)")
+                    self.authError = firebaseError // Fehler setzen
+                }
             }
         }
-        // --- ENDE ECHTER AUFRUF ---
-        */
     }
 }

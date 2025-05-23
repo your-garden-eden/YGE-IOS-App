@@ -1,13 +1,14 @@
-// Models/StoreAPI/WooCommerceStoreCartCoupon.swift
+// YGE-IOS-App/Core/Models/WooCommerce/StoreAPI/WooCommerceStoreCartCoupon.swift
 import Foundation
 
 struct WooCommerceStoreCartCoupon: Codable, Hashable {
     let code: String
-    let discountType: String // War discount_type
-    let totals: WooCommerceStoreCartTotals // Hier sind die Totals des Coupons gemeint, Struktur wie Haupt-Totals
+    let discountType: String // z.B. "percent", "fixed_cart"
+    let totals: WooCommerceStoreCartTotals // Zeigt, wie sich der Coupon auf die Summen auswirkt
 
     enum CodingKeys: String, CodingKey {
-        case code, totals
+        case code
         case discountType = "discount_type"
+        case totals
     }
 }

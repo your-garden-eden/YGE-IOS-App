@@ -1,11 +1,12 @@
+// YGE-IOS-App/Core/Models/WooCommerce/WooCommerceImage.swift (oder wo du Models ablegst)
 import Foundation
 
-struct WooCommerceImage: Codable, Identifiable, Hashable, Equatable {
+struct WooCommerceImage: Codable, Identifiable, Hashable { // Hashable für diffable data sources
     let id: Int
-    let dateCreated: String
-    let dateCreatedGmt: String
-    let dateModified: String
-    let dateModifiedGmt: String
+    let dateCreated: String? // Mache optional, wenn nicht immer vorhanden
+    let dateCreatedGmt: String?
+    let dateModified: String?
+    let dateModifiedGmt: String?
     let src: String
     let name: String
     let alt: String
@@ -18,9 +19,5 @@ struct WooCommerceImage: Codable, Identifiable, Hashable, Equatable {
         case dateModified = "date_modified"
         case dateModifiedGmt = "date_modified_gmt"
         case src, name, alt, position
-    }
-    // Optional: Placeholder für Previews, falls benötigt
-    static var placeholder: WooCommerceImage {
-        WooCommerceImage(id: 0, dateCreated: "", dateCreatedGmt: "", dateModified: "", dateModifiedGmt: "", src: "https://via.placeholder.com/150/CCCCCC/FFFFFF?Text=Img", name: "Placeholder", alt: "Placeholder Image", position: 0)
     }
 }
