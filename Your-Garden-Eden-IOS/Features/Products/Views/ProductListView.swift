@@ -1,4 +1,13 @@
-// YGE-IOS-App/Features/Products/ProductListView.swift
+//
+//  ProductListView.swift
+//  Your-Garden-Eden-IOS
+//
+//  Created by Josef Ewert on 28.05.25.
+//
+
+
+// YGE-IOS-App/Features/Products/Views/ProductListView.swift
+
 import SwiftUI
 
 struct ProductListView: View {
@@ -8,47 +17,106 @@ struct ProductListView: View {
     @StateObject private var viewModel = ProductListViewModel()
 
     var body: some View {
-        VStack {
-            if viewModel.isLoading {
-                ProgressView("Lade Produkte...")
-            } else if let errorMessage = viewModel.errorMessage {
-                Text("Fehler: \(errorMessage)").foregroundColor(.red).padding()
-                Button("Erneut versuchen") {
-                    // Sicherstellen, dass currentCategoryId im ViewModel korrekt gesetzt ist
-                    viewModel.fetchProducts(categoryId: categoryId, initialLoad: true)
+        Group { // Group verwenden, um Conditional Content zu managen
+            if viewModel.isLoading && viewModel.products.isEmpty { // Nur initialer Ladezustand
+                ProgressView {
+                    Text("Lade Produkte...")
+                        .font(AppFonts.roboto(size: AppFonts.Size.body))
+                        .foregroundColor(AppColors.textMuted)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(AppColors.backgroundPage.ignoresSafeArea())
+            } else if let errorMessage = viewModel.errorMessage {
+                VStack(spacing: AppStyles.Spacing.medium) {
+                    Image(systemName: "exclamationmark.server.fill") // Anderes Icon für Serverfehler
+                        .font(.system(size: 50))
+                        .foregroundColor(AppColors.error)
+                    Text("Fehler beim Laden")
+                        .font(AppFonts.montserrat(size: AppFonts.Size.h3, weight: .semibold))
+                        .foregroundColor(AppColors.textHeadings)
+                    Text(errorMessage)
+                        .font(AppFonts.roboto(size: AppFonts.Size.body))
+                        .foregroundColor(AppColors.textMuted)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, AppStyles.Spacing.medium)
+                    Button("Erneut versuchen") {
+                        viewModel.fetchProducts(categoryId: categoryId, initialLoad: true)
+                    }
+                    .font(AppFonts.roboto(size: AppFonts.Size.body, weight: .medium))
+                    .padding(.horizontal, AppStyles.Spacing.large)
+                    .padding(.vertical, AppStyles.Spacing.small)
+                    .foregroundColor(AppColors.textOnPrimary)
+                    .background(AppColors.primary)
+                    .cornerRadius(AppStyles.BorderRadius.medium)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(AppStyles.Spacing.large)
+                .background(AppColors.backgroundPage.ignoresSafeArea())
             } else if viewModel.products.isEmpty {
-                Text("Keine Produkte in dieser Kategorie gefunden.")
-                    .padding()
+                VStack(spacing: AppStyles.Spacing.medium) {
+                    Image(systemName: "basket.fill") // Icon für leeren Warenkorb/Produktliste
+                         .font(.system(size: 50))
+                         .foregroundColor(AppColors.textMuted)
+                    Text("Keine Produkte")
+                        .font(AppFonts.montserrat(size: AppFonts.Size.h3, weight: .semibold))
+                        .foregroundColor(AppColors.textHeadings)
+                    Text("In der Kategorie \"\(categoryName)\" wurden keine Produkte gefunden.")
+                        .font(AppFonts.roboto(size: AppFonts.Size.body))
+                        .foregroundColor(AppColors.textMuted)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, AppStyles.Spacing.medium)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(AppStyles.Spacing.large)
+                .background(AppColors.backgroundPage.ignoresSafeArea())
             } else {
                 List {
                     ForEach(viewModel.products) { product in
-                        // ProductRow verwendet jetzt NavigationLink(value:), wenn Product Hashable ist
-                        NavigationLink(value: product) { // Navigiert mit dem Product-Objekt
-                             ProductRowView(product: product) // Umbenannt zu ProductRowView zur Klarheit
+                        ZStack { // ZStack ermöglicht es, den NavigationLink unsichtbar über die ganze Zelle zu legen
+                            NavigationLink(value: product) { EmptyView() }.opacity(0) // Unsichtbarer Link
+                            ProductRowView(product: product)
                         }
+                        .listRowInsets(EdgeInsets( // Einheitliches Padding für Zellen
+                            top: AppStyles.Spacing.small,
+                            leading: AppStyles.Spacing.medium,
+                            bottom: AppStyles.Spacing.small,
+                            trailing: AppStyles.Spacing.medium
+                        ))
+                        .listRowBackground(AppColors.backgroundComponent) // Hintergrund für jede Zelle
+                        .listRowSeparator(.hidden) // Eigene Separatoren oder keine
                         .onAppear {
                             viewModel.loadMoreContentIfNeeded(currentItem: product)
                         }
                     }
+
                     if viewModel.isLoadingMore {
                         HStack {
                             Spacer()
-                            ProgressView()
+                            ProgressView {
+                                Text("Mehr laden...")
+                                    .font(AppFonts.roboto(size: AppFonts.Size.caption))
+                                    .foregroundColor(AppColors.textMuted)
+                            }
+                            .tint(AppColors.primary)
                             Spacer()
                         }
-                        .padding(.vertical)
+                        .listRowBackground(Color.clear) // Kein Hintergrund für die Ladezelle
+                        .padding(.vertical, AppStyles.Spacing.medium)
                     }
                 }
+                .listStyle(.plain) // .plain für volle Kontrolle über Row-Styling
+                .background(AppColors.backgroundPage) // Hintergrund für die Liste
+                .scrollContentBackground(.hidden) // iOS 16+, um Standard-Listenhintergrund zu entfernen
             }
         }
         .navigationTitle(categoryName)
+        .navigationBarTitleDisplayMode(.large) // Großer Titel für Kategorieseiten
+        .toolbarBackground(AppColors.backgroundPage.opacity(0.8), for: .navigationBar) // Konsistente Toolbar
+        .toolbarBackground(.visible, for: .navigationBar)
         .navigationDestination(for: WooCommerceProduct.self) { product in
-             // Ziel für die Produkt-Navigation
-             ProductDetailView(productSlug: product.slug)
+             ProductDetailView(productSlug: product.slug, initialProductData: product) // initialProductData übergeben
         }
         .onAppear {
-            // Nur laden, wenn Kategorie-ID neu oder Produkte leer und nicht schon geladen wird
             if viewModel.currentCategoryId != categoryId || (viewModel.products.isEmpty && !viewModel.isLoading && !viewModel.isLoadingMore) {
                 viewModel.fetchProducts(categoryId: categoryId, initialLoad: true)
             }
@@ -56,44 +124,10 @@ struct ProductListView: View {
     }
 }
 
-// Umbenannt zu ProductRowView, um Konflikte mit einer möglichen ProductRow-Datei zu vermeiden
-// und um klarzustellen, dass dies die Ansicht für eine Zeile ist.
-struct ProductRowView: View {
-    let product: WooCommerceProduct
-
-    var body: some View {
-        // Das NavigationLink wurde in die ProductListView verschoben
-        HStack {
-            // AsyncImage für Produktbild
-            if let firstImage = product.images.first, let imageUrl = URL(string: firstImage.src) {
-                AsyncImage(url: imageUrl) { phase in
-                    if let image = phase.image {
-                        image.resizable().aspectRatio(contentMode: .fit)
-                    } else if phase.error != nil {
-                        Image(systemName: "photo") // Platzhalter bei Fehler
-                            .resizable().aspectRatio(contentMode: .fit).opacity(0.3)
-                    } else {
-                        ProgressView()
-                    }
-                }
-                .frame(width: 70, height: 70)
-                .background(Color.gray.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-            } else {
-                RoundedRectangle(cornerRadius: 8).fill(Color.gray.opacity(0.1)).frame(width: 70, height: 70)
-                    .overlay(Image(systemName: "photo").font(.title).opacity(0.3))
-            }
-
-            VStack(alignment: .leading) {
-                Text(product.name)
-                    .font(.headline)
-                    .lineLimit(2)
-                Text("Preis: \(product.price) \(product.metaData.first(where: {$0.key == "_currency_symbol"})?.value as? String ?? "€")")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-            Spacer() // Sorgt dafür, dass der Inhalt nach links gedrückt wird
+struct ProductListView_Previews: PreviewProvider {
+    static var previews: some View {
+        NavigationStack { // ProductListView wird normalerweise in einer NavigationStack angezeigt
+            ProductListView(categoryId: 1, categoryName: "Beispiel Kategorie")
         }
-        .padding(.vertical, 4) // Etwas Abstand für die Zeilen
     }
 }

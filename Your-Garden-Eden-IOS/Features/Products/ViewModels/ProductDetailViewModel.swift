@@ -1,22 +1,30 @@
-// Features/Products/ViewModels/ProductDetailViewModel.swift
-import SwiftUI // Für @MainActor, @Published
+// Datei: ProductDetailViewModel.swift
+// Pfad: Your-Garden-Eden-IOS/Features/Products/ViewModels/ProductDetailViewModel.swift
 
-// Stelle sicher, dass diese Typen hier bekannt sind oder importiert werden
-// import YourAppModels // Beispiel, falls sie in einem eigenen Modul liegen
+import SwiftUI
+import Combine // Obwohl Combine nicht mehr aktiv für API-Calls genutzt wird, kann es für andere @Published-Reaktionen nützlich sein.
 
 @MainActor
 class ProductDetailViewModel: ObservableObject {
+    // MARK: - Produkt und Variationsdaten
     @Published var product: WooCommerceProduct?
     @Published var variations: [WooCommerceProductVariation] = []
-    @Published var selectedAttributes: [String: String] = [:] // Key: Attribut-Slug (z.B. "pa_farbe"), Value: Options-Slug (z.B. "rot")
+
+    // MARK: - Lade- und Fehlerzustände
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
 
-    // Hält den Slug, mit dem das VM für die aktuell geladenen Daten (product, variations) initialisiert/geladen wurde.
-    // Nützlich, um zu prüfen, ob die Daten noch zum gewünschten Produkt gehören.
-    var productSlugForCurrentData: String?
+    // MARK: - Benutzerauswahl
+    @Published var selectedAttributes: [String: String] = [:] // Key: Attribut-Slug (z.B. "pa_farbe"), Value: Options-Slug (z.B. "rot")
+    @Published var quantity: Int = 1
 
-    private let initialProductSlug: String // Der Slug, mit dem das VM *ursprünglich* initialisiert wurde
+    // MARK: - Zustände für Warenkorb-Interaktion
+    @Published var isAddingToCart: Bool = false
+    @Published var addToCartError: String?
+    @Published var addToCartSuccessMessage: String?
+    
+    private let initialProductSlug: String
+    private var productSlugForCurrentData: String? // Um unnötige Neuladevorgänge zu vermeiden
 
     init(productSlug: String, initialProductData: WooCommerceProduct? = nil) {
         self.initialProductSlug = productSlug
@@ -24,273 +32,367 @@ class ProductDetailViewModel: ObservableObject {
         if let initialData = initialProductData, initialData.slug == productSlug {
             self.product = initialData
             self.productSlugForCurrentData = initialData.slug
-            // Wenn initialData ein variables Produkt ist und Variations-IDs hat, aber keine vollen Variationen,
-            // könnten wir hier schon das Laden der Variationen anstoßen oder im fetchProductDetails handhaben.
+            // Wenn initiale Produktdaten ein variables Produkt sind und Variations-IDs haben,
+            // aber die Variationen selbst noch nicht geladen sind.
+            // fetchProductDetails wird dies handhaben.
+            print("ProductDetailViewModel (init): Initial product data provided for slug '\(productSlug)'. Name: '\(initialData.name)'")
+        } else {
+            print("ProductDetailViewModel (init): No (matching) initial product data for slug '\(productSlug)'. Will fetch.")
         }
-        fetchProductDetails() // Immer aufrufen, um ggf. zu aktualisieren oder Variationen zu laden
+        // Rufe fetchProductDetails auf, um ggf. volle Daten oder Variationen zu laden.
+        fetchProductDetails()
     }
 
     func fetchProductDetails() {
-        // Nur laden, wenn der gewünschte Slug nicht mit dem Slug der aktuellen Daten übereinstimmt,
-        // oder wenn es ein variables Produkt ist und die Variationen fehlen.
+        // Bereits existierende Logik zur Vermeidung von Mehrfach-Laden
         if let p = product, p.slug == self.initialProductSlug, productSlugForCurrentData == self.initialProductSlug {
             if p.type == .variable {
-                // Wenn Variationen nötig sind (Produkt hat Variations-IDs) und sie noch nicht geladen wurden
                 if !p.variations.isEmpty && self.variations.isEmpty && !isLoading {
-                    // Fährt mit dem Laden fort (speziell für Variationen)
-                    print("ProductDetailViewModel: Product \(self.initialProductSlug) is loaded, but variations are missing. Fetching variations...")
+                    print("ProductDetailViewModel (fetchProductDetails): Product '\(self.initialProductSlug)' base loaded, has variation IDs (\(p.variations.count)), but local variations array is empty. Will proceed to fetch full variations.")
                 } else if isLoading {
-                    // Bereits am Laden, nichts tun.
+                    print("ProductDetailViewModel (fetchProductDetails): Already loading details for '\(self.initialProductSlug)'. Aborting.")
                     return
-                } else {
-                    // Produkt und ggf. Variationen sind bereits geladen und aktuell
-                    print("ProductDetailViewModel: Details for \(self.initialProductSlug) are already loaded and current.")
+                } else if p.variations.isEmpty && self.variations.isEmpty {
+                     print("ProductDetailViewModel (fetchProductDetails): Product '\(self.initialProductSlug)' is variable but has no variation IDs listed in product data.")
+                    if isLoading { self.isLoading = false }
+                    return
+                } else if !self.variations.isEmpty {
+                    print("ProductDetailViewModel (fetchProductDetails): Details and variations for '\(self.initialProductSlug)' seem current.")
+                    if isLoading { self.isLoading = false }
                     return
                 }
-            } else {
-                // Einfaches Produkt ist geladen und aktuell
-                print("ProductDetailViewModel: Details for \(self.initialProductSlug) are already loaded and current.")
-                if isLoading { isLoading = false } // Falls ein vorheriger Ladevorgang hängen geblieben ist
+            } else { // Für einfache Produkte
+                print("ProductDetailViewModel (fetchProductDetails): Details for simple product '\(self.initialProductSlug)' seem current.")
+                if isLoading { self.isLoading = false }
                 return
             }
         } else if isLoading {
-             print("ProductDetailViewModel: Already loading details for \(self.initialProductSlug). Skipping.")
-            return // Bereits am Laden
+            print("ProductDetailViewModel (fetchProductDetails): Already loading details for '\(self.initialProductSlug)'. Aborting.")
+            return
         }
 
-
-        isLoading = true
-        errorMessage = nil
+        print("ProductDetailViewModel (fetchProductDetails): Proceeding to load/update data for slug: \(initialProductSlug)")
+        self.isLoading = true
+        self.errorMessage = nil
+        let slugToLoad = self.initialProductSlug
         
         Task {
-            // Setze den productSlugForCurrentData vor dem Netzwerkaufruf auf den zu ladenden Slug,
-            // oder erst nach erfolgreichem Laden des Hauptprodukts. Letzteres ist sicherer.
-            let slugToLoad = self.initialProductSlug
-            
+            defer {
+                // Stelle sicher, dass isLoading auf dem MainActor aktualisiert wird
+                Task { @MainActor in self.isLoading = false }
+            }
             do {
-                let fetchedProduct = try await WooCommerceAPIManager.shared.getProductBySlug(productSlug: slugToLoad)
-                
-                guard let mainProduct = fetchedProduct else {
-                    self.errorMessage = "Produkt \"\(slugToLoad)\" nicht gefunden."
-                    self.product = nil
-                    self.variations = []
-                    self.productSlugForCurrentData = nil // Zurücksetzen, da Laden fehlschlug
-                    self.isLoading = false
-                    return
+                // Produkt nur neu laden, wenn es noch nicht existiert oder der Slug nicht übereinstimmt
+                if self.product == nil || self.product?.slug != slugToLoad {
+                    print("ProductDetailViewModel (fetchProductDetails Task): Fetching main product data for slug: \(slugToLoad)")
+                    let fetchedProduct = try await WooCommerceAPIManager.shared.getProductBySlug(productSlug: slugToLoad)
+                    
+                    guard let mainProduct = fetchedProduct else {
+                        self.errorMessage = "Produkt \"\(slugToLoad)\" nicht gefunden."
+                        self.product = nil; self.variations = []; self.productSlugForCurrentData = nil
+                        return
+                    }
+                    self.product = mainProduct
+                    self.productSlugForCurrentData = mainProduct.slug
+                     print("ProductDetailViewModel (fetchProductDetails Task): Successfully fetched main product data for '\(mainProduct.name)' (Slug: \(slugToLoad)).")
+                } else {
+                    print("ProductDetailViewModel (fetchProductDetails Task): Main product data for slug '\(slugToLoad)' is already current.")
                 }
                 
-                // Erfolgreich geladen, setze product und productSlugForCurrentData
-                self.product = mainProduct
-                self.productSlugForCurrentData = mainProduct.slug // Wichtig für die Logik oben
-                
-                if mainProduct.type == .variable && !mainProduct.variations.isEmpty { // variations Array im Product enthält nur IDs
-                    print("ProductDetailViewModel: Fetching variations for product ID \(mainProduct.id)...")
-                    self.variations = try await WooCommerceAPIManager.shared.getProductVariations(productId: mainProduct.id)
-                    print("ProductDetailViewModel: Successfully fetched \(self.variations.count) variations.")
+                // Variationen laden, wenn es ein variables Produkt ist und Variations-IDs vorhanden sind
+                if let currentProduct = self.product, currentProduct.type == .variable, !currentProduct.variations.isEmpty {
+                    if self.variations.isEmpty {
+                        print("ProductDetailViewModel (fetchProductDetails Task): Fetching variations for product ID \(currentProduct.id) ('\(currentProduct.name)')...")
+                        self.variations = try await WooCommerceAPIManager.shared.getProductVariations(productId: currentProduct.id)
+                        print("ProductDetailViewModel (fetchProductDetails Task): Fetched \(self.variations.count) variations.")
+                        setDefaultAttributeSelections()
+                    } else {
+                        print("ProductDetailViewModel (fetchProductDetails Task): Variations for '\(currentProduct.name)' already loaded (\(self.variations.count) found). Attempting to set default attributes if needed.")
+                        setDefaultAttributeSelections() // Auch hier aufrufen, falls Produkt schon da war, aber Defaults noch nicht gesetzt
+                    }
                 } else {
                     self.variations = []
+                    if let currentProduct = self.product, currentProduct.type == .variable && currentProduct.variations.isEmpty {
+                        print("ProductDetailViewModel (fetchProductDetails Task): Product '\(currentProduct.name)' is variable but has no variation IDs. Variations array cleared.")
+                    } else if let currentProduct = self.product, currentProduct.type != .variable {
+                         print("ProductDetailViewModel (fetchProductDetails Task): Product '\(currentProduct.name)' is not variable. Variations array cleared.")
+                    }
                 }
             } catch let error as WooCommerceAPIError {
                 self.errorMessage = "Fehler beim Laden von \"\(slugToLoad)\": \(error.localizedDescription)"
-                print("ProductDetailViewModel Error loading product \(slugToLoad): \(error)")
-                // product und variations nicht zurücksetzen, wenn schon alte Daten da waren? Oder doch?
-                // Hängt von der gewünschten UX ab. Hier werden sie nicht explizit zurückgesetzt,
-                // außer wenn das Hauptprodukt nicht gefunden wurde.
+                print("ProductDetailViewModel Error (WooCommerceAPIError) loading product \(slugToLoad): \(error)")
             } catch {
-                self.errorMessage = "Ein unbekannter Fehler ist aufgetreten beim Laden von \"\(slugToLoad)\": \(error.localizedDescription)"
-                print("ProductDetailViewModel Unknown Error loading product \(slugToLoad): \(error)")
+                self.errorMessage = "Ein unbekannter Fehler ist aufgetreten: \(error.localizedDescription)"
+                print("ProductDetailViewModel Error (Unknown) loading product \(slugToLoad): \(error)")
             }
-            isLoading = false
         }
     }
 
-    @Published var isAddingToCart: Bool = false
-    @Published var addToCartError: String?
-    @Published var addToCartSuccessMessage: String?
-
+    // MARK: - Computed Properties für die View
     var selectedVariation: WooCommerceProductVariation? {
         guard let p = product, p.type == .variable, !variations.isEmpty else { return nil }
-        
         let varyingAttributesDefinitions = p.attributes.filter { $0.variation }
-        guard !varyingAttributesDefinitions.isEmpty else {
-            // Produkt ist variabel, hat aber keine als "variation=true" markierten Attribute.
-            // Das könnte bedeuten, dass alle Variationen gültig sind oder es nur eine Default-Variation gibt.
-            // Wenn es Variationen gibt, die keine Attribute haben, nimm die erste.
-            // Dies ist ein Edge-Case. Normalerweise haben variable Produkte variierende Attribute.
-            return variations.first // Oder nil, je nachdem, wie WC dies handhabt.
+        
+        if varyingAttributesDefinitions.isEmpty {
+            return variations.count == 1 ? variations.first : nil
         }
 
-        // Prüfen, ob für jedes als "variation" markierte Attribut eine Option in `selectedAttributes` gewählt wurde.
         let allRequiredAttributesSelected = varyingAttributesDefinitions.allSatisfy { attrDef in
-            let attrSlug = attrDef.slug ?? attrDef.name.lowercased().replacingOccurrences(of: " ", with: "-")
-            return selectedAttributes[attrSlug] != nil && !selectedAttributes[attrSlug]!.isEmpty
+            let key = attrDef.slugOrNameAsSlug()
+            return selectedAttributes[key] != nil && !selectedAttributes[key]!.isEmpty
         }
-        
-        guard allRequiredAttributesSelected else {
-            // Nicht alle benötigten Attribute sind ausgewählt.
-            return nil
-        }
+        guard allRequiredAttributesSelected else { return nil }
 
         return variations.first { variation in
-            // Eine Variation passt, wenn alle ihre Attribute mit den in `selectedAttributes` gewählten Optionen übereinstimmen.
-            variation.attributes.allSatisfy { variationAttributeOption in // WooCommerceProductVariation.VariationAttribute
-                // Finde die Definition des Attributs im Hauptprodukt (um den Slug zu bekommen, der in selectedAttributes als Key verwendet wird)
-                let attributeDefinition = p.attributes.first { $0.id == variationAttributeOption.id || $0.name == variationAttributeOption.name }
-                guard let attrDefSlug = attributeDefinition?.slug ?? attributeDefinition?.name.lowercased().replacingOccurrences(of: " ", with: "-") else {
-                    return false // Sollte nicht passieren, wenn Daten konsistent sind
+            variation.attributes.allSatisfy { variationAttributeOption in
+                let attributeTaxonomySlug = variationAttributeOption.slugOrNameAsSlug() // Name des Attributs (z.B. "pa_farbe")
+                guard let selectedOptionSlugForThisAttribute = selectedAttributes[attributeTaxonomySlug] else {
+                    // Wenn für dieses Attribut (z.B. "pa_farbe") keine Auswahl getroffen wurde,
+                    // kann diese Variation nicht die gesuchte sein, *falls* dieses Attribut Teil der varyingAttributesDefinitions ist.
+                    // Da wir aber oben allRequiredAttributesSelected prüfen, sollte dieser Fall nur für
+                    // Attribute der Variation auftreten, die nicht zu den "varyingAttributesDefinitions" gehören (z.B. "Any Size").
+                    // In diesem Fall sollte das Attribut ignoriert werden.
+                    return !varyingAttributesDefinitions.contains(where: {$0.slugOrNameAsSlug() == attributeTaxonomySlug })
                 }
-                
-                let selectedOptionForThisAttribute = selectedAttributes[attrDefSlug]
-                
-                // Der Slug der Option dieser Variation für dieses Attribut
-                let currentVariationOptionSlug = variationAttributeOption.slug ?? variationAttributeOption.option.lowercased().replacingOccurrences(of: " ", with: "-")
-                
-                return selectedOptionForThisAttribute == currentVariationOptionSlug
+                return selectedOptionSlugForThisAttribute == variationAttributeOption.optionAsSlug()
             }
+        }
+    }
+    
+    var displayPrice: String {
+        selectedVariation?.price ?? product?.price ?? "N/A"
+    }
+
+    var displayRegularPrice: String? {
+        let currentPriceString = selectedVariation?.price ?? product?.price
+        let regularPriceString = selectedVariation?.regularPrice ?? product?.regularPrice
+        let currentPriceValue = Double(currentPriceString ?? "")
+        let regularPriceValue = Double(regularPriceString ?? "")
+        guard let regPriceStr = regularPriceString, !regPriceStr.isEmpty else { return nil }
+        if let cpVal = currentPriceValue, let rpVal = regularPriceValue {
+            if rpVal > cpVal { return regPriceStr } else { return nil }
+        } else if regPriceStr != currentPriceString { return regPriceStr }
+        return nil
+    }
+
+    var displayImageSet: [WooCommerceImage] {
+        if let variationImage = selectedVariation?.image { return [variationImage] }
+        return product?.images ?? []
+    }
+
+    struct StockStatusDisplay { let text: String; let color: Color }
+    var displayStockStatus: StockStatusDisplay {
+        let status: StockStatus?; let backordersAllowed: Bool?
+        if let variation = selectedVariation {
+            status = variation.stockStatus; backordersAllowed = variation.backordersAllowed
+        } else if let p = product {
+            status = p.stockStatus; backordersAllowed = p.backordersAllowed
+        } else { return StockStatusDisplay(text: "Status unbekannt", color: AppColors.textMuted) }
+        
+        switch status {
+        case .instock: return StockStatusDisplay(text: "Auf Lager", color: AppColors.inStock)
+        case .outofstock: return StockStatusDisplay(text: backordersAllowed == true ? "Lieferbar auf Anfrage" : "Ausverkauft", color: backordersAllowed == true ? AppColors.warning : AppColors.error)
+        case .onbackorder: return StockStatusDisplay(text: "Lieferbar auf Anfrage", color: AppColors.warning)
+        case .none: return product?.purchasable == true ? StockStatusDisplay(text: "Verfügbar", color: AppColors.info) : StockStatusDisplay(text: "Status unbekannt", color: AppColors.textMuted)
         }
     }
     
     var canPurchase: Bool {
-        let currentProductForPurchase = self.product
-        let currentStockStatus: StockStatus?
-        let isPurchasable: Bool?
-        let areBackordersAllowed: Bool?
-
-        if currentProductForPurchase?.type == .variable {
-            guard let variation = selectedVariation else { return false }
-            isPurchasable = variation.purchasable
-            currentStockStatus = variation.stockStatus
-            areBackordersAllowed = variation.backordersAllowed
-        } else if let p = currentProductForPurchase {
-            isPurchasable = p.purchasable
-            currentStockStatus = p.stockStatus
-            areBackordersAllowed = p.backordersAllowed
-        } else {
-            return false // Kein Produkt geladen
-        }
+        let stock: StockStatus?; let purchasable: Bool?; let backordersAllowed: Bool?
+        if let variation = selectedVariation {
+            purchasable = variation.purchasable; stock = variation.stockStatus; backordersAllowed = variation.backordersAllowed
+        } else if let p = product, p.type != .variable {
+            purchasable = p.purchasable; stock = p.stockStatus; backordersAllowed = p.backordersAllowed
+        } else if let p = product, p.type == .variable && variations.isEmpty && p.variations.isEmpty { // Variables Produkt ohne definierte Variationen
+             purchasable = p.purchasable; stock = p.stockStatus; backordersAllowed = p.backordersAllowed
+        } else if product?.type == .variable && selectedVariation == nil { return false } // Variables Produkt, aber keine Variation ausgewählt
+        else { return false }
         
-        guard let purchasable = isPurchasable, purchasable else { return false }
-        
-        // Wenn stock_status nil ist, aber purchasable true, behandeln wir es als kaufbar
-        // (WooCommerce Default ist 'instock', wenn nicht anders gesetzt und manage_stock=false)
-        guard let stock = currentStockStatus else { return true }
-
-
-        switch stock {
-        case .instock, .onbackorder:
-            return true
-        case .outofstock:
-            return areBackordersAllowed == true
+        guard let isPurchasable = purchasable, isPurchasable else { return false }
+        guard let stockStatus = stock else { return true }
+        switch stockStatus {
+        case .instock, .onbackorder: return true
+        case .outofstock: return backordersAllowed == true
         }
     }
 
-    // Hinzugefügte Menge-Property
-    @Published var quantity: Int = 1
+    // MARK: - Aktionen
+    func selectAttribute(attributeDefinitionSlug: String, optionValueSlug: String) {
+        if selectedAttributes[attributeDefinitionSlug] == optionValueSlug {
+            // Optional: Auswahl aufheben, wenn derselbe Button erneut geklickt wird.
+            // selectedAttributes.removeValue(forKey: attributeDefinitionSlug)
+            // print("ProductDetailViewModel (selectAttribute): Deselected option '\(optionValueSlug)' for attribute '\(attributeDefinitionSlug)'")
+        } else {
+            selectedAttributes[attributeDefinitionSlug] = optionValueSlug
+            print("ProductDetailViewModel (selectAttribute): Selected option '\(optionValueSlug)' for attribute '\(attributeDefinitionSlug)'")
+        }
+        // Reset cart messages and quantity when attributes change
+        addToCartError = nil; addToCartSuccessMessage = nil; quantity = 1
+        
+        // Debugging output
+        if let sv = selectedVariation { print("ProductDetailViewModel (selectAttribute): New selected variation ID: \(sv.id), Price: \(sv.price)") }
+        else { print("ProductDetailViewModel (selectAttribute): No complete variation selected with current attributes: \(selectedAttributes)") }
+    }
 
-    func addToCart() {
-        guard let mainProduct = product else {
-            addToCartError = "Produkt nicht geladen."; return
+    private func setDefaultAttributeSelections() {
+        guard let p = product, p.type == .variable, !variations.isEmpty else {
+            print("ProductDetailViewModel (setDefaultAttributeSelections): Bedingungen nicht erfüllt (Produkt: \(product?.name ?? "N/A"), Typ: \(product?.type.rawValue ?? "N/A"), Variationen leer: \(variations.isEmpty)). Überspringe Default-Setzung.")
+            return
         }
         
-        let productIdToAdd: Int
-        var variationAttributesForCart: [WooCommerceStoreCartItemVariationAttribute]? = nil // Korrekter Typ
+        print("ProductDetailViewModel (setDefaultAttributeSelections): Beginne mit Defaults für Produkt '\(p.name)' (ID: \(p.id))")
+        var newSelections = self.selectedAttributes // Starte mit der aktuellen Auswahl, um bestehende manuelle Auswahl nicht zu überschreiben
+        var selectionsWereUpdated = false
+
+        let varyingAttributes = p.attributes.filter({ $0.variation })
+        if varyingAttributes.isEmpty {
+            print("ProductDetailViewModel (setDefaultAttributeSelections): Keine als 'variation' markierten Attribute im Produkt gefunden. Überspringe Default-Setzung.")
+            return
+        }
+        print("ProductDetailViewModel (setDefaultAttributeSelections): Variierende Attribute im Produkt: \(varyingAttributes.map({ "'\($0.name)' (Slug: \($0.slugOrNameAsSlug()))" }).joined(separator: ", "))")
+        if !p.defaultAttributes.isEmpty {
+            print("ProductDetailViewModel (setDefaultAttributeSelections): Produkt Default-Attribute vorhanden: \(p.defaultAttributes.map({ "\($0.name): \($0.option)" }).joined(separator: ", "))")
+        } else {
+            print("ProductDetailViewModel (setDefaultAttributeSelections): Keine Produkt Default-Attribute im Produktobjekt gefunden.")
+        }
+
+
+        for attributeDef in varyingAttributes {
+            let attrDefKey = attributeDef.slugOrNameAsSlug()
+
+            if newSelections[attrDefKey] == nil { // Nur einen Default setzen, wenn für dieses Attribut noch keine Auswahl getroffen wurde
+                var defaultOptionSlugToSet: String? = nil
+
+                // 1. Versuche, den Default aus product.defaultAttributes zu nehmen
+                if let productDefault = p.defaultAttributes.first(where: { defaultAttr in
+                    // Vergleiche den Namen des Default-Attributs mit dem Namen der aktuellen Attribut-Definition
+                    defaultAttr.name == attributeDef.name
+                }) {
+                    defaultOptionSlugToSet = productDefault.option.lowercased().replacingOccurrences(of: " ", with: "-")
+                    print("ProductDetailViewModel (setDefaultAttributeSelections): Default für Attribut '\(attributeDef.name)' (Key: '\(attrDefKey)') aus Produkt-Defaults ('\(productDefault.name)') gefunden: Option-Slug '\(defaultOptionSlugToSet!)'")
+                }
+                
+                // 2. Wenn kein Produkt-Default, nimm die erste verfügbare Option aus den Variationen als Fallback
+                if defaultOptionSlugToSet == nil {
+                    print("ProductDetailViewModel (setDefaultAttributeSelections): Kein Produkt-Default für '\(attributeDef.name)' (Key: '\(attrDefKey)') gefunden. Suche in den \(variations.count) geladenen Variationen...")
+                    defaultOptionSlugToSet = variations.lazy.compactMap { variation -> String? in
+                        variation.attributes.first { variationAttr in
+                            (variationAttr.name == attributeDef.name) || // Vergleiche Name
+                            (variationAttr.slugOrNameAsSlug() == attrDefKey) // Oder Slug der Attributdefinition
+                        }?.optionAsSlug()
+                    }.first
+                    
+                    if let slug = defaultOptionSlugToSet {
+                        print("ProductDetailViewModel (setDefaultAttributeSelections): Default für Attribut '\(attributeDef.name)' (Key: '\(attrDefKey)') aus erster Variation gefunden: Option-Slug '\(slug)'")
+                    } else {
+                        print("ProductDetailViewModel (setDefaultAttributeSelections): Konnte auch keinen Default aus Variationen für Attribut '\(attributeDef.name)' (Key: '\(attrDefKey)') finden.")
+                    }
+                }
+
+                if let finalDefaultSlug = defaultOptionSlugToSet {
+                    newSelections[attrDefKey] = finalDefaultSlug
+                    selectionsWereUpdated = true
+                }
+            } else {
+                print("ProductDetailViewModel (setDefaultAttributeSelections): Attribut '\(attributeDef.name)' (Key: '\(attrDefKey)') hat bereits eine Auswahl: '\(newSelections[attrDefKey]!)'. Überspringe Default-Setzung.")
+            }
+        }
+
+        if selectionsWereUpdated {
+            self.selectedAttributes = newSelections
+            print("ProductDetailViewModel (setDefaultAttributeSelections): Finale gesetzte Defaults: \(self.selectedAttributes)")
+        } else {
+            print("ProductDetailViewModel (setDefaultAttributeSelections): Keine Defaults mussten aktualisiert werden, oder alle Attribute hatten bereits eine Auswahl.")
+        }
+    }
+
+
+    func addToCart() {
+        guard let mainProduct = product else { addToCartError = "Produkt nicht geladen."; return }
+        let productIdToAdd: Int; var variationAttributesForCart: [WooCommerceStoreCartItemVariationAttribute]? = nil
         var nameForSuccessMessage = mainProduct.name
         
         if mainProduct.type == .variable {
-            guard let variation = selectedVariation else {
-                addToCartError = "Bitte wählen Sie alle Produktoptionen aus."; return
-            }
-            // `canPurchase` prüft bereits die Purchasability und den Stock der Variation
-            guard canPurchase else {
-                 addToCartError = "Ausgewählte Variante ist nicht verfügbar oder nicht kaufbar."; return
-            }
-            
-            productIdToAdd = mainProduct.id // Hauptprodukt-ID
-            
-            var tempVariationAttributes: [WooCommerceStoreCartItemVariationAttribute] = []
-            // `selectedAttributes` enthält { "pa_farbe": "rot", "pa_groesse": "mittel" }
-            // Wir müssen sicherstellen, dass wir nur die Attribute verwenden, die für DIESE `selectedVariation` relevant sind.
-            // Die `selectedVariation.attributes` (Typ: [WooCommerceProductVariation.VariationAttribute]) gibt uns die korrekten Attribute der Variante.
-            for varAttrOption in variation.attributes { // varAttrOption ist WooCommerceProductVariation.VariationAttribute
-                 // Finde die Definition des Attributs im Hauptprodukt, um den Slug zu bekommen, der für die API als "attribute" benötigt wird.
-                let attributeDefinition = mainProduct.attributes.first { $0.id == varAttrOption.id || $0.name == varAttrOption.name }
-                guard let apiAttributeSlug = attributeDefinition?.slug ?? attributeDefinition?.name.lowercased().replacingOccurrences(of: " ", with: "-") else {
-                    print("ProductDetailViewModel: Konnte Attribut-Slug für \(varAttrOption.name) nicht finden. Überspringe.")
-                    continue
-                }
-                // Der Wert ist der Slug der Option
-                let apiOptionSlug = varAttrOption.slug ?? varAttrOption.option.lowercased().replacingOccurrences(of: " ", with: "-")
-                tempVariationAttributes.append(WooCommerceStoreCartItemVariationAttribute(attribute: apiAttributeSlug, value: apiOptionSlug))
-            }
-
-            if tempVariationAttributes.isEmpty && !variation.attributes.isEmpty {
-                 // Sollte nicht passieren, wenn variation.attributes korrekt befüllt sind und die Slugs gefunden wurden.
-                 addToCartError = "Fehler bei der Verarbeitung der Variantendetails."
-                 return
-            }
-            variationAttributesForCart = tempVariationAttributes.isEmpty ? nil : tempVariationAttributes
-
-            // Für die Erfolgsmeldung
-            let variationDescription = variation.attributes.map { "\($0.name): \($0.option)" }.joined(separator: ", ")
-            nameForSuccessMessage = "\(mainProduct.name) (\(variationDescription))"
-
-        } else { // Einfaches Produkt
-            guard canPurchase else {
-                 addToCartError = "Produkt ist nicht verfügbar oder nicht kaufbar."; return
-            }
+            guard let variation = selectedVariation else { addToCartError = "Bitte wählen Sie alle Produktoptionen aus."; return }
+            guard canPurchase else { addToCartError = "Ausgewählte Variante ist nicht verfügbar oder nicht kaufbar."; return }
             productIdToAdd = mainProduct.id
-            // variationAttributesForCart bleibt nil
+            
+            variationAttributesForCart = variation.attributes.map { varAttr in
+                let attributeTaxonomySlug = varAttr.slugOrNameAsSlug() // z.B. "pa_farbe"
+                // Der Wert sollte der Slug der ausgewählten Option für diese Taxonomie sein
+                let optionValueSlug = selectedAttributes[attributeTaxonomySlug] ?? varAttr.optionAsSlug() // Fallback auf den Slug der Option der Variation
+                return WooCommerceStoreCartItemVariationAttribute(attribute: attributeTaxonomySlug, value: optionValueSlug)
+            }
+
+            if variationAttributesForCart?.isEmpty ?? true && !variation.attributes.isEmpty {
+                addToCartError = "Fehler bei der Verarbeitung der Variantendetails."; return
+            }
+
+            let variationDescriptionParts = variation.attributes.compactMap { attr -> String? in
+                let attrTaxonomySlug = attr.slugOrNameAsSlug()
+                // Finde den Anzeigenamen der ausgewählten Option
+                // 1. Suche in den Produktattribut-Definitionen nach der Option mit dem ausgewählten Slug
+                let selectedOptionDisplayName = product?.attributes
+                    .first(where: {$0.slugOrNameAsSlug() == attrTaxonomySlug})?.options
+                    .first(where: {$0.lowercased().replacingOccurrences(of: " ", with: "-") == selectedAttributes[attrTaxonomySlug]})
+                
+                return "\(attr.name): \(selectedOptionDisplayName ?? attr.option)" // Fallback auf den Optionsnamen der Variation
+            }
+            nameForSuccessMessage = "\(mainProduct.name) (\(variationDescriptionParts.joined(separator: ", ")))"
+
+        } else { // Für einfache Produkte
+            guard canPurchase else { addToCartError = "Produkt ist nicht verfügbar oder nicht kaufbar."; return }
+            productIdToAdd = mainProduct.id
         }
 
-        isAddingToCart = true
-        addToCartError = nil
-        addToCartSuccessMessage = nil
-
+        isAddingToCart = true; addToCartError = nil; addToCartSuccessMessage = nil
         Task {
+            defer { isAddingToCart = false }
             do {
-                // Stelle sicher, dass CartAPIManager.addItem jetzt `throws` ist
-                try await CartAPIManager.shared.addItem(
-                    productId: productIdToAdd,
-                    quantity: self.quantity, // Verwende die @Published quantity
-                    variation: variationAttributesForCart
-                )
+                try await CartAPIManager.shared.addItem(productId: productIdToAdd, quantity: self.quantity, variation: variationAttributesForCart)
                 addToCartSuccessMessage = "\(nameForSuccessMessage) wurde zum Warenkorb hinzugefügt."
-                self.quantity = 1 // Menge nach Erfolg zurücksetzen
-            } catch { // Fängt WooCommerceAPIError und andere Fehler, die von addItem geworfen werden
-                addToCartError = "Fehler beim Hinzufügen: \(error.localizedDescription)"
+                self.quantity = 1 // Menge zurücksetzen
+            } catch {
+                addToCartError = "Fehler: \((error as? LocalizedError)?.localizedDescription ?? error.localizedDescription)"
                 print("ProductDetailViewModel: addToCart error: \(error)")
             }
-            isAddingToCart = false
         }
     }
     
-    func selectAttribute(attributeDefinitionSlug: String, optionValueSlug: String) {
-        // Wenn der optionValueSlug leer ist, bedeutet das "keine Auswahl" für dieses Attribut
-        if optionValueSlug.isEmpty {
-            selectedAttributes.removeValue(forKey: attributeDefinitionSlug)
-        } else {
-            selectedAttributes[attributeDefinitionSlug] = optionValueSlug
-        }
-        
-        // Reset cart messages und quantity, da die Auswahl die Kaufbarkeit/Preis ändern kann
-        addToCartError = nil
-        addToCartSuccessMessage = nil
-        self.quantity = 1 // Setze Menge auf 1 zurück bei Attributänderung
-        
-        // Manuelles Auslösen eines Updates, falls `selectedVariation` und `canPurchase`
-        // nicht automatisch von der Änderung von `selectedAttributes` getriggert werden.
-        // Oft reicht @Published für selectedAttributes, aber komplexe Computed Properties können das erfordern.
-        // objectWillChange.send() // Normalerweise nicht mehr nötig mit SwiftUI 3+ und @Published
-    }
-
-    // Für die Mengenauswahl in der UI
+    // MARK: - Mengenanpassung
     func incrementQuantity() {
-        quantity += 1
+        quantity += 1; addToCartSuccessMessage = nil; addToCartError = nil
     }
 
     func decrementQuantity() {
-        if quantity > 1 {
-            quantity -= 1
-        }
+        if quantity > 1 { quantity -= 1 }
+        addToCartSuccessMessage = nil; addToCartError = nil
+    }
+}
+
+// MARK: - Helper Extensions for Slug Generation (sollten globaler oder im jeweiligen Modell sein)
+// Diese sind jetzt hier zur Übersichtlichkeit, könnten aber auch in die Model-Dateien verschoben werden.
+
+extension WooCommerceAttribute {
+    func slugOrNameAsSlug() -> String {
+        // Nutze den expliziten Slug, wenn vorhanden, ansonsten generiere aus dem Namen.
+        // WooCommerce verwendet oft den Attribut-Namen (z.B. "Farbe") als Basis für den internen Key,
+        // während der "slug" (z.B. "pa_farbe") die eigentliche Taxonomie ist.
+        // Für die `selectedAttributes` verwenden wir konsistent den Taxonomie-Slug, wenn vorhanden.
+        return slug ?? name.lowercased().replacingOccurrences(of: " ", with: "-")
+    }
+}
+
+extension WooCommerceProductVariation.VariationAttribute {
+    func slugOrNameAsSlug() -> String {
+        // Bei VariationAttribute ist 'name' oft die Referenz zur Taxonomie (z.B. "Farbe" oder "pa_farbe").
+        // 'slug' ist hier oft nil. Wir nehmen den Namen als Basis für den Key.
+        return name.lowercased().replacingOccurrences(of: " ", with: "-")
+    }
+
+    func optionAsSlug() -> String {
+        // Der 'option'-Wert ist der ausgewählte Wert (z.B. "Rot", "Blau").
+        // Diesen machen wir zu einem Slug für Vergleiche.
+        return option.lowercased().replacingOccurrences(of: " ", with: "-")
     }
 }

@@ -5,24 +5,18 @@ import Foundation
 class WooCommerceAPIManager {
     static let shared = WooCommerceAPIManager()
 
-    // Zugriff auf die URLs aus AppConfig
     private let coreApiBaseURL = AppConfig.WooCommerce.coreApiBaseURL
     private let session: URLSession
 
-    // Beispiel für Consumer Key/Secret - ERSETZE DIESE DURCH DEINE ECHTEN KEYS
-    // Idealerweise sollten diese nicht hartcodiert sein, sondern sicher verwaltet werden.
-    // Für dieses Beispiel nehmen wir an, du hast sie hier temporär für Testzwecke.
     private let consumerKey = "ck_764caa58c2fd1cc7a0ad705630b3f8f2ea397dad"
     private let consumerSecret = "cs_5ca3357f994013428fb5028baa3bfc8f33e4f969"
 
     init() {
         print("WooCommerceAPIManager initialized (REAL API MODE)")
         let config = URLSessionConfiguration.default
-        // Hier könnten Header für alle Requests gesetzt werden, falls nötig
         self.session = URLSession(configuration: config)
     }
 
-    // MARK: - Helper für Authentifizierung
     private func addAuthQueryItems(to items: [URLQueryItem]) -> [URLQueryItem] {
         var newItems = items
         newItems.append(URLQueryItem(name: "consumer_key", value: self.consumerKey))
@@ -36,7 +30,7 @@ class WooCommerceAPIManager {
         perPage: Int = 100,
         page: Int = 1,
         hideEmpty: Bool = true,
-        orderby: String = "menu_order",
+        orderby: String = "name",
         order: String = "asc"
     ) async throws -> [WooCommerceCategory] {
         var urlComponents = URLComponents(string: coreApiBaseURL + "products/categories")
@@ -52,15 +46,14 @@ class WooCommerceAPIManager {
         if let parentId = parent {
             queryItems.append(URLQueryItem(name: "parent", value: String(parentId)))
         }
-        urlComponents?.queryItems = addAuthQueryItems(to: queryItems) // Auth hinzufügen
+        urlComponents?.queryItems = addAuthQueryItems(to: queryItems)
 
         guard let url = urlComponents?.url else {
             throw WooCommerceAPIError.invalidURL
         }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        print("WooCommerceAPIManager: Fetching categories from URL: \(url.absoluteString)")
-        return try await performRequest(request: request, decodingType: [WooCommerceCategory].self, functionNameForLog: "getCategories")
+        return try await performRequest(request: request, decodingType: [WooCommerceCategory].self, functionNameForLog: #function)
     }
 
     // MARK: - Product Functions
@@ -88,18 +81,21 @@ class WooCommerceAPIManager {
         if let featured = featured { queryItems.append(URLQueryItem(name: "featured", value: String(featured))) }
         if let onSale = onSale { queryItems.append(URLQueryItem(name: "on_sale", value: String(onSale))) }
         
-        urlComponents?.queryItems = addAuthQueryItems(to: queryItems) // Auth hinzufügen
+        urlComponents?.queryItems = addAuthQueryItems(to: queryItems)
 
         guard let url = urlComponents?.url else { throw WooCommerceAPIError.invalidURL }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        print("WooCommerceAPIManager: Fetching products from URL: \(url.absoluteString)")
         
-        // Spezielle Behandlung für getProducts, da Paginierungs-Header benötigt werden
+        var responseData: Data?
+        
         do {
             let (data, response) = try await session.data(for: request)
+            responseData = data
+            
             guard let httpResponse = response as? HTTPURLResponse else {
-                throw WooCommerceAPIError.networkError(NSError(domain: "WooCommerceAPIManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response type"]))
+                print("WooCommerceAPIManager (\(#function)): Invalid HTTP response for URL \(url.absoluteString)")
+                throw WooCommerceAPIError.networkError(NSError(domain: "WooCommerceAPIManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "Invalid response type, not HTTPURLResponse."]))
             }
 
             if !(200...299).contains(httpResponse.statusCode) {
@@ -109,28 +105,41 @@ class WooCommerceAPIManager {
                     errorMessage = errorDetails.message
                     errorCode = errorDetails.code
                 }
-                print("WooCommerceAPIManager: Server error \(httpResponse.statusCode) for getProducts URL \(url.absoluteString). Code: \(errorCode ?? "N/A"), Message: \(errorMessage ?? "N/A")")
+                print("WooCommerceAPIManager (\(#function)): Server error \(httpResponse.statusCode) for URL \(url.absoluteString). Code: \(errorCode ?? "N/A"), Message: \(errorMessage ?? "N/A")")
                 throw WooCommerceAPIError.serverError(statusCode: httpResponse.statusCode, message: errorMessage, errorCode: errorCode)
             }
             
             let decoder = JSONDecoder()
-            // decoder.keyDecodingStrategy = .convertFromSnakeCase // Falls deine Modelle das erfordern
+            // WooCommerceProduct hat eine manuelle Codable-Implementierung,
+            // daher sollte die keyDecodingStrategy hier nicht angewendet werden.
+            // // decoder.keyDecodingStrategy = .convertFromSnakeCase // AUSKOMMENTIERT für Produkte
+
+            // Falls deine dateCreated etc. im WooCommerceProduct-Modell als Date-Objekte
+            // deklariert wären (aktuell sind sie Strings), müsstest du hier
+            // eine dateDecodingStrategy konfigurieren.
+            // let dateFormatter = DateFormatter()
+            // dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+            // dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+            // dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+            // decoder.dateDecodingStrategy = .formatted(dateFormatter)
+            
             let products = try decoder.decode([WooCommerceProduct].self, from: data)
             
             let totalPagesHeader = httpResponse.value(forHTTPHeaderField: "X-WP-TotalPages")
             let totalCountHeader = httpResponse.value(forHTTPHeaderField: "X-WP-Total")
-            let totalPages = Int(totalPagesHeader ?? "0") ?? 0
-            let totalCount = Int(totalCountHeader ?? "0") ?? 0
+            let totalPages = Int(totalPagesHeader ?? "") ?? 0
+            let totalCount = Int(totalCountHeader ?? "") ?? 0
             
             return WooCommerceProductsResponseContainer(products: products, totalPages: totalPages, totalCount: totalCount)
 
         } catch let error as DecodingError {
-            print("WooCommerceAPIManager: Decoding error for getProducts URL \(url.absoluteString): \(error)")
+            print("WooCommerceAPIManager (\(#function)): Decoding error for URL \(url.absoluteString).")
+            logDecodingErrorDetails(error, for: #function, url: url, data: responseData)
             throw WooCommerceAPIError.decodingError(error)
         } catch let error as WooCommerceAPIError {
             throw error
         } catch {
-            print("WooCommerceAPIManager: Network or other error for getProducts URL \(url.absoluteString): \(error)")
+            print("WooCommerceAPIManager (\(#function)): Network or other error for URL \(url.absoluteString): \(error)")
             throw WooCommerceAPIError.networkError(error)
         }
     }
@@ -139,86 +148,138 @@ class WooCommerceAPIManager {
         var urlComponents = URLComponents(string: coreApiBaseURL + "products")
         if urlComponents == nil { throw WooCommerceAPIError.invalidURL }
 
-        var queryItems = [URLQueryItem(name: "slug", value: productSlug)]
-        urlComponents?.queryItems = addAuthQueryItems(to: queryItems) // Auth hinzufügen
+        let queryItems = [URLQueryItem(name: "slug", value: productSlug)]
+        urlComponents?.queryItems = addAuthQueryItems(to: queryItems)
 
         guard let url = urlComponents?.url else { throw WooCommerceAPIError.invalidURL }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        print("WooCommerceAPIManager: Fetching product by slug from URL: \(url.absoluteString)")
         
-        let productsArray: [WooCommerceProduct] = try await performRequest(request: request, decodingType: [WooCommerceProduct].self, functionNameForLog: "getProductBySlug")
+        // Da WooCommerceProduct manuell Codable implementiert, wird performRequest so angepasst,
+        // dass es die keyDecodingStrategy für diesen Typ nicht anwendet.
+        let productsArray: [WooCommerceProduct] = try await performRequest(request: request, decodingType: [WooCommerceProduct].self, functionNameForLog: #function)
         return productsArray.first
     }
 
-    func getProductVariations(productId: Int) async throws -> [WooCommerceProductVariation] {
+    func getProductVariations(productId: Int, perPage: Int = 100) async throws -> [WooCommerceProductVariation] {
         var urlComponents = URLComponents(string: coreApiBaseURL + "products/\(productId)/variations")
         if urlComponents == nil { throw WooCommerceAPIError.invalidURL }
 
-        var queryItems = [URLQueryItem(name: "per_page", value: "100")] // Annahme: Max 100 Variationen
-        urlComponents?.queryItems = addAuthQueryItems(to: queryItems) // Auth hinzufügen
+        let queryItems = [URLQueryItem(name: "per_page", value: String(perPage))]
+        urlComponents?.queryItems = addAuthQueryItems(to: queryItems)
 
         guard let url = urlComponents?.url else { throw WooCommerceAPIError.invalidURL }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        print("WooCommerceAPIManager: Fetching variations for product ID \(productId) from URL: \(url.absoluteString)")
         
-        return try await performRequest(request: request, decodingType: [WooCommerceProductVariation].self, functionNameForLog: "getProductVariations")
+        // Annahme: WooCommerceProductVariation verwendet KEINE manuelle Codable Implementierung
+        // und profitiert von .convertFromSnakeCase. Falls doch, müsste performRequest erweitert werden.
+        return try await performRequest(request: request, decodingType: [WooCommerceProductVariation].self, functionNameForLog: #function)
     }
 
     // MARK: - Private Generic Request Performer
     private func performRequest<T: Decodable>(request: URLRequest, decodingType: T.Type, functionNameForLog: String) async throws -> T {
+        var responseData: Data?
+
         do {
             let (data, response) = try await session.data(for: request)
+            responseData = data
 
             guard let httpResponse = response as? HTTPURLResponse else {
-                throw WooCommerceAPIError.networkError(NSError(domain: "WooCommerceAPIManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response type"]))
+                print("WooCommerceAPIManager (\(functionNameForLog)): Invalid HTTP response for URL \(request.url?.absoluteString ?? "N/A")")
+                throw WooCommerceAPIError.networkError(NSError(domain: "WooCommerceAPIManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "Invalid response type, not HTTPURLResponse."]))
             }
-
+            
             if !(200...299).contains(httpResponse.statusCode) {
                 var errorMessage: String?
                 var errorCode: String?
-                // Versuche, eine WooCommerceErrorResponse zu dekodieren
                 if let errorDetails = try? JSONDecoder().decode(WooCommerceErrorResponse.self, from: data) {
                     errorMessage = errorDetails.message
                     errorCode = errorDetails.code
                 }
-                print("WooCommerceAPIManager: Server error \(httpResponse.statusCode) for \(functionNameForLog) URL \(request.url?.absoluteString ?? "N/A"). Code: \(errorCode ?? "N/A"), Message: \(errorMessage ?? "N/A")")
+                print("WooCommerceAPIManager (\(functionNameForLog)): Server error \(httpResponse.statusCode) for URL \(request.url?.absoluteString ?? "N/A"). Code: \(errorCode ?? "N/A"), Message: \(errorMessage ?? "N/A")")
                 throw WooCommerceAPIError.serverError(statusCode: httpResponse.statusCode, message: errorMessage, errorCode: errorCode)
             }
             
-            // Spezielle Behandlung für leere Antworten, wenn T optional ist (hier nicht der Fall)
-            // oder wenn ein 204 No Content erwartet wird.
-            if data.isEmpty && !(decodingType is Optional<Any>.Type) {
-                 // Wenn T kein Optional ist und die Daten leer sind, ist das ein Problem,
-                 // es sei denn, der Statuscode impliziert "No Content" (z.B. 204).
-                 // Für GET-Anfragen, die eine Entität erwarten, sollte data nicht leer sein bei 200 OK.
-                 if httpResponse.statusCode == 204 {
-                     // Dies sollte nicht passieren, wenn T nicht optional ist und wir Inhalt erwarten
-                     print("WooCommerceAPIManager: Warning - Received 204 No Content but expected to decode \(String(describing: T.self)) for \(functionNameForLog).")
-                     // Hier könntest du entscheiden, einen Fehler zu werfen oder mit einem "Standardwert" für T umzugehen,
-                     // aber da T nicht optional ist, ist ein Fehler wahrscheinlicher.
-                     // Für diesen generischen Performer nehmen wir an, dass leere Daten bei nicht-optionalem T ein Fehler sind, wenn nicht 204.
-                     // Wenn 204, und T ist nicht optional, ist es ein Widerspruch zur API-Definition.
-                 }
-                 // throw WooCommerceAPIError.noData // oder spezifischer Fehler
+            if httpResponse.statusCode == 204 { // No Content
+                if T.self == Void.self { return () as! T }
+                else if data.isEmpty { throw WooCommerceAPIError.noData }
             }
-
+            
+            if data.isEmpty && T.self != Void.self { throw WooCommerceAPIError.noData }
 
             let decoder = JSONDecoder()
-            // Setze hier ggf. Key-Decoding-Strategien, wenn deine JSON-Keys nicht den Swift-Property-Namen entsprechen
-            // z.B. decoder.keyDecodingStrategy = .convertFromSnakeCase
+            
+            // *** WICHTIGE ÄNDERUNG FÜR TYP-SPEZIFISCHE DEKODIERUNGSSTRATEGIE ***
+            // Überprüfe, ob T WooCommerceProduct oder ein Array davon ist.
+            // Wenn ja, verwende KEINE keyDecodingStrategy, da WooCommerceProduct Codable manuell implementiert.
+            // Für andere Typen (z.B. WooCommerceCategory, WooCommerceProductVariation), verwende .convertFromSnakeCase.
+            let isProductType = T.self is WooCommerceProduct.Type || T.self is Array<WooCommerceProduct>.Type
+            
+            if !isProductType {
+                 print("WooCommerceAPIManager (\(functionNameForLog)): Using .convertFromSnakeCase for type \(String(describing: T.self))")
+                decoder.keyDecodingStrategy = .convertFromSnakeCase
+            } else {
+                 print("WooCommerceAPIManager (\(functionNameForLog)): NOT using .convertFromSnakeCase for WooCommerceProduct type (\(String(describing: T.self))). Relying on manual Codable implementation.")
+            }
+            
+            // Datumsformatierung: Falls deine Modelle Date-Objekte statt Strings für Daten verwenden.
+            // Dies müsste auch typspezifisch gehandhabt werden, wenn verschiedene Modelle
+            // unterschiedliche Datumsformate oder String/Date-Typen verwenden.
+            // Für WooCommerceProduct sind Daten aktuell Strings, daher ist keine Date-Strategie nötig.
+            // Beispiel:
+            // if T.self is WooCommerceProductVariation.Type { // Angenommen Variation hätte Date-Objekte
+            //    let dateFormatter = DateFormatter()
+            //    dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+            //    dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+            //    decoder.dateDecodingStrategy = .formatted(dateFormatter)
+            // }
             
             return try decoder.decode(T.self, from: data)
 
         } catch let error as DecodingError {
-            print("WooCommerceAPIManager: Decoding error for \(functionNameForLog) URL \(request.url?.absoluteString ?? "N/A"): \(error)")
+            print("WooCommerceAPIManager (\(functionNameForLog)): Decoding error for URL \(request.url?.absoluteString ?? "N/A").")
+            logDecodingErrorDetails(error, for: functionNameForLog, url: request.url, data: responseData)
             throw WooCommerceAPIError.decodingError(error)
         } catch let error as WooCommerceAPIError {
-            throw error // Bereits ein WooCommerceAPIError, einfach weiterwerfen
+            throw error
         } catch {
-            print("WooCommerceAPIManager: Network or other error for \(functionNameForLog) URL \(request.url?.absoluteString ?? "N/A"): \(error)")
-            throw WooCommerceAPIError.networkError(error) // Oder .underlying(error), je nach Präferenz
+            print("WooCommerceAPIManager (\(functionNameForLog)): Network or other error for URL \(request.url?.absoluteString ?? "N/A"): \(error)")
+            throw WooCommerceAPIError.networkError(error)
         }
+    }
+
+    private func logDecodingErrorDetails(_ error: DecodingError, for functionName: String, url: URL?, data: Data?) {
+        var logMessage = "WooCommerceAPIManager: Detailed decoding error for \(functionName) URL \(url?.absoluteString ?? "N/A"):\n"
+        
+        if let data = data, !data.isEmpty, let rawString = String(data: data, encoding: .utf8) {
+            logMessage += "Raw Data (first 1000 chars): \(rawString.prefix(1000))\n"
+        } else if let data = data, data.isEmpty {
+            logMessage += "Raw Data: Received empty data.\n"
+        } else {
+            logMessage += "Raw Data: Not available in this context, data was nil, or not UTF-8.\n"
+        }
+
+        switch error {
+        case .typeMismatch(let type, let context):
+            logMessage += "  Type mismatch: Expected type '\(type)' not found.\n"
+            logMessage += "  Coding Path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))\n"
+            logMessage += "  Debug Description: \(context.debugDescription)"
+        case .valueNotFound(let type, let context):
+            logMessage += "  Value not found: No value found for expected type '\(type)'.\n"
+            logMessage += "  Coding Path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))\n"
+            logMessage += "  Debug Description: \(context.debugDescription)"
+        case .keyNotFound(let key, let context):
+            logMessage += "  Key not found: Key '\(key.stringValue)' not found.\n"
+            logMessage += "  Coding Path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))\n"
+            logMessage += "  Debug Description: \(context.debugDescription)"
+        case .dataCorrupted(let context):
+            logMessage += "  Data corrupted: The data found is not valid.\n"
+            logMessage += "  Coding Path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))\n"
+            logMessage += "  Debug Description: \(context.debugDescription)"
+        @unknown default:
+            logMessage += "  Unknown decoding error: \(error.localizedDescription)"
+        }
+        print(logMessage)
     }
 }

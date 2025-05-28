@@ -1,112 +1,129 @@
+// YGE-IOS-App/Features/Home/Views/HomeView.swift
+
 import SwiftUI
 
 struct HomeView: View {
-    @StateObject private var viewModel = HomeViewModel()
-    private var gridItemLayout = [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)]
+    // @StateObject var viewModel = HomeViewModel()
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 0) {
                     
-                    ZStack {
-                        Color.gray.opacity(0.2)
-                            .frame(height: 200)
-                            .cornerRadius(12)
-                        Text("Your Garden Eden - Banner")
-                            .font(.title)
-                            .foregroundColor(.primary.opacity(0.7))
-                    }
-                    .padding(.horizontal)
+                    heroImageView()
+                        .frame(height: 280)
+                        .padding(.bottom, AppStyles.Spacing.large)
 
-                    VStack(alignment: .leading) {
-                        Text("Unsere Empfehlungen")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                        
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 16) {
-                                ForEach(0..<5) { index in
-                                    ProductCardPlaceholderView(title: "Produkt \(index + 1)")
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal)
-
-                    VStack(alignment: .leading) {
-                        Text("Kategorien entdecken")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                        
-                        LazyVGrid(columns: gridItemLayout, spacing: 16) {
-                            ForEach(0..<4) { index in
-                                 CategoryTilePlaceholderView(title: "Kategorie \(index + 1)")
-                            }
-                        }
-                    }
-                    .padding(.horizontal)
-                    
-                    if viewModel.isLoading {
-                        ProgressView("Lade Daten...")
-                            .padding()
-                    } else if let errorMessage = viewModel.errorMessage {
-                        Text("Fehler: \(errorMessage)")
-                            .foregroundColor(.red)
-                            .padding()
-                    }
+                    featuredProductsSection()
+                        .padding(.bottom, AppStyles.Spacing.large)
                     
                     Spacer()
                 }
-                .padding(.top)
             }
-            .navigationTitle("Home")
-            // .onAppear {
-            //    viewModel.loadDataForHomeView()
-            // }
-            // .navigationDestination(for: WooCommerceProduct.self) { product in
-            //     // ProductDetailView(product: product) // Später definieren
-            //     Text("Detailansicht für \(product.name)")
-            // }
+            .background(AppColors.backgroundPage.ignoresSafeArea())
+            .navigationTitle("Startseite")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(AppColors.backgroundComponent.opacity(0.8), for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Image("logo_your_garden_eden_transparent")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: 32)
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    HStack(spacing: AppStyles.Spacing.small) {
+                        Button {} label: { Image(systemName: "magnifyingglass").font(.title3).foregroundColor(AppColors.textHeadings) }
+                        Button {} label: { Image(systemName: "heart").font(.title3).foregroundColor(AppColors.textHeadings) }
+                        Button {} label: { Image(systemName: "cart").font(.title3).foregroundColor(AppColors.textHeadings) }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func heroImageView() -> some View {
+        ZStack(alignment: .bottomLeading) {
+            Image("hero_main_banner_yge")
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(height: 280)
+                .clipped()
+
+            LinearGradient(
+                gradient: Gradient(colors: [Color.black.opacity(0.5), Color.black.opacity(0)]),
+                startPoint: .bottom,
+                endPoint: .center
+            )
+
+            Text("Your-Garden-Eden")
+                .font(AppFonts.montserrat(size: AppFonts.Size.h1, weight: .bold))
+                .foregroundColor(AppColors.textOnPrimary)
+                .padding(AppStyles.Spacing.large)
+                .shadow(color: AppColors.secondary.opacity(0.7), radius: 3, x: 1, y: 1)
+        }
+    }
+
+    @ViewBuilder
+    private func featuredProductsSection() -> some View {
+        VStack(alignment: .leading, spacing: AppStyles.Spacing.medium) {
+            Text("Unsere Bestseller")
+                .font(AppFonts.montserrat(size: AppFonts.Size.h3, weight: .semibold))
+                .foregroundColor(AppColors.textHeadings)
+                .padding(.horizontal, AppStyles.Spacing.medium)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: AppStyles.Spacing.medium) {
+                    ForEach(0..<5) { _ in
+                        ProductCardViewPlaceholder()
+                    }
+                }
+                .padding(.horizontal, AppStyles.Spacing.medium)
+                .padding(.vertical, AppStyles.Spacing.small)
+            }
         }
     }
 }
 
-// Platzhalter-View für Produktkarten
-struct ProductCardPlaceholderView: View {
-    let title: String
+struct ProductCardViewPlaceholder: View {
     var body: some View {
-        VStack {
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.blue.opacity(0.3))
-                .frame(width: 150, height: 120)
-            Text(title)
-                .font(.headline)
-            Text("€19,99")
-                .font(.subheadline)
-                .foregroundColor(.gray)
-        }
-        .frame(width: 150)
-        .padding(8)
-        .background(Color(UIColor.systemGray6))
-        .cornerRadius(10)
-    }
-}
+        VStack(alignment: .leading, spacing: AppStyles.Spacing.xSmall) {
+            ZStack {
+                RoundedRectangle(cornerRadius: AppStyles.BorderRadius.medium)
+                    .fill(AppColors.backgroundComponent)
+                    .aspectRatio(1, contentMode: .fit)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: AppStyles.BorderRadius.medium)
+                            .stroke(AppColors.borderLight, lineWidth: 1)
+                    )
+                
+                Image("product_placeholder_sonnenliege")
+                    .resizable()
+                    .scaledToFit()
+                    .padding(AppStyles.Spacing.small)
+            }
+            
+            Text("Klappliege mit Sonnenschutz")
+                .font(AppFonts.roboto(size: AppFonts.Size.body, weight: .medium))
+                .foregroundColor(AppColors.textBase)
+                .lineLimit(2)
+                .frame(height: 40, alignment: .top)
 
-// Platzhalter-View für Kategorie-Kacheln
-struct CategoryTilePlaceholderView: View {
-    let title: String
-    var body: some View {
-        VStack {
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.green.opacity(0.3))
-                .aspectRatio(1, contentMode: .fit)
-            Text(title)
-                .font(.headline)
+            Text("In mehreren Varianten")
+                // KORREKTUR HIER: .normal zu .regular
+                .font(AppFonts.roboto(size: AppFonts.Size.caption, weight: .regular))
+                .foregroundColor(AppColors.textMuted)
+            
+            Spacer()
         }
-        .padding(8)
-        .background(Color(UIColor.systemGray6))
-        .cornerRadius(10)
+        .frame(width: 160)
+        .padding(AppStyles.Spacing.small)
+        .background(AppColors.backgroundComponent)
+        .cornerRadius(AppStyles.BorderRadius.large)
+        // KORREKTUR HIER: AppStyles.Shadows.small direkt übergeben
+        .appShadow(AppStyles.Shadows.small)
     }
 }
 

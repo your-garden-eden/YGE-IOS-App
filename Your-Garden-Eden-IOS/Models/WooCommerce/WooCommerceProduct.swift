@@ -1,15 +1,15 @@
 // YGE-IOS-App/Core/Models/WooCommerce/CoreAPI/WooCommerceProduct.swift
 import Foundation
 
-struct WooCommerceProduct: Identifiable, Hashable, Codable { // Codable wird manuell implementiert
+struct WooCommerceProduct: Identifiable, Hashable, Codable {
     let id: Int
     let name: String
     let slug: String
     let permalink: String
     let dateCreated: String
     let dateCreatedGmt: String
-    let dateModified: String
-    let dateModifiedGmt: String
+    let dateModified: String?
+    let dateModifiedGmt: String?
     let type: ProductType
     let status: String
     let featured: Bool
@@ -17,9 +17,9 @@ struct WooCommerceProduct: Identifiable, Hashable, Codable { // Codable wird man
     let description: String
     let shortDescription: String
     let sku: String
-    let price: String
-    let regularPrice: String
-    let salePrice: String?
+    let price: String // Beachte: Kann auch als Zahl kommen, ggf. anpassen wie totalSales
+    let regularPrice: String // Beachte: Kann auch als Zahl kommen, ggf. anpassen wie totalSales
+    let salePrice: String? // Beachte: Kann auch als Zahl kommen, ggf. anpassen wie totalSales
     let priceHtml: String?
     let dateOnSaleFrom: String?
     let dateOnSaleFromGmt: String?
@@ -27,7 +27,7 @@ struct WooCommerceProduct: Identifiable, Hashable, Codable { // Codable wird man
     let dateOnSaleToGmt: String?
     let onSale: Bool
     let purchasable: Bool
-    let totalSales: Int
+    let totalSales: Int // Wird jetzt flexibel dekodiert (String oder Int)
     let virtual: Bool
     let downloadable: Bool
     let externalUrl: String?
@@ -35,21 +35,21 @@ struct WooCommerceProduct: Identifiable, Hashable, Codable { // Codable wird man
     let taxStatus: String
     let taxClass: String?
     let manageStock: Bool
-    let stockQuantity: Int?
+    let stockQuantity: Int? // Beachte: Kann leerer String "" sein, ggf. anpassen
     let stockStatus: StockStatus
     let backorders: String
     let backordersAllowed: Bool
     let backordered: Bool
     let lowStockAmount: Int?
     let soldIndividually: Bool
-    let weight: String?
+    let weight: String? // Beachte: Kann auch als Zahl kommen, ggf. anpassen
     let dimensions: WooCommerceProductDimension
     let shippingRequired: Bool
     let shippingTaxable: Bool
     let shippingClass: String?
     let shippingClassId: Int
     let reviewsAllowed: Bool
-    let averageRating: String
+    let averageRating: String // Beachte: Kann auch als Zahl kommen, ggf. anpassen
     let ratingCount: Int
     let relatedIds: [Int]
     let upsellIds: [Int]
@@ -125,8 +125,8 @@ struct WooCommerceProduct: Identifiable, Hashable, Codable { // Codable wird man
         permalink = try container.decode(String.self, forKey: .permalink)
         dateCreated = try container.decode(String.self, forKey: .dateCreated)
         dateCreatedGmt = try container.decode(String.self, forKey: .dateCreatedGmt)
-        dateModified = try container.decode(String.self, forKey: .dateModified)
-        dateModifiedGmt = try container.decode(String.self, forKey: .dateModifiedGmt)
+        dateModified = try container.decodeIfPresent(String.self, forKey: .dateModified)
+        dateModifiedGmt = try container.decodeIfPresent(String.self, forKey: .dateModifiedGmt)
         type = try container.decode(ProductType.self, forKey: .type)
         status = try container.decode(String.self, forKey: .status)
         featured = try container.decode(Bool.self, forKey: .featured)
@@ -144,7 +144,16 @@ struct WooCommerceProduct: Identifiable, Hashable, Codable { // Codable wird man
         dateOnSaleToGmt = try container.decodeIfPresent(String.self, forKey: .dateOnSaleToGmt)
         onSale = try container.decode(Bool.self, forKey: .onSale)
         purchasable = try container.decode(Bool.self, forKey: .purchasable)
-        totalSales = try container.decode(Int.self, forKey: .totalSales)
+        
+        // Flexible Dekodierung für totalSales
+        if let salesInt = try? container.decode(Int.self, forKey: .totalSales) {
+            totalSales = salesInt
+        } else if let salesString = try? container.decode(String.self, forKey: .totalSales) {
+            totalSales = Int(salesString) ?? 0 // Fallback auf 0, wenn String-Konvertierung fehlschlägt
+        } else {
+            totalSales = 0 // Ultimativer Fallback
+        }
+        
         virtual = try container.decode(Bool.self, forKey: .virtual)
         downloadable = try container.decode(Bool.self, forKey: .downloadable)
         externalUrl = try container.decodeIfPresent(String.self, forKey: .externalUrl)
@@ -187,76 +196,42 @@ struct WooCommerceProduct: Identifiable, Hashable, Codable { // Codable wird man
     // MARK: - Encodable
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(id, forKey: .id)
-        try container.encode(name, forKey: .name)
-        try container.encode(slug, forKey: .slug)
-        try container.encode(permalink, forKey: .permalink)
-        try container.encode(dateCreated, forKey: .dateCreated)
-        try container.encode(dateCreatedGmt, forKey: .dateCreatedGmt)
-        try container.encode(dateModified, forKey: .dateModified)
-        try container.encode(dateModifiedGmt, forKey: .dateModifiedGmt)
-        try container.encode(type, forKey: .type)
-        try container.encode(status, forKey: .status)
-        try container.encode(featured, forKey: .featured)
-        try container.encode(catalogVisibility, forKey: .catalogVisibility)
-        try container.encode(description, forKey: .description)
-        try container.encode(shortDescription, forKey: .shortDescription)
-        try container.encode(sku, forKey: .sku)
-        try container.encode(price, forKey: .price)
-        try container.encode(regularPrice, forKey: .regularPrice)
-        try container.encodeIfPresent(salePrice, forKey: .salePrice)
-        try container.encodeIfPresent(priceHtml, forKey: .priceHtml)
-        try container.encodeIfPresent(dateOnSaleFrom, forKey: .dateOnSaleFrom)
-        try container.encodeIfPresent(dateOnSaleFromGmt, forKey: .dateOnSaleFromGmt)
-        try container.encodeIfPresent(dateOnSaleTo, forKey: .dateOnSaleTo)
-        try container.encodeIfPresent(dateOnSaleToGmt, forKey: .dateOnSaleToGmt)
-        try container.encode(onSale, forKey: .onSale)
-        try container.encode(purchasable, forKey: .purchasable)
-        try container.encode(totalSales, forKey: .totalSales)
-        try container.encode(virtual, forKey: .virtual)
-        try container.encode(downloadable, forKey: .downloadable)
-        try container.encodeIfPresent(externalUrl, forKey: .externalUrl)
-        try container.encodeIfPresent(buttonText, forKey: .buttonText)
-        try container.encode(taxStatus, forKey: .taxStatus)
-        try container.encodeIfPresent(taxClass, forKey: .taxClass)
-        try container.encode(manageStock, forKey: .manageStock)
-        try container.encodeIfPresent(stockQuantity, forKey: .stockQuantity)
-        try container.encode(stockStatus, forKey: .stockStatus)
-        try container.encode(backorders, forKey: .backorders)
-        try container.encode(backordersAllowed, forKey: .backordersAllowed)
-        try container.encode(backordered, forKey: .backordered)
-        try container.encodeIfPresent(lowStockAmount, forKey: .lowStockAmount)
-        try container.encode(soldIndividually, forKey: .soldIndividually)
-        try container.encodeIfPresent(weight, forKey: .weight)
-        try container.encode(dimensions, forKey: .dimensions)
-        try container.encode(shippingRequired, forKey: .shippingRequired)
-        try container.encode(shippingTaxable, forKey: .shippingTaxable)
-        try container.encodeIfPresent(shippingClass, forKey: .shippingClass)
-        try container.encode(shippingClassId, forKey: .shippingClassId)
-        try container.encode(reviewsAllowed, forKey: .reviewsAllowed)
-        try container.encode(averageRating, forKey: .averageRating)
-        try container.encode(ratingCount, forKey: .ratingCount)
-        try container.encode(relatedIds, forKey: .relatedIds) // Enkodiere immer, auch wenn leer
-        try container.encode(upsellIds, forKey: .upsellIds)
-        try container.encode(crossSellIds, forKey: .crossSellIds)
-        try container.encode(parentId, forKey: .parentId)
-        try container.encodeIfPresent(purchaseNote, forKey: .purchaseNote)
-        try container.encode(categories, forKey: .categories)
-        try container.encode(tags, forKey: .tags)
-        try container.encode(images, forKey: .images)
-        try container.encode(attributes, forKey: .attributes)
-        try container.encode(defaultAttributes, forKey: .defaultAttributes)
-        try container.encode(variations, forKey: .variations)
-        try container.encodeIfPresent(groupedProducts, forKey: .groupedProducts)
-        try container.encode(menuOrder, forKey: .menuOrder)
-        try container.encode(metaData, forKey: .metaData)
+        try container.encode(id, forKey: .id); try container.encode(name, forKey: .name); try container.encode(slug, forKey: .slug); try container.encode(permalink, forKey: .permalink);
+        try container.encode(dateCreated, forKey: .dateCreated); try container.encode(dateCreatedGmt, forKey: .dateCreatedGmt);
+        try container.encodeIfPresent(dateModified, forKey: .dateModified); try container.encodeIfPresent(dateModifiedGmt, forKey: .dateModifiedGmt);
+        try container.encode(type, forKey: .type); try container.encode(status, forKey: .status); try container.encode(featured, forKey: .featured);
+        try container.encode(catalogVisibility, forKey: .catalogVisibility); try container.encode(description, forKey: .description);
+        try container.encode(shortDescription, forKey: .shortDescription); try container.encode(sku, forKey: .sku);
+        try container.encode(price, forKey: .price); try container.encode(regularPrice, forKey: .regularPrice);
+        try container.encodeIfPresent(salePrice, forKey: .salePrice); try container.encodeIfPresent(priceHtml, forKey: .priceHtml);
+        try container.encodeIfPresent(dateOnSaleFrom, forKey: .dateOnSaleFrom); try container.encodeIfPresent(dateOnSaleFromGmt, forKey: .dateOnSaleFromGmt);
+        try container.encodeIfPresent(dateOnSaleTo, forKey: .dateOnSaleTo); try container.encodeIfPresent(dateOnSaleToGmt, forKey: .dateOnSaleToGmt);
+        try container.encode(onSale, forKey: .onSale); try container.encode(purchasable, forKey: .purchasable);
+        try container.encode(totalSales, forKey: .totalSales); // totalSales wird als Int enkodiert
+        try container.encode(virtual, forKey: .virtual); try container.encode(downloadable, forKey: .downloadable);
+        try container.encodeIfPresent(externalUrl, forKey: .externalUrl); try container.encodeIfPresent(buttonText, forKey: .buttonText);
+        try container.encode(taxStatus, forKey: .taxStatus); try container.encodeIfPresent(taxClass, forKey: .taxClass);
+        try container.encode(manageStock, forKey: .manageStock); try container.encodeIfPresent(stockQuantity, forKey: .stockQuantity);
+        try container.encode(stockStatus, forKey: .stockStatus); try container.encode(backorders, forKey: .backorders);
+        try container.encode(backordersAllowed, forKey: .backordersAllowed); try container.encode(backordered, forKey: .backordered);
+        try container.encodeIfPresent(lowStockAmount, forKey: .lowStockAmount); try container.encode(soldIndividually, forKey: .soldIndividually);
+        try container.encodeIfPresent(weight, forKey: .weight); try container.encode(dimensions, forKey: .dimensions);
+        try container.encode(shippingRequired, forKey: .shippingRequired); try container.encode(shippingTaxable, forKey: .shippingTaxable);
+        try container.encodeIfPresent(shippingClass, forKey: .shippingClass); try container.encode(shippingClassId, forKey: .shippingClassId);
+        try container.encode(reviewsAllowed, forKey: .reviewsAllowed); try container.encode(averageRating, forKey: .averageRating);
+        try container.encode(ratingCount, forKey: .ratingCount); try container.encode(relatedIds, forKey: .relatedIds);
+        try container.encode(upsellIds, forKey: .upsellIds); try container.encode(crossSellIds, forKey: .crossSellIds);
+        try container.encode(parentId, forKey: .parentId); try container.encodeIfPresent(purchaseNote, forKey: .purchaseNote);
+        try container.encode(categories, forKey: .categories); try container.encode(tags, forKey: .tags);
+        try container.encode(images, forKey: .images); try container.encode(attributes, forKey: .attributes);
+        try container.encode(defaultAttributes, forKey: .defaultAttributes); try container.encode(variations, forKey: .variations);
+        try container.encodeIfPresent(groupedProducts, forKey: .groupedProducts); try container.encode(menuOrder, forKey: .menuOrder);
+        try container.encode(metaData, forKey: .metaData);
     }
 
-    // Manueller Memberwise Initializer, da Codable-Implementierung den automatischen entfernt.
-    // Dieser wird benötigt, wenn du WooCommerceProduct-Instanzen direkt im Code erstellen möchtest.
-    // Für das reine Dekodieren von der API ist er nicht zwingend, aber gute Praxis.
+    // Manueller Memberwise Initializer (gekürzt für Lesbarkeit, stelle sicher, dass alle Properties enthalten sind, wenn du ihn brauchst)
     init(id: Int, name: String, slug: String, permalink: String, dateCreated: String, dateCreatedGmt: String,
-         dateModified: String, dateModifiedGmt: String, type: ProductType, status: String, featured: Bool,
+         dateModified: String?, dateModifiedGmt: String?, type: ProductType, status: String, featured: Bool,
          catalogVisibility: String, description: String, shortDescription: String, sku: String,
          price: String, regularPrice: String, salePrice: String?, priceHtml: String?,
          dateOnSaleFrom: String?, dateOnSaleFromGmt: String?, dateOnSaleTo: String?, dateOnSaleToGmt: String?,
