@@ -13,6 +13,3 @@ struct AuthViewModel: View {
     }
 }
 
-#Preview {
-    AuthViewModel()
-}

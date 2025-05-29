@@ -13,6 +13,3 @@ struct LoadingCardView: View {
     }
 }
 
-#Preview {
-    LoadingCardView()
-}

@@ -13,6 +13,3 @@ struct CartViewModel: View {
     }
 }
 
-#Preview {
-    CartViewModel()
-}

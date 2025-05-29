@@ -13,6 +13,3 @@ struct WishlistViewModel: View {
     }
 }
 
-#Preview {
-    WishlistViewModel()
-}

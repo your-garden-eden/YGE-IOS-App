@@ -13,6 +13,3 @@ struct EncodersDecoders: View {
     }
 }
 
-#Preview {
-    EncodersDecoders()
-}

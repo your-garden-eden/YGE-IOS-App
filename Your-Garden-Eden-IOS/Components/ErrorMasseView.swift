@@ -13,6 +13,3 @@ struct ErrorMasseView: View {
     }
 }
 
-#Preview {
-    ErrorMasseView()
-}

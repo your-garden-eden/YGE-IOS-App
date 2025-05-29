@@ -13,6 +13,3 @@ struct ProfilViewModels: View {
     }
 }
 
-#Preview {
-    ProfilViewModels()
-}
