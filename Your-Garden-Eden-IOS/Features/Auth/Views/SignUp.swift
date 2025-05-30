@@ -159,17 +159,4 @@ struct SignUpView: View {
     }
 }
 
-// Preview Provider
-struct SignUpView_Previews: PreviewProvider {
-    static var previews: some View {
-        let mockAuthManager = FirebaseAuthManager()
-        // Beispiel: Simulieren eines Fehlers für die Preview
-        // mockAuthManager.authError = NSError(domain: "PreviewError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Dies ist ein Testfehler."])
-        
-        return SignUpView(
-            onSignUpSuccess: { print("Preview: SignUp Success!") },
-            navigateToLogin: { print("Preview: Navigate to Login!") }
-        )
-        .environmentObject(mockAuthManager)
-    }
-}
+

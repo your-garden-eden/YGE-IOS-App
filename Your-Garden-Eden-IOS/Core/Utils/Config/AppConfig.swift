@@ -1,12 +1,4 @@
-//
-//  AppConfig.swift
-//  Your-Garden-Eden-IOS
-//
-//  Created by Josef Ewert on 22.05.25.
-//
-
-
-// YGE-IOS-App/Core/Config/AppConfig.swift
+// YGE-IOS-App/Core/Utils/Config/AppConfig.swift
 import Foundation
 
 struct AppConfig {
@@ -16,6 +8,9 @@ struct AppConfig {
 
         // Basis-URL für die WooCommerce Store API (Warenkorb, Checkout etc.)
         static let storeApiBaseURL = "https://your-garden-eden-4ujzpfm5qt.live-website.com/wp-json/wc/store/v1/"
+        
+        // NEU HINZUGEFÜGT: Standard-Währungssymbol
+        static let defaultCurrencySymbol = "€"
 
         // 🚨 ACHTUNG: Consumer Key & Secret hier NICHT speichern!
         // static let consumerKey = "DEIN_KEY" // <- NICHT MACHEN

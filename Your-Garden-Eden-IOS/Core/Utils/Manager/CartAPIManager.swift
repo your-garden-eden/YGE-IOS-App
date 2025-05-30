@@ -1,27 +1,31 @@
-// Managers/CartAPIManager.swift
+// Core/Utils/Manager/CartAPIManager.swift
 import Foundation
 import Combine
 
 @MainActor
 class CartAPIManager: ObservableObject {
+    // MARK: - Singleton Instance
     static let shared = CartAPIManager()
 
+    // MARK: - Published Properties
     @Published var currentCart: WooCommerceStoreCart?
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
 
+    // MARK: - Private Properties
     private var cartToken: String?
     private var nonce: String?
-
     private var cancellables = Set<AnyCancellable>()
-    private let storeApiBaseURL = AppConfig.WooCommerce.storeApiBaseURL
+    private let storeApiBaseURL = AppConfig.WooCommerce.storeApiBaseURL // Annahme: AppConfig ist zugänglich
 
+    // MARK: - Initializer (private für Singleton)
     private init() {
-        print("CartAPIManager initialized.")
+        print("CartAPIManager initialized (Singleton).")
         loadCartTokenFromKeychain()
+        // Weitere Initialisierungen hier, falls nötig
     }
 
-    // MARK: - Token Management (wie in der vorherigen Antwort)
+    // MARK: - Token Management
     private func loadCartTokenFromKeychain() {
         do {
             self.cartToken = try KeychainHelper.getCartToken()
@@ -51,59 +55,43 @@ class CartAPIManager: ObservableObject {
             print("CartAPIManager: Error deleting token: \(error.localizedDescription)")
         }
     }
-
-    func clearLocalCartInfoAndReloadFromServer() async {
+    
+    func clearLocalCartInfoAndReloadFromServer() async { // Behalte deine Implementierung
         print("CartAPIManager: Clearing local cart info.")
         currentCart = nil
         deleteCartTokenFromKeychain()
         self.nonce = nil
     }
 
+
     // MARK: - API Call Helper
     private func makeStoreAPIRequest<T: Decodable>(
         endpoint: String,
         method: String = "GET",
         body: Data? = nil
-    ) async throws -> T { // Gibt nur T zurück
-
+    ) async throws -> T {
+        // ... (deine bestehende Implementierung von makeStoreAPIRequest)
         guard let url = URL(string: "\(storeApiBaseURL)\(endpoint.hasPrefix("/") ? String(endpoint.dropFirst()) : endpoint)") else {
             throw WooCommerceAPIError.invalidURL
         }
-
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
         if let token = self.cartToken { request.setValue(token, forHTTPHeaderField: "Cart-Token") }
         if let nonceValue = self.nonce { request.setValue(nonceValue, forHTTPHeaderField: "X-WC-Store-API-Nonce") }
         if let bodyData = body { request.httpBody = bodyData }
-        
         print("CartAPIManager [Request]: \(method) \(url.path)")
-
-        let data: Data
-        let response: URLResponse
-        do {
-            (data, response) = try await URLSession.shared.data(for: request)
-        } catch {
-            print("CartAPIManager [Network Error]: \(error.localizedDescription) for \(url.path)")
-            throw WooCommerceAPIError.networkError(error)
-        }
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw WooCommerceAPIError.underlying(URLError(.badServerResponse))
-        }
-        
+        let data: Data; let response: URLResponse
+        do { (data, response) = try await URLSession.shared.data(for: request) }
+        catch { print("CartAPIManager [Network Error]: \(error.localizedDescription) for \(url.path)"); throw WooCommerceAPIError.networkError(error) }
+        guard let httpResponse = response as? HTTPURLResponse else { throw WooCommerceAPIError.underlying(URLError(.badServerResponse)) }
         print("CartAPIManager [Response Status]: \(httpResponse.statusCode) for \(url.path)")
-
         if let newCartTokenHeader = httpResponse.value(forHTTPHeaderField: "Cart-Token"), self.cartToken != newCartTokenHeader {
-            print("CartAPIManager: Received new/updated cart token. Saving.")
-            saveCartTokenToKeychain(newCartTokenHeader)
+            print("CartAPIManager: Received new/updated cart token. Saving."); saveCartTokenToKeychain(newCartTokenHeader)
         }
         if let newNonceHeader = httpResponse.value(forHTTPHeaderField: "X-WC-Store-API-Nonce"), self.nonce != newNonceHeader {
-            print("CartAPIManager: Received new/updated nonce. Updating in memory.")
-            self.nonce = newNonceHeader
+            print("CartAPIManager: Received new/updated nonce. Updating in memory."); self.nonce = newNonceHeader
         }
-        
         if !(200...299).contains(httpResponse.statusCode) {
             do {
                 let errorResponse = try JSONDecoder().decode(WooCommerceErrorResponse.self, from: data)
@@ -115,21 +103,10 @@ class CartAPIManager: ObservableObject {
                 throw WooCommerceAPIError.serverError(statusCode: httpResponse.statusCode, message: "Serverfehler, Details konnten nicht verarbeitet werden.", errorCode: nil)
             }
         }
-
-        if httpResponse.statusCode == 204 {
-            if T.self == Void.self { return () as! T }
-            else { throw WooCommerceAPIError.noData }
-        }
-        
-        if data.isEmpty {
-            if T.self == Void.self { return () as! T }
-            else { throw WooCommerceAPIError.noData }
-        }
-
-        do {
-            let decoder = JSONDecoder()
-            return try decoder.decode(T.self, from: data)
-        } catch let decodingError {
+        if httpResponse.statusCode == 204 { if T.self == Void.self { return () as! T } else { throw WooCommerceAPIError.noData } }
+        if data.isEmpty { if T.self == Void.self { return () as! T } else { throw WooCommerceAPIError.noData } }
+        do { return try JSONDecoder().decode(T.self, from: data) }
+        catch let decodingError {
             let rawBody = String(data: data, encoding: .utf8)?.prefix(500) ?? "Unreadable body"
             print("CartAPIManager: Decoding Error for type \(T.self): \(decodingError.localizedDescription). Body: \(rawBody) for \(url.path)")
             throw WooCommerceAPIError.decodingError(decodingError)
@@ -138,22 +115,20 @@ class CartAPIManager: ObservableObject {
 
     // MARK: - Initial Load Trigger
     func ensureTokensAndCartLoaded() async {
+        // ... (deine bestehende Implementierung)
         if isLoading { print("CartAPIManager: Already loading cart."); return }
         isLoading = true; errorMessage = nil
         defer { isLoading = false }
         print("CartAPIManager: Ensuring tokens and cart are loaded...")
-        await getCart()
+        await getCart() // Rufe getCart auf, um den Warenkorb zu laden
     }
 
     // MARK: - Cart Operations
     func getCart() async {
-        if !isLoading { // Nur wenn nicht schon von ensure... aufgerufen
-            isLoading = true; errorMessage = nil
-            do { isLoading = false }
-        }
+        // ... (deine bestehende Implementierung von getCart)
+        if !isLoading { isLoading = true; errorMessage = nil; do { isLoading = false } }
         print("CartAPIManager: Attempting to get cart...")
         do {
-            // KEINE explizite Spezialisierung <WooCommerceStoreCart> im Aufruf
             let cartObject: WooCommerceStoreCart = try await makeStoreAPIRequest(endpoint: "cart", method: "GET", body: nil)
             self.currentCart = cartObject
             print("CartAPIManager: Fetched cart. Items: \(cartObject.itemsCount)")
@@ -167,17 +142,16 @@ class CartAPIManager: ObservableObject {
             print("CartAPIManager: Unexpected error fetching cart: \(error.localizedDescription)")
         }
     }
-
+    
+    // ... (deine bestehenden Implementierungen für addItem, updateItemQuantity, removeItem, clearCart)
+    // Beispiel addItem:
     func addItem(productId: Int, quantity: Int = 1, variation: [WooCommerceStoreCartItemVariationAttribute]? = nil) async throws {
-        isLoading = true; errorMessage = nil
-        defer { isLoading = false }
+        isLoading = true; errorMessage = nil; defer { isLoading = false }
         print("CartAPIManager: Adding item (ID: \(productId), Qty: \(quantity))")
         struct AddToCartBody: Codable { let id: Int; let quantity: Int; let variation: [WooCommerceStoreCartItemVariationAttribute]? }
         let bodyPayload = AddToCartBody(id: productId, quantity: quantity, variation: variation)
         let requestBody: Data = try JSONEncoder().encode(bodyPayload)
-
         do {
-            // KEINE explizite Spezialisierung <WooCommerceStoreCart> im Aufruf
             let updatedCart: WooCommerceStoreCart = try await makeStoreAPIRequest(endpoint: "cart/add-item", method: "POST", body: requestBody)
             self.currentCart = updatedCart
             print("CartAPIManager: Item added. Count: \(updatedCart.itemsCount)")
@@ -187,56 +161,8 @@ class CartAPIManager: ObservableObject {
             throw error
         }
     }
-
-    func updateItemQuantity(itemKey: String, quantity: Int) async throws {
-        isLoading = true; errorMessage = nil
-        defer { isLoading = false }
-        print("CartAPIManager: Updating qty (Key: \(itemKey), Qty: \(quantity))")
-        struct UpdateItemBody: Codable { let quantity: Int }
-        let bodyPayload = UpdateItemBody(quantity: quantity)
-        let requestBody: Data = try JSONEncoder().encode(bodyPayload)
-
-        do {
-            // KEINE explizite Spezialisierung <WooCommerceStoreCart> im Aufruf
-            let updatedCart: WooCommerceStoreCart = try await makeStoreAPIRequest(endpoint: "cart/items/\(itemKey)", method: "PUT", body: requestBody)
-            self.currentCart = updatedCart
-            print("CartAPIManager: Qty updated. Count: \(updatedCart.itemsCount)")
-        } catch {
-            self.errorMessage = (error as? LocalizedError)?.localizedDescription ?? "Failed to update qty."
-            print("CartAPIManager: Error updating qty: \(error.localizedDescription)")
-            throw error
-        }
-    }
-
-    func removeItem(itemKey: String) async throws {
-        isLoading = true; errorMessage = nil
-        defer { isLoading = false }
-        print("CartAPIManager: Removing item (Key: \(itemKey))")
-        do {
-            // KEINE explizite Spezialisierung <WooCommerceStoreCart> im Aufruf
-            let updatedCart: WooCommerceStoreCart = try await makeStoreAPIRequest(endpoint: "cart/items/\(itemKey)", method: "DELETE", body: nil)
-            self.currentCart = updatedCart
-            print("CartAPIManager: Item removed. Count: \(updatedCart.itemsCount)")
-        } catch {
-            self.errorMessage = (error as? LocalizedError)?.localizedDescription ?? "Failed to remove item."
-            print("CartAPIManager: Error removing item: \(error.localizedDescription)")
-            throw error
-        }
-    }
-    
-    func clearCart() async throws {
-        isLoading = true; errorMessage = nil
-        defer { isLoading = false }
-        print("CartAPIManager: Clearing cart.")
-        do {
-            // KEINE explizite Spezialisierung <WooCommerceStoreCart> im Aufruf
-            let clearedCart: WooCommerceStoreCart = try await makeStoreAPIRequest(endpoint: "cart/clear", method: "POST", body: nil)
-            self.currentCart = clearedCart
-            print("CartAPIManager: Cart cleared. Count: \(clearedCart.itemsCount)")
-        } catch {
-            self.errorMessage = (error as? LocalizedError)?.localizedDescription ?? "Failed to clear cart."
-            print("CartAPIManager: Error clearing cart: \(error.localizedDescription)")
-            throw error
-        }
-    }
+    // (Füge hier die anderen Warenkorb-Methoden ein, falls sie nicht schon da waren)
+    func updateItemQuantity(itemKey: String, quantity: Int) async throws { /* ... */ }
+    func removeItem(itemKey: String) async throws { /* ... */ }
+    func clearCart() async throws { /* ... */ }
 }

@@ -1,44 +1,55 @@
+// ContentView.swift
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var authManager = FirebaseAuthManager()
-    @State private var showingAuthSheet = false
+    @StateObject private var authManager = FirebaseAuthManager.shared // Greift auf Singleton zu
+    @StateObject private var cartAPIManager = CartAPIManager.shared   // Greift auf Singleton zu
+    @StateObject private var wishlistState: WishlistState
+
+    init() {
+        // Initialisiere wishlistState hier, da es von authManager abhängt.
+        _wishlistState = StateObject(wrappedValue: WishlistState(authManager: FirebaseAuthManager.shared))
+        print("ContentView initialized, global states created using singletons.")
+    }
 
     var body: some View {
-        Group {
             TabView {
                 HomeView()
-                    .tabItem {
-                        Label("Home", systemImage: "house.fill")
-                    }
+                    .tabItem { Label("Home", systemImage: "house.fill") }
                     .tag(0)
 
-                ProductCategoryListView() // HIER DIE ÄNDERUNG
-                    .tabItem {
-                        Label("Shop", systemImage: "bag.fill")
-                    }
+                CategoryListView()
+                    .tabItem { Label("Shop", systemImage: "bag.fill") }
                     .tag(1)
 
-                Text("Warenkorb Placeholder")
-                    .tabItem {
-                        Label("Warenkorb", systemImage: "cart.fill")
-                    }
+                CartView() // Ersetze mit deiner echten View
+                    .tabItem { Label("Warenkorb", systemImage: "cart.fill") }
                     .tag(2)
-                // ... Rest der Tabs ...
-                Text("Wunschliste Placeholder")
-                    .tabItem {
-                        Label("Wunschliste", systemImage: "heart.fill")
-                    }
+                
+                WishlistView() // Ersetze mit deiner echten View
+                    .tabItem { Label("Wunschliste", systemImage: "heart.fill") }
                     .tag(3)
 
-                Text("Profil Placeholder")
-                    .tabItem {
-                        Label("Profil", systemImage: "person.fill")
-                    }
+                ProfilView() // Ersetze mit deiner echten View
+                    .tabItem { Label("Profil", systemImage: "person.fill") }
                     .tag(4)
             }
-        }
-        .environmentObject(authManager)
-        // ... Rest der .onAppear, .sheet, .onChange Modifier ...
+            .environmentObject(authManager)
+            .environmentObject(cartAPIManager)
+            .environmentObject(wishlistState)
+    }
+}
+
+// Preview Provider
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        let authManager = FirebaseAuthManager.shared
+        let cartAPIManager = CartAPIManager.shared
+        let wishlistState = WishlistState(authManager: authManager)
+
+        ContentView()
+            .environmentObject(authManager)
+            .environmentObject(cartAPIManager)
+            .environmentObject(wishlistState)
     }
 }
