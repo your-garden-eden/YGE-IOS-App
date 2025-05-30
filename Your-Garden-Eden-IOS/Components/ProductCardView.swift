@@ -3,60 +3,53 @@ import SwiftUI
 
 struct ProductCardView: View {
     @EnvironmentObject var wishlistState: WishlistState
-    @EnvironmentObject var authManager: FirebaseAuthManager
+    // authManager ist für die reine Herz-Funktion nicht mehr nötig, da WishlistState das intern prüft.
+    // Kann aber für andere Zwecke auf der Karte verbleiben.
+    // @EnvironmentObject var authManager: FirebaseAuthManager
 
     var product: WooCommerceProduct
-    @State private var showingAuthSheet = false
+    // showingAuthSheet wird für das Herz nicht mehr benötigt
+    // @State private var showingAuthSheet = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AppStyles.Spacing.xSmall) { // Geringerer Abstand für kompaktere Infos
+        VStack(alignment: .leading, spacing: AppStyles.Spacing.xSmall) {
             // MARK: - Bild
             AsyncImage(url: product.images.first?.src.asURL()) { phase in
                 switch phase {
                 case .empty:
-                    ZStack {
-                        AppColors.backgroundLightGray // Hellerer Placeholder
-                        ProgressView().tint(AppColors.primary)
-                    }
+                    ZStack { AppColors.backgroundLightGray; ProgressView().tint(AppColors.primary) }
+                        .frame(height: 150).cornerRadius(AppStyles.BorderRadius.medium)
                 case .success(let image):
-                    image.resizable()
-                         .aspectRatio(contentMode: .fit) // .fit ist oft besser für Produktbilder
+                    image.resizable().aspectRatio(contentMode: .fit) // .fit für Produktbilder
+                        .frame(height: 150).cornerRadius(AppStyles.BorderRadius.medium).clipped()
                 case .failure:
-                    ZStack {
-                        AppColors.backgroundLightGray
-                        Image(systemName: "photo.on.rectangle.angled")
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .foregroundColor(AppColors.textMuted.opacity(0.6))
-                            .padding(AppStyles.Spacing.large) // Etwas Padding für das Icon
-                    }
-                @unknown default:
-                    EmptyView()
+                    ZStack { AppColors.backgroundLightGray; Image(systemName: "photo.on.rectangle.angled").resizable().aspectRatio(contentMode: .fit).foregroundColor(AppColors.textMuted.opacity(0.6)).padding(AppStyles.Spacing.large) }
+                        .frame(height: 150).cornerRadius(AppStyles.BorderRadius.medium)
+                @unknown default: EmptyView()
                 }
             }
-            .frame(height: 150) // Höhe beibehalten oder anpassen
-            .clipped()
-            .cornerRadius(AppStyles.BorderRadius.medium) // Ecken nur für das Bild, wenn die Karte selbst rechteckig ist
+            .frame(height: 150) // Höhe des Bildbereichs
+            .clipped() // Wichtig, wenn das Bild Ecken hat und der Container nicht
             .padding(.bottom, AppStyles.Spacing.small)
 
             // MARK: - Produktname
             Text(product.name)
-                .font(AppFonts.montserrat(size: AppFonts.Size.smallBody, weight: .semibold)) // Etwas kleiner für Karten
+                .font(AppFonts.montserrat(size: AppFonts.Size.smallBody, weight: .semibold))
                 .foregroundColor(AppColors.textHeadings)
                 .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true) // Erlaubt Umbruch auf max 2 Zeilen
+                .fixedSize(horizontal: false, vertical: true) // Erlaubt Umbruch
 
             Spacer() // Drückt Preis und Herz nach unten
 
-            // MARK: - Preis und Herz-Button
-            HStack(alignment: .bottom) {
-                VStack(alignment: .leading, spacing: 0) { // Für Preis und ggf. Streichpreis
-                    let currencySymbol = product.metaData.first(where: { $0.key == "_currency_symbol" })?.value as? String ?? AppConfig.WooCommerce.defaultCurrencySymbol // Fallback auf Config
+            // MARK: - Preis und Herz-Button (NEUE ANORDNUNG)
+            HStack(alignment: .bottom) { // .bottom für konsistente Ausrichtung
+                // Preis-VStack
+                VStack(alignment: .leading, spacing: 0) {
+                    let currencySymbol = product.metaData.first(where: { $0.key == "_currency_symbol" })?.value as? String ?? AppConfig.WooCommerce.defaultCurrencySymbol
                     Text("\(currencySymbol)\(product.price)")
                         .font(AppFonts.roboto(size: AppFonts.Size.headline, weight: .bold))
                         .foregroundColor(AppColors.price)
                     
-                    // Optional: Regulärer Preis (Streichpreis)
                     if product.onSale && !product.regularPrice.isEmpty && product.regularPrice != product.price {
                         Text("\(currencySymbol)\(product.regularPrice)")
                             .font(AppFonts.roboto(size: AppFonts.Size.caption, weight: .regular))
@@ -65,49 +58,31 @@ struct ProductCardView: View {
                     }
                 }
                 
-                Spacer() // Schiebt Herz-Button nach rechts
+                Spacer() // Schiebt den Herz-Button nach rechts
 
+                // Herz-Button für Wunschliste
                 Button {
-                    if authManager.user != nil {
-                        wishlistState.toggleWishlistStatus(for: product.id)
-                    } else {
-                        showingAuthSheet = true
-                    }
+                    // Einfach den Status umschalten. WishlistState kümmert sich darum,
+                    // ob lokal oder in Firestore gespeichert wird.
+                    wishlistState.toggleWishlistStatus(for: product.id)
                 } label: {
                     Image(systemName: wishlistState.isProductInWishlist(productId: product.id) ? "heart.fill" : "heart")
-                        .font(.title3) // Größe des Herzens anpassen
+                        .font(.title3) // Passende Größe für die Karte
                         .foregroundColor(wishlistState.isProductInWishlist(productId: product.id) ? AppColors.wishlistIcon : AppColors.textMuted)
-                        .padding(AppStyles.Spacing.xSmall / 2) // Kleinerer Klickbereich, wenn das Icon selbst die Referenz ist
-                        // Optional: Hintergrund für besseren Kontrast, falls nötig
+                        // Optional: Kleiner Hintergrund für das Herz, falls nötig
+                        // .padding(AppStyles.Spacing.xSmall / 1.5)
                         // .background(.ultraThinMaterial, in: Circle())
                 }
+                // .padding(.leading, AppStyles.Spacing.small) // Etwas Abstand zum Preis, falls sie zu nah sind
             }
-            .padding(.top, AppStyles.Spacing.xSmall) // Kleiner Abstand über Preis/Herz
+            .padding(.top, AppStyles.Spacing.xSmall) // Kleiner Abstand über dem Preis/Herz-Block
         }
         .padding(AppStyles.Spacing.small) // Innenabstand der gesamten Karte
         .background(AppColors.backgroundComponent)
-        .cornerRadius(AppStyles.BorderRadius.large) // Abgerundete Ecken für die Karte
-        .appShadow(AppStyles.Shadows.small) // Schatten für die Karte
-        .sheet(isPresented: $showingAuthSheet) {
-            AuthContainerView(onDismiss: { showingAuthSheet = false })
-                .environmentObject(authManager)
-        }
+        .cornerRadius(AppStyles.BorderRadius.large)
+        .appShadow(AppStyles.Shadows.small)
+        // Der .sheet Modifier für Auth ist hier nicht mehr nötig für die Herz-Funktion
     }
 }
 
-// Hilfsextension für URL-Konvertierung (falls noch nicht vorhanden)
-extension String {
-    func asURL() -> URL? {
-        URL(string: self)
-    }
-}
-
-// AppConfig-Erweiterung (Beispiel, falls du es so machen willst)
-// Füge dies zu deiner AppConfig.swift hinzu oder an einen anderen geeigneten Ort
-// struct AppConfig {
-//     struct WooCommerce {
-//         // ... deine anderen WooCommerce-Konfigurationen ...
-//         static let defaultCurrencySymbol = "€" // Standard-Währungssymbol
-//     }
-//     // ...
-// }
+// (Die String asURL() Extension sollte global sein)
