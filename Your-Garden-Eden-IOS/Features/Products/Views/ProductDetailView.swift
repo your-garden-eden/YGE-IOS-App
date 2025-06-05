@@ -269,17 +269,3 @@ struct ProductDetailView: View {
     }
 }
 
-// Preview Provider
-// struct ProductDetailView_Previews: PreviewProvider {
-//    static var previews: some View {
-//        // Erfordert einen WooCommerceProduct Slug und EnvironmentObjects für eine sinnvolle Preview.
-//        // Wir haben Mocking vermieden, daher ist die Preview hier komplexer aufzusetzen.
-//        // Am besten direkt in der App über die Navigation testen.
-//        NavigationView { // Für NavigationTitle etc. in der Preview
-//            ProductDetailView(productSlug: "beispiel-produkt-slug") // Ersetze mit einem echten Slug zum Testen
-//                .environmentObject(WishlistState(authManager: FirebaseAuthManager.shared)) // Beispiel
-//                .environmentObject(FirebaseAuthManager.shared)
-//                // .environmentObject(CartAPIManager.shared) // Falls benötigt
-//        }
-//    }
-// }

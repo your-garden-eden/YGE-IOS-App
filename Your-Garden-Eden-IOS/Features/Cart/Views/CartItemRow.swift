@@ -120,18 +120,3 @@ struct CartItemRow: View {
     }
 }
 
-// Preview Provider für CartView
-struct CartView_Previews: PreviewProvider {
-    static var previews: some View {
-        let authManager = FirebaseAuthManager.shared
-        let cartAPIManager = CartAPIManager.shared
-        // Für eine aussagekräftige Preview könntest du hier den cartAPIManager mit Mock-Daten füllen,
-        // aber wir haben vereinbart, das zu vermeiden.
-        // Du siehst also wahrscheinlich den Leerzustand oder Ladezustand in der Preview.
-        CartView()
-            .environmentObject(authManager)
-            .environmentObject(cartAPIManager)
-            // WishlistState wird für die CartView nicht direkt benötigt, es sei denn, du hast
-            // Herz-Icons auch im Warenkorb, was unüblich ist.
-    }
-}

@@ -41,15 +41,3 @@ struct QuantitySelectorView: View {
     }
 }
 
-struct QuantitySelectorView_Previews: PreviewProvider {
-    struct PreviewWrapper: View { // Wrapper für @State
-        @State private var quantity = 1
-        var body: some View {
-            QuantitySelectorView(quantity: $quantity)
-                .padding()
-        }
-    }
-    static var previews: some View {
-        PreviewWrapper()
-    }
-}

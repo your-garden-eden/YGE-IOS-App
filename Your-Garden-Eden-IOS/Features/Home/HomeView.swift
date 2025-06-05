@@ -1,204 +1,124 @@
 // Features/Home/Views/HomeView.swift
 import SwiftUI
-import AVKit
+import AVKit // Wichtig für AVPlayer und VideoPlayer
 
-@available(iOS 17.0, *)
 struct HomeView: View {
-    @StateObject var viewModel = HomeViewModel()
+    @StateObject private var viewModel = HomeViewModel()
+
+    // Der Name der Videodatei im Projekt-Bundle (OHNE die Endung .mp4 hier, da sie in withExtension angegeben wird)
+    private let heroVideoNameInBundle = "hero_main_banner_yge"
+    private let videoFileExtension = "mp4"
+
+    // State für den AVPlayer, damit er nur einmal erstellt wird
     @State private var player: AVPlayer?
-    @State private var currentBestsellerScrollID: Int?
-    @State private var activeScrollIDForLogic: Int?
-    @State private var hasScrolledInitially = false
+    @State private var playerLooper: AVPlayerLooper? // Für den Loop
+    @State private var queuePlayer: AVQueuePlayer? // Für den Loop mit AVPlayerLooper
 
     var body: some View {
         NavigationStack {
-            ScrollView(.vertical, showsIndicators: false) {
+            ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    // HIER WIRD heroVideoView() AUFGERUFEN - DAS IST KORREKT
-                    heroVideoView()
-                        .frame(height: 220) // Höhe, wie zuletzt besprochen
-                        .padding(.bottom, AppStyles.Spacing.large)
+                    // 1. Hero Banner als Video
+                    if let videoPlayer = player { // Verwende den @State player
+                        VideoPlayer(player: videoPlayer)
+                            .frame(height: 300) // Höhe des Banners festlegen
+                            .disabled(true) // Deaktiviert Benutzerinteraktion mit den Video-Controls
+                            .onAppear {
+                                print("HomeView: VideoPlayer appeared. Playing video.")
+                                videoPlayer.play()
+                            }
+                            .onDisappear {
+                                print("HomeView: VideoPlayer disappeared. Pausing video.")
+                                // Optional: Video pausieren, wenn die View verschwindet,
+                                // um Ressourcen zu sparen, wenn nicht sichtbar.
+                                // videoPlayer.pause()
+                            }
+                    } else {
+                        // Fallback, falls der Player nicht initialisiert werden konnte
+                        Rectangle()
+                            .fill(Color.gray)
+                            .frame(height: 300)
+                            .overlay(Text("Video konnte nicht geladen werden").foregroundColor(.white))
+                    }
+                    // Kein ZStack mehr nötig, wenn VideoPlayer den ganzen Bereich einnimmt.
+                    // Overlay-Text müsste anders platziert werden, wenn er über dem Video liegen soll.
+                    // Für jetzt lassen wir den Text weg, um uns auf das Video zu konzentrieren.
                     
-                    bestsellerProductsSection()
-                        .padding(.bottom, AppStyles.Spacing.large)
-                    
-                    Spacer()
+                    // 2. Bestseller Produkte Sektion (wie zuvor)
+                    if !viewModel.bestsellerProducts.isEmpty {
+                        VStack(alignment: .leading) {
+                            Text("Bestseller")
+                                .font(AppFonts.montserrat(size: AppFonts.Size.h3, weight: .semibold))
+                                .padding([.top, .horizontal])
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: AppStyles.Spacing.medium) {
+                                    ForEach(viewModel.bestsellerProducts) { product in // Annahme: Bestseller sind unique
+                                        NavigationLink(value: product) {
+                                            ProductCardView(product: product)
+                                                .frame(width: 160)
+                                        }
+                                        .buttonStyle(PlainButtonStyle())
+                                    }
+                                }
+                                .padding(.horizontal).padding(.bottom)
+                            }
+                        }.padding(.top) // Abstand nach dem Video-Banner
+                    } else if viewModel.isLoading {
+                        ProgressView("Lade Bestseller...").padding()
+                    } else if let errorMessage = viewModel.errorMessage {
+                        Text("Fehler: \(errorMessage)").foregroundColor(AppColors.error).padding()
+                    }
+
+                    // Beispielhafter Inhalt, um Scrollen zu ermöglichen
+                    ForEach(0..<5) { i in Text("Weiterer Inhalt \(i)...").padding().frame(maxWidth: .infinity, alignment: .leading) }
+                    Spacer(minLength: AppStyles.Spacing.large)
+                    FooterView()
                 }
             }
-            // ... (Rest der View: .background, .navigationBarTitleDisplayMode, .toolbar etc. bleiben gleich) ...
             .background(AppColors.backgroundPage.ignoresSafeArea())
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(AppColors.backgroundComponent.opacity(0.8), for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .principal) {
                     Image("logo_your_garden_eden_transparent")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(height: 32)
+                        .resizable().aspectRatio(contentMode: .fit).frame(height: 70)
                 }
+            }
+            .navigationDestination(for: WooCommerceProduct.self) { product in
+                ProductDetailView(productSlug: product.slug, initialProductData: product)
             }
             .onAppear {
+                print("HomeView onAppear.")
+                // Initialisiere den Player und den Looper hier, damit das Video bereit ist
+                if player == nil {
+                    initializePlayer()
+                }
+                // Lade Bestseller-Daten
                 if viewModel.bestsellerProducts.isEmpty && !viewModel.isLoading {
                     viewModel.loadDataForHomeView()
                 }
-                setupVideoPlayer()
-                 // Logik für initialen Scroll der Bestseller (iOS 17+)
-                if !viewModel.bestsellerProducts.isEmpty && !hasScrolledInitially && viewModel.bestsellerProducts.count > 0 {
-                    let initialTargetID = viewModel.bestsellerProducts.count // Start des mittleren Satzes
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { // Etwas mehr Verzögerung
-                        var transaction = Transaction()
-                        transaction.disablesAnimations = true
-                        withTransaction(transaction) {
-                            self.currentBestsellerScrollID = initialTargetID
-                        }
-                        self.hasScrolledInitially = true
-                        print("Loop iOS 17: Initial onAppear scroll to ID \(initialTargetID)")
-                    }
-                }
-            }
-            .onDisappear {
-                player?.pause()
-                if let playerItem = player?.currentItem {
-                    NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: playerItem)
-                }
             }
         }
     }
-    
-    // setupVideoPlayer() Methode (bleibt unverändert von deinem letzten Stand)
-    private func setupVideoPlayer() {
-        guard let videoURL = Bundle.main.url(forResource: "hero_main_banner_yge", withExtension: "mp4") else {
-            print("HomeView Error: Video hero_main_banner_yge.mp4 not found in bundle.")
+
+    private func initializePlayer() {
+        guard let videoURL = Bundle.main.url(forResource: heroVideoNameInBundle, withExtension: videoFileExtension) else {
+            print("HomeView ERROR: Video '\(heroVideoNameInBundle).\(videoFileExtension)' not found in bundle.")
             return
         }
+        print("HomeView: Video URL found: \(videoURL)")
+
         let playerItem = AVPlayerItem(url: videoURL)
-        let avPlayer = AVPlayer(playerItem: playerItem)
-        avPlayer.isMuted = true
-        avPlayer.actionAtItemEnd = .none
-        NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: playerItem, queue: .main) { [weak avPlayer] _ in
-            avPlayer?.seek(to: CMTime.zero)
-            avPlayer?.play()
+        self.queuePlayer = AVQueuePlayer(playerItem: playerItem) // AVQueuePlayer für Looping
+        
+        if let queuePlayer = self.queuePlayer {
+            self.playerLooper = AVPlayerLooper(player: queuePlayer, templateItem: playerItem)
+            queuePlayer.isMuted = true // Video stummschalten
+            // Der Player für VideoPlayer-View ist der queuePlayer
+            self.player = queuePlayer
+            print("HomeView: AVPlayer and AVPlayerLooper initialized. Video should be ready.")
+        } else {
+            print("HomeView ERROR: Could not initialize AVQueuePlayer.")
         }
-        self.player = avPlayer
-        self.player?.play()
-    }
-
-    // heroVideoView() Methode (bleibt unverändert von deinem letzten Stand, ohne Text-Overlay)
-    @ViewBuilder
-    private func heroVideoView() -> some View {
-        ZStack { // .bottomLeading ist nicht mehr nötig, da kein Text-Overlay
-            if let player = player {
-                VideoPlayer(player: player)
-                    .disabled(true)
-                    .aspectRatio(contentMode: .fill)
-                    .frame(height: 220)
-                    .clipped()
-            } else {
-                Rectangle()
-                    .fill(AppColors.backgroundLightGray)
-                    .frame(height: 220)
-                    .overlay(
-                        VStack {
-                            Image(systemName: "film.fill")
-                                .font(.largeTitle)
-                                .foregroundColor(AppColors.textMuted)
-                            Text("Video wird vorbereitet...")
-                                .font(AppFonts.roboto(size: AppFonts.Size.caption))
-                                .foregroundColor(AppColors.textMuted)
-                        }
-                    )
-            }
-        }
-    }
-
-    // bestsellerProductsSection() Methode (bleibt unverändert von deinem letzten Stand mit iOS 17 Loop)
-    @ViewBuilder
-    private func bestsellerProductsSection() -> some View {
-        // ... (dein Code für die Bestseller-Sektion mit iOS 17 Loop)
-        let products = viewModel.bestsellerProducts
-        let cardWidth: CGFloat = 170
-        let spacing: CGFloat = AppStyles.Spacing.medium
-        let totalItemsInOriginalSet = products.count
-        let totalDisplayedItems = totalItemsInOriginalSet * 3
-
-        VStack(alignment: .leading, spacing: AppStyles.Spacing.medium) {
-            Text("Unsere Bestseller")
-                .font(AppFonts.montserrat(size: AppFonts.Size.h3, weight: .semibold))
-                .foregroundColor(AppColors.textHeadings)
-                .padding(.horizontal, AppStyles.Spacing.medium)
-
-            if viewModel.isLoading && products.isEmpty {
-                HStack { Spacer(); ProgressView().padding(); Spacer() }
-            } else if let errorMessage = viewModel.errorMessage, products.isEmpty {
-                Text(errorMessage).foregroundColor(.red).padding(.horizontal, AppStyles.Spacing.medium)
-            } else if products.isEmpty && !viewModel.isLoading {
-                Text("Momentan sind keine Bestseller verfügbar.").foregroundColor(AppColors.textMuted).padding(.horizontal, AppStyles.Spacing.medium)
-            } else if !products.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: spacing) {
-                        ForEach(0..<totalDisplayedItems, id: \.self) { displayIndex in
-                            let productIndexInOriginalSet = displayIndex % totalItemsInOriginalSet
-                            let product = products[productIndexInOriginalSet]
-                            
-                            NavigationLink(value: product) {
-                                ProductCardView(product: product) // Hier wird die geänderte ProductCardView verwendet
-                                    .frame(width: cardWidth)
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                            .id(displayIndex)
-                        }
-                    }
-                    .padding(.horizontal, AppStyles.Spacing.medium)
-                    .padding(.vertical, AppStyles.Spacing.small)
-                }
-                .scrollPosition(id: $currentBestsellerScrollID)
-                .onChange(of: currentBestsellerScrollID) { oldValue, newValue in
-                    guard let newID = newValue, totalItemsInOriginalSet > 0 else { return }
-                    if newID == activeScrollIDForLogic { activeScrollIDForLogic = nil; return }
-                    let middleSetStartIndex = totalItemsInOriginalSet
-                    let middleSetEndIndex = totalItemsInOriginalSet * 2 - 1
-                    if newID < middleSetStartIndex {
-                        let relativeIndexInClone = newID
-                        let targetID = middleSetEndIndex - relativeIndexInClone
-                        activeScrollIDForLogic = targetID; var t = Transaction(); t.disablesAnimations = true; withTransaction(t) { currentBestsellerScrollID = targetID }
-                        print("Loop iOS 17 L: ID \(newID) -> \(targetID)")
-                    } else if newID > middleSetEndIndex {
-                        let relativeIndexInClone = newID - (totalItemsInOriginalSet * 2)
-                        let targetID = middleSetStartIndex + relativeIndexInClone
-                        activeScrollIDForLogic = targetID; var t = Transaction(); t.disablesAnimations = true; withTransaction(t) { currentBestsellerScrollID = targetID }
-                        print("Loop iOS 17 R: ID \(newID) -> \(targetID)")
-                    }
-                }
-                // .onAppear für initialen Scroll ist oben in der Haupt-View .onAppear, um sicherzustellen, dass viewModel.bestsellerProducts geladen ist
-                .onChange(of: products.count) {
-                    hasScrolledInitially = false
-                    // Wenn Produkte neu geladen werden, und die aktuelle Scroll-ID außerhalb des neuen Bereichs liegt,
-                    // oder wir einen sauberen Reset wollen:
-                    if let currentID = currentBestsellerScrollID, currentID >= totalItemsInOriginalSet * 3 && totalItemsInOriginalSet > 0 {
-                        currentBestsellerScrollID = totalItemsInOriginalSet // Reset zum Anfang des mittleren Satzes
-                    } else if totalItemsInOriginalSet > 0 && !hasScrolledInitially { // Erneuter Versuch für initialen Scroll
-                         let initialTargetID = totalItemsInOriginalSet
-                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            var transaction = Transaction(); transaction.disablesAnimations = true
-                            withTransaction(transaction) { self.currentBestsellerScrollID = initialTargetID }
-                            self.hasScrolledInitially = true
-                            print("Loop iOS 17 (products.count changed): Initial scroll to ID \(initialTargetID)")
-                        }
-                    }
-                }
-            }
-        }
-        .navigationDestination(for: WooCommerceProduct.self) { product in
-            ProductDetailView(productSlug: product.slug, initialProductData: product)
-        }
-    }
-}
-
-// Preview Provider
-@available(iOS 17.0, *)
-struct HomeView_Previews: PreviewProvider {
-    static var previews: some View {
-        HomeView()
     }
 }
