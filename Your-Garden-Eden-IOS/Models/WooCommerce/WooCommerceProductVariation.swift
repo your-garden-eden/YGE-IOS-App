@@ -1,6 +1,7 @@
 // YGE-IOS-App/Core/Models/WooCommerce/CoreAPI/WooCommerceProductVariation.swift
 import Foundation
 
+// IHR EXISTIERENDER CODE - VOLLSTÄNDIG ÜBERNOMMEN
 struct WooCommerceProductVariation: Codable, Identifiable, Hashable {
     let id: Int
     let dateCreated: String
@@ -79,5 +80,35 @@ struct WooCommerceProductVariation: Codable, Identifiable, Hashable {
         case image
         case menuOrder = "menu_order"
         case metaData = "meta_data"
+    }
+}
+
+
+// MARK: - Erweiterung für die verschachtelte Struktur
+// HINZUGEFÜGT: Dieser Block fügt die fehlende Funktion `optionAsSlug()`
+// genau zu dem Typ hinzu, den der Compiler benötigt.
+extension WooCommerceProductVariation.VariationAttribute {
+    
+    /// Generiert einen Slug aus der `option`-Eigenschaft.
+    /// Beispiel: "Dunkel Blau" -> "dunkel-blau"
+    func optionAsSlug() -> String {
+        // 1. Bevorzuge den existierenden Slug, falls er gültig ist.
+        if let slug = self.slug, !slug.trimmingCharacters(in: .whitespaces).isEmpty {
+            return slug
+        }
+        
+        // 2. Andernfalls, generiere einen neuen Slug aus der `option`.
+        let baseSlug = option.lowercased()
+            .replacingOccurrences(of: " ", with: "-")
+            .replacingOccurrences(of: "_", with: "-")
+            
+        let allowedCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-"))
+        var finalSlug = baseSlug.components(separatedBy: allowedCharacters.inverted).joined()
+        
+        while finalSlug.contains("--") {
+            finalSlug = finalSlug.replacingOccurrences(of: "--", with: "-")
+        }
+        
+        return finalSlug
     }
 }

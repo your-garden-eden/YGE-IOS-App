@@ -1,4 +1,4 @@
-// Your-Garden-Eden-IOS/Models/UserModel.swift (oder ein anderer Name)
+// Your-Garden-Eden-IOS/Models/UserModel.swift
 
 import Foundation
 import FirebaseAuth // Wichtig für den Initializer
@@ -40,5 +40,27 @@ struct UserModel: Identifiable, Codable { // Codable ist gut für Persistenz ode
             lastName: "User",
             wooCommerceCustomerId: nil
         )
+    }
+}
+
+// HIER IST DIE HINZUGEFÜGTE ERWEITERUNG
+extension UserModel {
+    /// Eine berechnete Eigenschaft, die den vollständigen Namen sicher zurückgibt.
+    /// Sie handhabt fehlende Vor- oder Nachnamen und entfernt überflüssige Leerzeichen.
+    var fullName: String {
+        let fn = firstName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let ln = lastName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        
+        // Erstellt einen Array aus den Namen, filtert leere Einträge heraus
+        let nameParts = [fn, ln].filter { !$0.isEmpty }
+        
+        if nameParts.isEmpty {
+            // Wenn beide Namen leer sind, gib einen sinnvollen Fallback zurück.
+            // Das kann auch der displayName oder die E-Mail sein, falls verfügbar.
+            return displayName ?? email ?? "Unbekannter Benutzer"
+        } else {
+            // Fügt die vorhandenen Teile mit einem Leerzeichen zusammen.
+            return nameParts.joined(separator: " ")
+        }
     }
 }
