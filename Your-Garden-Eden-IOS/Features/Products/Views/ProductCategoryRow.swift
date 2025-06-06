@@ -5,31 +5,34 @@ struct ProductCategoryRow: View {
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            if let imageInfo = category.image, let url = imageInfo.src.asURL() {
-                AsyncImage(url: url) { phase in
-                    if let image = phase.image {
-                        image.resizable().aspectRatio(contentMode: .fill)
-                    } else if phase.error != nil {
-                        placeholderImage()
-                    } else {
-                        placeholderProgressView()
-                    }
+            // AsyncImage lädt das Bild
+            AsyncImage(url: category.image?.src.asURL()) { phase in
+                switch phase {
+                case .success(let image):
+                    image.resizable().aspectRatio(contentMode: .fill)
+                case .failure:
+                    placeholderImage()
+                case .empty:
+                    ShimmerView()
+                @unknown default:
+                    EmptyView()
                 }
-            } else {
-                placeholderImage()
             }
 
+            // Gradient für die Lesbarkeit
             LinearGradient(
-                gradient: Gradient(colors: [.clear, .black.opacity(0.1), .black.opacity(0.7)]),
+                gradient: Gradient(colors: [.clear, AppColors.secondaryDark.opacity(0.8)]),
                 startPoint: .center,
                 endPoint: .bottom
             )
 
+            // Kategoriename
             Text(category.name)
-                .font(AppFonts.montserrat(size: 22, weight: .bold)) // Angepasster Font für bessere Sichtbarkeit
-                .foregroundColor(.white)
+                // UPDATED: Nutzt den "title2" Stil. Dieser ist prominent und passt gut auf Bild-Header.
+                .font(.title2.weight(.bold))
+                .foregroundColor(AppColors.textOnSecondary)
                 .padding()
-                .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 2) // Textschatten für Kontrast
+                .shadow(color: AppColors.secondaryDark.opacity(0.5), radius: 3, x: 0, y: 2)
         }
         .frame(height: 150)
         .background(AppColors.backgroundLightGray)
@@ -46,14 +49,6 @@ struct ProductCategoryRow: View {
                 .scaledToFit()
                 .foregroundColor(AppColors.textMuted.opacity(0.5))
                 .padding(30)
-        }
-    }
-    
-    @ViewBuilder
-    private func placeholderProgressView() -> some View {
-        ZStack {
-            AppColors.backgroundLightGray
-            ProgressView()
         }
     }
 }

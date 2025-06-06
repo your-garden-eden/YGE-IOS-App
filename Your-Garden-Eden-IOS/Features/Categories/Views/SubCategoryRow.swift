@@ -1,11 +1,3 @@
-//
-//  SubCategoryRow.swift
-//  Your-Garden-Eden-IOS
-//
-//  Created by Josef Ewert on 05.06.25.
-//
-
-
 import SwiftUI
 
 struct SubCategoryRow: View {
@@ -13,28 +5,40 @@ struct SubCategoryRow: View {
 
     var body: some View {
         HStack(spacing: 15) {
-            if let iconName = subCategory.iconFilename {
-                Image(iconName)
+            // Die Icon-Logik ist unverändert.
+            if let iconName = subCategory.iconFilename,
+               let uiImage = UIImage(named: iconName) {
+                
+                Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFit()
                     .frame(width: 40, height: 40)
                     .background(AppColors.backgroundLightGray)
                     .clipShape(Circle())
+                
             } else {
-                // Fallback-Icon
+                
                 Image(systemName: "tag.fill")
+                    .foregroundColor(AppColors.textMuted)
                     .frame(width: 40, height: 40)
                     .background(AppColors.backgroundLightGray)
                     .clipShape(Circle())
-                    .foregroundStyle(AppColors.textMuted)
             }
             
+            // Der Name der Unterkategorie.
             Text(subCategory.label)
-                .font(.headline)
+                // UPDATED: Nutzt den nativen "body" Stil.
+                // Für eine etwas stärkere Gewichtung könnte man .font(.body.weight(.medium)) verwenden.
+                .font(.body)
                 .foregroundStyle(AppColors.textBase)
             
             Spacer()
+            
+            // Der Chevron bleibt unverändert.
+            Image(systemName: "chevron.right")
+                .foregroundColor(AppColors.textMuted.opacity(0.7))
         }
         .padding(.vertical, 8)
+        .background(.clear)
     }
 }

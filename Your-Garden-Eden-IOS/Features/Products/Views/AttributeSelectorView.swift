@@ -2,94 +2,90 @@ import SwiftUI
 
 struct AttributeSelectorView: View {
     let attribute: WooCommerceAttribute
-    let allProductVariations: [WooCommerceProductVariation]
+    
+    // NEU: Diese Menge enthält die Slugs der Optionen, die klickbar sein sollen.
+    // Wird vom ViewModel berechnet.
+    let availableOptionSlugs: Set<String>
+    
     let currentlySelectedOptionSlugForThisAttribute: String?
     let onOptionSelect: (String) -> Void
-
-    @State private var calculatedOptions: [(displayName: String, slug: String)] = []
     
-    // MARK: - Body (unverändert zur letzten Version)
+    // HINWEIS: Die Eigenschaft `allProductVariations` wird nicht mehr benötigt,
+    // da die Berechnungslogik nun vollständig im ViewModel liegt.
+    
+    private var options: [(displayName: String, slug: String)] {
+        // Wir verwenden direkt die Optionen aus dem Attribut-Objekt.
+        return attribute.options.map { (displayName: $0, slug: $0.toSlug()) }
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: AppStyles.Spacing.small) {
-            if !calculatedOptions.isEmpty {
+            if !options.isEmpty {
                 attributeTitle
                 optionsScrollView
             }
         }
         .padding(.vertical, AppStyles.Spacing.small)
-        .onAppear {
-            updateCalculatedOptions()
-        }
-        .onChange(of: allProductVariations) {
-            updateCalculatedOptions()
-        }
-        .onChange(of: attribute) {
-            updateCalculatedOptions()
-        }
     }
     
-    // MARK: - Subviews (unverändert zur letzten Version)
     private var attributeTitle: some View {
         Text("\(attribute.name):")
-            .font(AppFonts.montserrat(size: AppFonts.Size.headline, weight: .semibold))
+            .font(.headline.weight(.semibold)) // Angepasste Schriftart für bessere Lesbarkeit
             .foregroundColor(AppColors.textHeadings)
-            .padding(.leading, AppStyles.Spacing.xxSmall)
+            .padding(.leading, 4)
     }
 
     private var optionsScrollView: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: AppStyles.Spacing.small) {
-                ForEach(calculatedOptions, id: \.slug) { option in
+                ForEach(options, id: \.slug) { option in
+                    let isSelected = currentlySelectedOptionSlugForThisAttribute == option.slug
+                    // NEU: Eine Option ist deaktiviert, wenn sie nicht in den `availableOptionSlugs`
+                    // enthalten ist UND sie nicht die aktuell ausgewählte ist.
+                    let isDisabled = !availableOptionSlugs.contains(option.slug) && !isSelected
+                    
                     Button(action: {
                         onOptionSelect(option.slug)
                     }) {
-                        optionButtonLabel(
-                            option: option,
-                            isSelected: currentlySelectedOptionSlugForThisAttribute == option.slug
-                        )
+                        optionButtonLabel(option: option, isSelected: isSelected)
                     }
-                    .buttonStyle(.plain)
+                    .disabled(isDisabled)
+                    .opacity(isDisabled ? 0.4 : 1.0) // Visuelles Feedback für deaktivierte Buttons
                 }
             }
-            .padding(.horizontal, AppStyles.Spacing.xxSmall)
+            .padding(.horizontal, 4)
         }
     }
 
-    @ViewBuilder
     private func optionButtonLabel(option: (displayName: String, slug: String), isSelected: Bool) -> some View {
-        // ... (Dieser Teil bleibt unverändert)
         Text(option.displayName)
-            .font(AppFonts.roboto(size: AppFonts.Size.smallBody, weight: isSelected ? .bold : .regular))
-            .padding(.horizontal, AppStyles.Spacing.medium)
-            .padding(.vertical, AppStyles.Spacing.small)
+            .font(.footnote.weight(isSelected ? .bold : .regular)) // Angepasste Schriftart
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
             .background(
                 ZStack {
                     if isSelected {
                         RoundedRectangle(cornerRadius: AppStyles.BorderRadius.medium).fill(AppColors.primary)
-                        RoundedRectangle(cornerRadius: AppStyles.BorderRadius.medium).stroke(AppColors.primaryDark, lineWidth: 1.5)
                     } else {
                         RoundedRectangle(cornerRadius: AppStyles.BorderRadius.medium).fill(AppColors.backgroundLightGray)
-                        RoundedRectangle(cornerRadius: AppStyles.BorderRadius.medium).stroke(AppColors.borderLight, lineWidth: 1)
                     }
+                    RoundedRectangle(cornerRadius: AppStyles.BorderRadius.medium)
+                        .stroke(isSelected ? AppColors.primaryDark : AppColors.borderLight, lineWidth: 1)
                 }
             )
             .foregroundColor(isSelected ? AppColors.textOnPrimary : AppColors.textBase)
-            .clipShape(RoundedRectangle(cornerRadius: AppStyles.BorderRadius.medium))
     }
-    
-    // MARK: - Logic (STARK VEREINFACHT)
-    private func updateCalculatedOptions() {
-        print("AttributeSelectorView: Updating options for '\(attribute.name)' using calculator.")
-        
-        // Rufe die ausgelagerte Logik auf
-        let newOptions = AttributeOptionCalculator.calculate(
-            for: attribute,
-            from: allProductVariations
-        )
-        
-        // Einfache Zuweisung
-        self.calculatedOptions = newOptions
-        
-        print("AttributeSelectorView: Updated options: \(self.calculatedOptions.map { "\($0.displayName) (\($0.slug))" })")
+}
+
+// Hilfsfunktion, um aus einem Optionsnamen einen Slug zu machen.
+// Beispiel: "Dunkel Blau" -> "dunkel-blau"
+extension String {
+    func toSlug() -> String {
+        let baseSlug = self.lowercased()
+            .replacingOccurrences(of: " ", with: "-")
+            .replacingOccurrences(of: "_", with: "-")
+            
+        let allowedCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-"))
+        return baseSlug.components(separatedBy: allowedCharacters.inverted).joined()
     }
 }

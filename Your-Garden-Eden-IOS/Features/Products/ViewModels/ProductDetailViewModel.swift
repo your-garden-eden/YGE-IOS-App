@@ -1,66 +1,67 @@
-//
-//  ProductDetailViewModel.swift
-//  Your-Garden-Eden-IOS
-//
-//  Created by Josef Ewert on 06.06.25.
-//
-
-
 import SwiftUI
 
 @MainActor
 class ProductDetailViewModel: ObservableObject {
-    // MARK: - Published Properties
     @Published var product: WooCommerceProduct?
     @Published var variations: [WooCommerceProductVariation] = []
-    @Published var selectedVariation: WooCommerceProductVariation?
+    @Published var relatedProducts: [WooCommerceProduct] = []
+    @Published var selectedImage: WooCommerceImage?
     
-    // Status-Properties
+    @Published var displayPrice: String = "..."
+
     @Published var isLoading = false
     @Published var errorMessage: String?
-    
-    // MARK: - Private Properties
-    private let productSlug: String
-    private let apiManager = WooCommerceAPIManager.shared
 
-    // MARK: - Initializer
+    private let initialProductData: WooCommerceProduct?
+
     init(productSlug: String, initialProductData: WooCommerceProduct? = nil) {
-        self.productSlug = productSlug
-        self.product = initialProductData
-        print("ProductDetailViewModel (init): Initial product data provided for slug '\(productSlug)'.")
+        self.initialProductData = initialProductData
     }
 
-    // MARK: - Data Fetching
-    func fetchProductDetails() async {
-        guard !isLoading else { return }
+    func selectImage(_ image: WooCommerceImage) {
+        withAnimation { self.selectedImage = image }
+    }
+    
+    func fetchProductDetails(slug: String) async {
+        try? await Task.sleep(nanoseconds: 1)
         
-        isLoading = true
-        errorMessage = nil
-        print("ProductDetailViewModel (fetchProductDetails): Loading details for slug: \(productSlug)")
+        if product != nil && !isLoading { return }
 
+        self.isLoading = true
+        self.errorMessage = nil
+        
         do {
-            // Schritt 1: Lade das Hauptprodukt, falls es noch nicht vorhanden ist
-            if self.product == nil {
-                self.product = try await apiManager.getProductBySlug(productSlug: productSlug)
-            }
+            let currentProduct: WooCommerceProduct
             
-            guard let currentProduct = self.product else {
-                throw WooCommerceAPIError.noData // Oder ein spezifischerer Fehler
-            }
-
-            // Schritt 2: Lade die Produktvariationen, falls das Produkt variabel ist
-            if currentProduct.type == .variable && !currentProduct.variations.isEmpty {
-                print("ProductDetailViewModel (fetchProductDetails): Product is variable. Fetching variations for ID \(currentProduct.id)...")
-                self.variations = try await apiManager.getProductVariations(productId: currentProduct.id)
-                // Optional: Setze eine Standard-Variation, falls vorhanden
-                self.selectedVariation = self.variations.first
+            // --- DIE ENDGÜLTIGE KORREKTUR ---
+            // Wir behandeln den optionalen Rückgabewert des API-Aufrufs korrekt.
+            if let initialData = self.initialProductData {
+                currentProduct = initialData
             } else {
-                self.variations = []
+                // Wir versuchen, das Produkt zu laden.
+                guard let fetchedProduct = try await WooCommerceAPIManager.shared.getProductBySlug(productSlug: slug) else {
+                    // Wenn der API-Aufruf 'nil' zurückgibt, werfen wir einen spezifischen Fehler.
+                    throw WooCommerceAPIError.productNotFound
+                }
+                // Nur wenn das Produkt gefunden wurde, weisen wir es zu.
+                currentProduct = fetchedProduct
             }
             
-            print("ProductDetailViewModel (fetchProductDetails): Successfully loaded details.")
+            // Ab hier ist 'currentProduct' garantiert ein gültiges Produkt.
+            self.product = currentProduct
+            self.selectedImage = currentProduct.images.first
+
+            let currencySymbol = currentProduct.metaData.first(where: { $0.key == "_currency_symbol" })?.value as? String ?? "€"
+            self.displayPrice = await PriceFormatter.formatPrice(from: currentProduct.priceHtml) ?? "\(currencySymbol)\(currentProduct.price)"
+            
+            if currentProduct.type == .variable && !currentProduct.variations.isEmpty {
+                self.variations = try await WooCommerceAPIManager.shared.getProductVariations(productId: currentProduct.id)
+            }
+            
+            await fetchRelatedProducts()
 
         } catch let error as WooCommerceAPIError {
+            // Unser 'catch'-Block kann jetzt den neuen Fehlerfall elegant behandeln.
             self.errorMessage = error.localizedDescriptionForUser
             print("ProductDetailViewModel Error: \(error.debugDescription)")
         } catch {
@@ -68,6 +69,18 @@ class ProductDetailViewModel: ObservableObject {
             print("ProductDetailViewModel Error (Unknown): \(error.localizedDescription)")
         }
         
-        isLoading = false
+        self.isLoading = false
+    }
+    
+    private func fetchRelatedProducts() async {
+        guard let product = self.product, !product.relatedIds.isEmpty else { return }
+        if !relatedProducts.isEmpty { return }
+        
+        do {
+            let container = try await WooCommerceAPIManager.shared.getProducts(include: product.relatedIds)
+            self.relatedProducts = container.products
+        } catch {
+            print("ProductDetailViewModel: Failed to fetch related products. Error: \(error.localizedDescription)")
+        }
     }
 }

@@ -40,14 +40,3 @@ struct WishlistRowView: View {
     }
 }
 
-// Preview Provider für WishlistRowView
-struct WishlistRowView_Previews: PreviewProvider {
-    static var previews: some View {
-        // Da WooCommerceProduct komplex ist, ist das Erstellen einer Instanz hier aufwändig.
-        // Für eine funktionierende Preview ohne Mocking müsste man eine Methode haben,
-        // um ein echtes (oder zumindest valides leeres) Produkt zu erzeugen.
-        Text("Preview für WishlistRowView (benötigt valide Produktdaten für die Bildanzeige)")
-        // Beispiel, falls du einen einfachen Initializer für WooCommerceProduct hättest:
-        // WishlistRowView(product: WooCommerceProduct(id: 1, name: "Vorschau Produkt", images: [WooCommerceImage(id:1, src:"https://via.placeholder.com/70", ...)], ...))
-    }
-}

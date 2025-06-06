@@ -1,14 +1,20 @@
 // YGE-IOS-App/Core/Models/WooCommerce/CoreAPI/WooCommerceProductVariation.swift
 import Foundation
 
-// IHR EXISTIERENDER CODE - VOLLSTÄNDIG ÜBERNOMMEN
+// --- MODIFIZIERT ---
+// Wir haben mehrere Eigenschaften zu Optionalen (z.B. String?) gemacht,
+// um den "Decoding"-Fehler zu beheben. Die App kann nun `null`-Werte vom
+// Server für diese Felder korrekt verarbeiten.
+
 struct WooCommerceProductVariation: Codable, Identifiable, Hashable {
     let id: Int
-    let dateCreated: String
-    let dateCreatedGmt: String
-    let dateModified: String
-    let dateModifiedGmt: String
-    let description: String
+    // MODIFIZIERT: Diese Felder können null sein.
+    let dateCreated: String?
+    let dateCreatedGmt: String?
+    let dateModified: String?
+    let dateModifiedGmt: String?
+    let description: String?
+    
     let permalink: String
     let sku: String
     let price: String
@@ -20,34 +26,33 @@ struct WooCommerceProductVariation: Codable, Identifiable, Hashable {
     let dateOnSaleTo: String?
     let dateOnSaleToGmt: String?
     let onSale: Bool
-    let status: String // z.B. "publish" - könnte auch ein Enum werden
+    let status: String
     let purchasable: Bool
     let virtual: Bool
     let downloadable: Bool
-    // downloads, downloadLimit, downloadExpiry bei Bedarf hinzufügen
     let taxStatus: String
     let taxClass: String?
     let manageStock: Bool
     let stockQuantity: Int?
-    let stockStatus: StockStatus // Verwendet das Enum
+    let stockStatus: StockStatus
     let backorders: String
     let backordersAllowed: Bool
     let backordered: Bool
     let lowStockAmount: Int?
     let weight: String?
-    let dimensions: WooCommerceProductDimension // Annahme: WooCommerceProductDimension ist definiert
+    let dimensions: WooCommerceProductDimension
     let shippingClass: String?
     let shippingClassId: Int
     let image: WooCommerceImage?
     let attributes: [VariationAttribute]
     let menuOrder: Int
-    let metaData: [WooCommerceMetaData] // Annahme: WooCommerceMetaData ist definiert
+    let metaData: [WooCommerceMetaData]
 
     struct VariationAttribute: Codable, Hashable {
         let id: Int
         let name: String
         let option: String
-        let slug: String? // Hinzugefügt, da es oft von der API kommt und nützlich ist
+        let slug: String?
     }
 
     enum CodingKeys: String, CodingKey {
@@ -74,7 +79,7 @@ struct WooCommerceProductVariation: Codable, Identifiable, Hashable {
         case backordersAllowed = "backorders_allowed"
         case backordered
         case lowStockAmount = "low_stock_amount"
-        case weight, dimensions // dimensions braucht ein eigenes Struct
+        case weight, dimensions
         case shippingClass = "shipping_class"
         case shippingClassId = "shipping_class_id"
         case image
@@ -83,32 +88,20 @@ struct WooCommerceProductVariation: Codable, Identifiable, Hashable {
     }
 }
 
-
-// MARK: - Erweiterung für die verschachtelte Struktur
-// HINZUGEFÜGT: Dieser Block fügt die fehlende Funktion `optionAsSlug()`
-// genau zu dem Typ hinzu, den der Compiler benötigt.
+// HINWEIS: Diese Erweiterung bleibt unverändert, sie war bereits korrekt.
 extension WooCommerceProductVariation.VariationAttribute {
-    
-    /// Generiert einen Slug aus der `option`-Eigenschaft.
-    /// Beispiel: "Dunkel Blau" -> "dunkel-blau"
     func optionAsSlug() -> String {
-        // 1. Bevorzuge den existierenden Slug, falls er gültig ist.
         if let slug = self.slug, !slug.trimmingCharacters(in: .whitespaces).isEmpty {
             return slug
         }
-        
-        // 2. Andernfalls, generiere einen neuen Slug aus der `option`.
         let baseSlug = option.lowercased()
             .replacingOccurrences(of: " ", with: "-")
             .replacingOccurrences(of: "_", with: "-")
-            
         let allowedCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-"))
         var finalSlug = baseSlug.components(separatedBy: allowedCharacters.inverted).joined()
-        
         while finalSlug.contains("--") {
             finalSlug = finalSlug.replacingOccurrences(of: "--", with: "-")
         }
-        
         return finalSlug
     }
 }

@@ -1,13 +1,16 @@
 import SwiftUI
 
-// Dein ContentView ist bereits hervorragend und modern strukturiert.
-// Keine Änderungen notwendig. Er dient als perfekte Grundlage.
 struct ContentView: View {
     @StateObject private var authManager = FirebaseAuthManager.shared
     @StateObject private var cartAPIManager = CartAPIManager.shared
+    
+    // NEU: Wir erstellen unseren neuen, lokalen CartManager als StateObject.
+    @StateObject private var cartManager = CartManager.shared
+    
     @StateObject private var wishlistState: WishlistState
 
     init() {
+        // Dieser Initializer ist gut so, wie er ist.
         _wishlistState = StateObject(wrappedValue: WishlistState(authManager: FirebaseAuthManager.shared))
         print("ContentView initialized. All managers are set up.")
     }
@@ -21,8 +24,6 @@ struct ContentView: View {
                     }
                     .tag(0)
 
-                // Jede dieser Views ist die Wurzel für ihren Tab.
-                // CategoryListView wird seine eigene NavigationStack enthalten.
                 CategoryListView()
                     .tabItem {
                         Label("Shop", systemImage: "bag.fill")
@@ -50,6 +51,8 @@ struct ContentView: View {
             .environmentObject(authManager)
             .environmentObject(cartAPIManager)
             .environmentObject(wishlistState)
+            // NEU: Wir fügen den lokalen CartManager zur Umgebung hinzu.
+            .environmentObject(cartManager)
         }
     }
 }
