@@ -18,7 +18,7 @@ struct AppNavigationData {
             mainCategorySlug: extractSlug(from: "/category/gartenmoebel"),
             label: "Gartenmöbel",
             i18nId: "header.nav.furniture",
-            imageFilename: "cat_banner_gartenmoebel.jpg", // <-- NEU
+            imageFilename: "cat_banner_gartenmoebel.jpg",
             subItems: [
                 AppSubNavigationItem(label: "Sofas", i18nId: "header.nav.furniture.sofas", linkSlug: extractSlug(from: "/product-list/gartenmoebel-sofas"), iconFilename: "Gatensofas"),
                 AppSubNavigationItem(label: "Stühle", i18nId: "header.nav.furniture.chairs", linkSlug: extractSlug(from: "/product-list/gartenmoebel-stuehle"), iconFilename: "GartenSessel"),
@@ -37,10 +37,10 @@ struct AppNavigationData {
 
         // --- Sonnenschutz ---
         AppNavigationItem(
-            mainCategorySlug: extractSlug(from: "/category/sonnenschutz"),
+            mainCategorySlug: extractSlug(from: "/category/Sonnenschutz"),
             label: "Sonnenschutz",
             i18nId: "header.nav.sunprotection",
-            imageFilename: "cat_banner_sonnenschutz.jpg", // <-- NEU
+            imageFilename: "cat_banner_sonnenschutz.jpg",
             subItems: [
                 AppSubNavigationItem(label: "Markisen", i18nId: "header.nav.sunprotection.awnings", linkSlug: extractSlug(from: "/product-list/sonnenschutz-markisen"), iconFilename: "Markise"),
                 AppSubNavigationItem(label: "Sonnenschirme", i18nId: "header.nav.sunprotection.umbrellas", linkSlug: extractSlug(from: "/product-list/sonnenschutz-sonnenschirme"), iconFilename: "Sonnenschirm"),
@@ -53,7 +53,7 @@ struct AppNavigationData {
             mainCategorySlug: extractSlug(from: "/category/wasser-im-garten"),
             label: "Wasser im Garten",
             i18nId: "header.nav.water",
-            imageFilename: "cat_banner_wasser-im-garten.jpg", // <-- NEU
+            imageFilename: "cat_banner_wasser-im-garten.jpg",
             subItems: [
                 AppSubNavigationItem(label: "Pools", i18nId: "header.nav.water.pools", linkSlug: extractSlug(from: "/product-list/wasser-im-garten-pools"), iconFilename: "Pool"),
                 AppSubNavigationItem(label: "Teichzubehör", i18nId: "header.nav.water.pondAccessories", linkSlug: extractSlug(from: "/product-list/wasser-im-garten-teichzubehoer"), iconFilename: "teichzubehoer"),
@@ -61,12 +61,12 @@ struct AppNavigationData {
             ]
         ),
 
-        // --- Heizen & Feuer ---
+        // --- Heizen-Feuer ---
         AppNavigationItem(
             mainCategorySlug: extractSlug(from: "/category/heizen-feuer"),
-            label: "Heizen & Feuer",
+            label: "Heizen-Feuer", // GEÄNDERT
             i18nId: "header.nav.heating",
-            imageFilename: "cat_banner_heizen-feuer.jpg", // <-- NEU
+            imageFilename: "cat_banner_heizen-feuer.jpg",
             subItems: [
                 AppSubNavigationItem(label: "Kamine", i18nId: "header.nav.heating.fireplaces", linkSlug: extractSlug(from: "/product-list/heizen-feuer-kamine"), iconFilename: "Feuer"),
                 AppSubNavigationItem(label: "Feuerholzaufbewahrung", i18nId: "header.nav.heating.firewoodstorage", linkSlug: extractSlug(from: "/product-list/heizen-feuer-feuerholzaufbewahrung"), iconFilename: "Holz"),
@@ -74,12 +74,12 @@ struct AppNavigationData {
             ]
         ),
 
-        // --- Gartenhelfer & Aufbewahrung ---
+        // --- Gartenhelfer-Aufbewahrung ---
         AppNavigationItem(
             mainCategorySlug: extractSlug(from: "/category/gartenhelfer-aufbewahrung"),
-            label: "Gartenhelfer & Aufbewahrung",
+            label: "Gartenhelfer-Aufbewahrung", // GEÄNDERT
             i18nId: "header.nav.gardenhelpers",
-            imageFilename: "cat_banner_gartenhelfer.jpg", // <-- NEU
+            imageFilename: "cat_banner_gartenhelfer.jpg",
             subItems: [
                 AppSubNavigationItem(label: "Gartengeräte", i18nId: "header.nav.gardenhelpers.tools", linkSlug: extractSlug(from: "/product-list/gartenhelfer-aufbewahrung-gartengeraete"), iconFilename: "Maeher"),
                 AppSubNavigationItem(label: "Gartenschuppen", i18nId: "header.nav.gardenhelpers.sheds", linkSlug: extractSlug(from: "/product-list/gartenhelfer-aufbewahrung-gartenschuppen"), iconFilename: "schuppen"),
@@ -89,12 +89,12 @@ struct AppNavigationData {
             ]
         ),
 
-        // --- Dekoration & Licht ---
+        // --- Deko-Licht ---
         AppNavigationItem(
             mainCategorySlug: extractSlug(from: "/category/deko-licht"),
-            label: "Dekoration & Licht",
+            label: "Deko-Licht", // GEÄNDERT
             i18nId: "header.nav.deco",
-            imageFilename: "cat_banner_deko-licht.jpg", // <-- NEU
+            imageFilename: "cat_banner_deko-licht.jpg",
             subItems: [
                 AppSubNavigationItem(label: "Gartenbeleuchtung", i18nId: "header.nav.deco.lighting", linkSlug: extractSlug(from: "/product-list/deko-licht-gartenbeleuchtung"), iconFilename: "Lampe"),
                 AppSubNavigationItem(label: "Gartenlautsprecher", i18nId: "header.nav.deco.audio", linkSlug: extractSlug(from: "/product-list/deko-licht-audio"), iconFilename: "audio"),
@@ -104,12 +104,12 @@ struct AppNavigationData {
             ]
         ),
 
-        // --- Pflanzen & Anzucht ---
+        // --- Pflanzen-Anzucht ---
         AppNavigationItem(
             mainCategorySlug: extractSlug(from: "/category/pflanzen-anzucht"),
-            label: "Pflanzen & Anzucht",
+            label: "Pflanzen-Anzucht", // GEÄNDERT
             i18nId: "header.nav.plants",
-            imageFilename: "cat_banner_pflanzen-anzucht.jpg", // <-- NEU
+            imageFilename: "cat_banner_pflanzen-anzucht.jpg",
             subItems: [
                 AppSubNavigationItem(label: "Gewächshäuser", i18nId: "header.nav.plants.greenhouses", linkSlug: extractSlug(from: "/product-list/pflanzen-anzucht-gewaechshaeuser"), iconFilename: "Gewaechs"),
                 AppSubNavigationItem(label: "Hochbeete", i18nId: "header.nav.plants.raisedbeds", linkSlug: extractSlug(from: "/product-list/pflanzen-anzucht-hochbeet"), iconFilename: "gatenbox"),
@@ -119,16 +119,16 @@ struct AppNavigationData {
                 AppSubNavigationItem(label: "Pflanzenschutz", i18nId: "header.nav.plants.protection", linkSlug: extractSlug(from: "/product-list/pflanzen-anzucht-pflanzenschutz"), iconFilename: "Schutz"),
                 AppSubNavigationItem(label: "Pflanzgefäße", i18nId: "header.nav.plants.planters", linkSlug: extractSlug(from: "/product-list/pflanzen-anzucht-pflanzgefaesse"), iconFilename: "Topf"),
                 AppSubNavigationItem(label: "Rankhilfen", i18nId: "header.nav.plants.trellises", linkSlug: extractSlug(from: "/product-list/pflanzen-anzucht-rankhilfen"), iconFilename: "ranken"),
-                AppSubNavigationItem(label: "Bewässerung", i18nId: "header.nav.plants.irrigation", linkSlug: extractSlug(from: "/product-list/pflanzen-ansucht-bewaesserung"), iconFilename: "bewaesserung")
+                AppSubNavigationItem(label: "Bewässerung", i18nId: "header.nav.plants.irrigation", linkSlug: extractSlug(from: "/product-list/pflanzen-anzucht-bewaesserung"), iconFilename: "bewaesserung")
             ]
         ),
 
-        // --- Spiel & Spaß ---
+        // --- Kinderbereich ---
         AppNavigationItem(
             mainCategorySlug: extractSlug(from: "/category/fuer-die-ganze-grossen"),
-            label: "Spiel & Spaß",
+            label: "Kinderbereich", // GEÄNDERT
             i18nId: "header.nav.playfun",
-            imageFilename: "cat_banner_spiel-spass.jpg", // <-- NEU
+            imageFilename: "cat_banner_spiel-spass.jpg",
             subItems: [
                 AppSubNavigationItem(label: "Sandkästen", i18nId: "header.nav.playfun.sandpits", linkSlug: extractSlug(from: "/product-list/fuer-die-ganze-grossen-sandkasten"), iconFilename: "sandkasten"),
                 AppSubNavigationItem(label: "Spielburgen", i18nId: "header.nav.playfun.playcastles", linkSlug: extractSlug(from: "/product-list/fuer-die-ganze-grossen-spielburgen"), iconFilename: "spielburgen"),

@@ -21,7 +21,9 @@ class SubCategoryViewModel: ObservableObject {
     
     private(set) var currentPage: Int = 1
     private(set) var totalPages: Int = 1
-    private(set) var currentProductCategoryId: Int?
+    
+    // Wir speichern die ausgewählte Unterkategorie hier, um sie nicht in der View übergeben zu müssen.
+    private(set) var currentSubCategory: DisplayableSubCategory?
 
     // MARK: - General Properties
     let mainCategoryAppItem: AppNavigationItem
@@ -49,7 +51,6 @@ class SubCategoryViewModel: ObservableObject {
             
             var result: [DisplayableSubCategory] = []
             for definedItem in definedSubItems {
-                // Flexibler Abgleich, falls WooCommerce-Slug anders ist als der volle App-Slug
                 if let matched = wooSubCategories.first(where: { definedItem.linkSlug.hasSuffix($0.slug) }) {
                     result.append(DisplayableSubCategory(id: matched.id, label: definedItem.label, iconFilename: definedItem.iconFilename))
                 }
@@ -62,8 +63,14 @@ class SubCategoryViewModel: ObservableObject {
     }
     
     // Lädt Produkte
-    func loadProducts(for subCategory: DisplayableSubCategory, initialLoad: Bool) async {
-        let categoryId = subCategory.id
+    func loadProducts(for subCategory: DisplayableSubCategory? = nil, initialLoad: Bool) async {
+        // Wenn eine neue Unterkategorie gesetzt wird, merken wir sie uns
+        if let subCategory = subCategory {
+            self.currentSubCategory = subCategory
+        }
+        
+        // Stellen sicher, dass wir eine Kategorie haben, für die wir laden können
+        guard let currentSubCategory = self.currentSubCategory else { return }
         
         if !initialLoad && (currentPage > totalPages && totalPages != 0) { return }
         if (initialLoad && isLoadingProducts) || (!initialLoad && isLoadingMoreProducts) { return }
@@ -72,15 +79,14 @@ class SubCategoryViewModel: ObservableObject {
             self.isLoadingProducts = true
             self.currentPage = 1
             self.products = []
-            self.currentProductCategoryId = categoryId
-            self.totalPages = 1 // Zurücksetzen
+            self.totalPages = 1
         } else {
             self.isLoadingMoreProducts = true
         }
         self.productErrorMessage = nil
 
         do {
-            let container = try await apiManager.getProducts(categoryId: categoryId, perPage: 10, page: currentPage)
+            let container = try await apiManager.getProducts(categoryId: currentSubCategory.id, perPage: 10, page: currentPage)
             let newProducts = container.products
             
             if initialLoad {
@@ -103,15 +109,9 @@ class SubCategoryViewModel: ObservableObject {
         else { self.isLoadingMoreProducts = false }
     }
     
-    // Infinite Scroll Trigger
-    func loadMoreProductsIfNeeded(currentItem product: WooCommerceProduct?) async {
-        guard let currentCatId = self.currentProductCategoryId else { return }
-        guard let product = product else { return }
-        
-        let thresholdIndex = products.index(products.endIndex, offsetBy: -5, limitedBy: products.startIndex) ?? products.startIndex
-        guard products.firstIndex(where: { $0.id == product.id }) == thresholdIndex else { return }
-        
-        // Dummy-Objekt wird nur für die ID benötigt
-        await loadProducts(for: DisplayableSubCategory(id: currentCatId, label: "", iconFilename: nil), initialLoad: false)
+    // --- NEUE HELPER FUNKTION ---
+    // Prüft, ob ein Produkt das letzte in der Liste ist.
+    func isLastProduct(_ product: WooCommerceProduct) -> Bool {
+        return products.last?.id == product.id
     }
 }

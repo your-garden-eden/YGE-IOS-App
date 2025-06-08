@@ -1,18 +1,17 @@
 import SwiftUI
 
 struct ProductCardView: View {
-    @StateObject private var viewModel: ProductCardViewModel
+    @ObservedObject private var viewModel: ProductCardViewModel
     @EnvironmentObject var wishlistState: WishlistState
 
     init(product: WooCommerceProduct) {
-        _viewModel = StateObject(wrappedValue: ProductCardViewModel(product: product))
+        self.viewModel = ProductCardViewModel(product: product)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppStyles.Spacing.xSmall) {
             // MARK: - Bild
-            // --- KORREKTUR: Hier ist der vollständige und korrekte Code für den AsyncImage-Block ---
-            AsyncImage(url: viewModel.imageURL) { phase in // Der 'phase'-Parameter wird jetzt korrekt angenommen
+            AsyncImage(url: viewModel.imageURL) { phase in
                 switch phase {
                 case .empty:
                     ZStack {
@@ -56,12 +55,9 @@ struct ProductCardView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
 
-                    if let strikethrough = viewModel.strikethroughPrice {
-                        Text(strikethrough)
-                            .font(.caption)
-                            .foregroundColor(AppColors.textMuted)
-                            .strikethrough(true, color: AppColors.textMuted)
-                    }
+                    // --- KORREKTUR HIER ---
+                    // Der Block für den durchgestrichenen Preis wurde entfernt.
+                    // if let strikethrough = viewModel.strikethroughPrice { ... }
                 }
                 
                 Spacer()
@@ -73,14 +69,12 @@ struct ProductCardView: View {
                         .font(.title3)
                         .foregroundColor(wishlistState.isProductInWishlist(productId: viewModel.productId) ? AppColors.wishlistIcon : AppColors.textMuted)
                 }
+                .buttonStyle(.plain)
             }
         }
         .padding(AppStyles.Spacing.small)
         .background(AppColors.backgroundComponent)
         .cornerRadius(AppStyles.BorderRadius.large)
         .appShadow(AppStyles.Shadows.small)
-        .task {
-            await viewModel.calculatePrices()
-        }
     }
 }

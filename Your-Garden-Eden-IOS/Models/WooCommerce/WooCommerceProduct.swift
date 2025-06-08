@@ -1,5 +1,6 @@
 // YGE-IOS-App/Core/Models/WooCommerce/CoreAPI/WooCommerceProduct.swift
 import Foundation
+import StoreKit
 
 struct WooCommerceProduct: Identifiable, Hashable, Codable {
     let id: Int

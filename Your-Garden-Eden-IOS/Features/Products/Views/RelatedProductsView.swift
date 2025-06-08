@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct RelatedProductsView: View {
-    let products: [WooCommerceProduct]
+    // GEÄNDERT: Akzeptiert wieder die sichere Wrapper-Struktur.
+    let products: [IdentifiableDisplayProduct]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -12,12 +13,11 @@ struct RelatedProductsView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
-                    ForEach(products) { product in
-                        // Wir verwenden unsere existierende ProductCardView.
-                        // Wir machen sie zu einem Navigationslink, damit man direkt zum Produkt springen kann.
-                        NavigationLink(value: product) {
-                            ProductCardView(product: product)
-                                .frame(width: 160) // Feste Breite für eine konsistente Darstellung
+                    // Die ForEach-Schleife ist jetzt sicher gegen doppelte IDs.
+                    ForEach(products) { identifiableProduct in
+                        NavigationLink(value: identifiableProduct.product) {
+                            ProductCardView(product: identifiableProduct.product)
+                                .frame(width: 160)
                         }
                     }
                 }
@@ -25,8 +25,6 @@ struct RelatedProductsView: View {
             }
         }
         .padding(.vertical)
-        // Ein leichter Hintergrund, um die Sektion von der Haupt-Seitenfarbe abzuheben.
-        // Falls Ihre backgroundPage und backgroundLightGray gleich sind, können Sie dies anpassen.
         .background(AppColors.backgroundLightGray.opacity(0.5))
     }
 }

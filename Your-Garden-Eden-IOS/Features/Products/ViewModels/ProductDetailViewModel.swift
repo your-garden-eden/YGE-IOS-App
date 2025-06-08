@@ -1,5 +1,11 @@
 import SwiftUI
 
+// Wir führen die Wrapper-Struktur wieder ein.
+struct IdentifiableDisplayProduct: Identifiable {
+    let id = UUID()
+    let product: WooCommerceProduct
+}
+
 @MainActor
 class ProductDetailViewModel: ObservableObject {
     @Published var product: WooCommerceProduct?
@@ -7,80 +13,101 @@ class ProductDetailViewModel: ObservableObject {
     @Published var relatedProducts: [WooCommerceProduct] = []
     @Published var selectedImage: WooCommerceImage?
     
+    // GEÄNDERT: Verwendet jetzt wieder die sichere Wrapper-Struktur.
+    @Published var displayRelatedProducts: [IdentifiableDisplayProduct] = []
+    
     @Published var displayPrice: String = "..."
-
+    @Published var formattedShortDescription: AttributedString?
+    @Published var formattedDescription: AttributedString?
     @Published var isLoading = false
     @Published var errorMessage: String?
 
+    private let productSlug: String
     private let initialProductData: WooCommerceProduct?
 
     init(productSlug: String, initialProductData: WooCommerceProduct? = nil) {
+        self.productSlug = productSlug
         self.initialProductData = initialProductData
+        if let initialData = initialProductData {
+            updateState(with: initialData)
+        }
     }
-
+    
     func selectImage(_ image: WooCommerceImage) {
         withAnimation { self.selectedImage = image }
     }
     
-    func fetchProductDetails(slug: String) async {
-        try? await Task.sleep(nanoseconds: 1)
-        
-        if product != nil && !isLoading { return }
-
-        self.isLoading = true
-        self.errorMessage = nil
-        
+    func loadDetails() async {
+        if isLoading { return }
+        if let product = self.product, (product.type != .variable || !self.variations.isEmpty) { return }
+        isLoading = true
+        errorMessage = nil
         do {
             let currentProduct: WooCommerceProduct
-            
-            // --- DIE ENDGÜLTIGE KORREKTUR ---
-            // Wir behandeln den optionalen Rückgabewert des API-Aufrufs korrekt.
-            if let initialData = self.initialProductData {
+            if let initialData = self.initialProductData, self.product == nil {
                 currentProduct = initialData
             } else {
-                // Wir versuchen, das Produkt zu laden.
-                guard let fetchedProduct = try await WooCommerceAPIManager.shared.getProductBySlug(productSlug: slug) else {
-                    // Wenn der API-Aufruf 'nil' zurückgibt, werfen wir einen spezifischen Fehler.
+                guard let fetchedProduct = try await WooCommerceAPIManager.shared.getProductBySlug(productSlug: self.productSlug) else {
                     throw WooCommerceAPIError.productNotFound
                 }
-                // Nur wenn das Produkt gefunden wurde, weisen wir es zu.
                 currentProduct = fetchedProduct
             }
-            
-            // Ab hier ist 'currentProduct' garantiert ein gültiges Produkt.
-            self.product = currentProduct
-            self.selectedImage = currentProduct.images.first
-
-            let currencySymbol = currentProduct.metaData.first(where: { $0.key == "_currency_symbol" })?.value as? String ?? "€"
-            self.displayPrice = await PriceFormatter.formatPrice(from: currentProduct.priceHtml) ?? "\(currencySymbol)\(currentProduct.price)"
-            
-            if currentProduct.type == .variable && !currentProduct.variations.isEmpty {
-                self.variations = try await WooCommerceAPIManager.shared.getProductVariations(productId: currentProduct.id)
-            }
-            
-            await fetchRelatedProducts()
-
+            let fetchedVariations = try await fetchVariations(for: currentProduct)
+            let fetchedRelatedProducts = try await fetchRelatedProducts(for: currentProduct)
+            updateState(with: currentProduct, variations: fetchedVariations, relatedProducts: fetchedRelatedProducts)
         } catch let error as WooCommerceAPIError {
-            // Unser 'catch'-Block kann jetzt den neuen Fehlerfall elegant behandeln.
-            self.errorMessage = error.localizedDescriptionForUser
-            print("ProductDetailViewModel Error: \(error.debugDescription)")
+            errorMessage = error.localizedDescriptionForUser
         } catch {
-            self.errorMessage = "Ein unerwarteter Fehler ist aufgetreten."
-            print("ProductDetailViewModel Error (Unknown): \(error.localizedDescription)")
+            errorMessage = "Ein unerwarteter Fehler ist aufgetreten."
         }
-        
-        self.isLoading = false
+        isLoading = false
     }
     
-    private func fetchRelatedProducts() async {
-        guard let product = self.product, !product.relatedIds.isEmpty else { return }
-        if !relatedProducts.isEmpty { return }
-        
-        do {
-            let container = try await WooCommerceAPIManager.shared.getProducts(include: product.relatedIds)
-            self.relatedProducts = container.products
-        } catch {
-            print("ProductDetailViewModel: Failed to fetch related products. Error: \(error.localizedDescription)")
+    private func updateState(with product: WooCommerceProduct, variations: [WooCommerceProductVariation]? = nil, relatedProducts: [WooCommerceProduct]? = nil) {
+        let currencySymbol = product.metaData.first(where: { $0.key == "_currency_symbol" })?.value as? String ?? "€"
+        let formattedPrice = PriceFormatter.formatPriceString(from: product.priceHtml, fallbackPrice: product.price, currencySymbol: currencySymbol)
+        self.formattedShortDescription = HTMLParser.parse(html: product.shortDescription)
+        self.formattedDescription = HTMLParser.parse(html: product.description)
+        self.product = product
+        self.selectedImage = product.images.first
+        self.displayPrice = formattedPrice.display
+        if let variations = variations {
+            self.variations = variations
         }
+        if let relatedProducts = relatedProducts {
+            self.relatedProducts = relatedProducts
+            self.displayRelatedProducts = createLoopedRelatedProducts(from: relatedProducts)
+        }
+    }
+    
+    private func fetchVariations(for product: WooCommerceProduct) async throws -> [WooCommerceProductVariation] {
+        if product.type == .variable && !product.variations.isEmpty {
+            return try await WooCommerceAPIManager.shared.getProductVariations(productId: product.id)
+        }
+        return []
+    }
+    
+    private func fetchRelatedProducts(for product: WooCommerceProduct) async throws -> [WooCommerceProduct] {
+        if !product.relatedIds.isEmpty {
+            let container = try await WooCommerceAPIManager.shared.getProducts(include: product.relatedIds)
+            return container.products
+        }
+        return []
+    }
+    
+    // GEÄNDERT: Gibt jetzt wieder eine Liste von [IdentifiableDisplayProduct] zurück.
+    private func createLoopedRelatedProducts(from products: [WooCommerceProduct]) -> [IdentifiableDisplayProduct] {
+        guard !products.isEmpty else { return [] }
+        var loopedProducts: [IdentifiableDisplayProduct] = []
+        while loopedProducts.count < 20 {
+            for product in products {
+                if loopedProducts.count < 20 {
+                    loopedProducts.append(IdentifiableDisplayProduct(product: product))
+                } else {
+                    break
+                }
+            }
+        }
+        return loopedProducts
     }
 }

@@ -3,39 +3,34 @@ import SwiftUI
 
 @MainActor
 class ProductCardViewModel: ObservableObject {
+    // --- KERN-ÄNDERUNG: Keine @Published-Properties für Preise mehr ---
+    // Die Preise werden einmal gesetzt und ändern sich nicht.
     let productId: Int
     let displayName: String
     let imageURL: URL?
-    
-    // Diese Eigenschaft wird jetzt asynchron gefüllt.
-    @Published var displayPrice: String = "..." // Platzhalter
-    @Published var strikethroughPrice: String?
-
-    private let product: WooCommerceProduct // Wir speichern das Produkt für die async-Funktion
+    let displayPrice: String
+    let strikethroughPrice: String?
 
     init(product: WooCommerceProduct) {
-        self.product = product
         self.productId = product.id
         self.displayName = product.name
         self.imageURL = product.images.first?.src.asURL()
+        
+        // --- PREISBERECHNUNG DIREKT IM INITIALISIERER ---
+        
+        let currencySymbol = product.metaData.first(where: { $0.key == "_currency_symbol" })?.value as? String ?? "€"
+        
+        // Wir verwenden die neue, synchrone Funktion für alle Fälle.
+        // Sie verarbeitet HTML für variable Produkte und nutzt den Fallback für einfache Produkte.
+        let formattedPrice = PriceFormatter.formatPriceString(
+            from: product.priceHtml,
+            fallbackPrice: product.price,
+            currencySymbol: currencySymbol
+        )
+        
+        self.displayPrice = formattedPrice.display
+        self.strikethroughPrice = formattedPrice.strikethrough
     }
     
-    // --- NEU: Eine asynchrone Setup-Funktion ---
-    /// Berechnet die Preise sicher nach der Initialisierung.
-    func calculatePrices() async {
-        let currencySymbol = product.metaData.first(where: { $0.key == "_currency_symbol" })?.value as? String ?? "€"
-
-        if product.type == .variable, let priceHtml = product.priceHtml, !priceHtml.isEmpty {
-            // Wir rufen jetzt die neue, sichere async-Funktion auf.
-            self.displayPrice = await PriceFormatter.formatPrice(from: priceHtml) ?? "Preis auf Anfrage"
-            self.strikethroughPrice = nil
-        } else {
-            self.displayPrice = "\(currencySymbol)\(product.price)"
-            if product.onSale && !product.regularPrice.isEmpty && product.regularPrice != product.price {
-                self.strikethroughPrice = "\(currencySymbol)\(product.regularPrice)"
-            } else {
-                self.strikethroughPrice = nil
-            }
-        }
-    }
+    // Die asynchrone Funktion `calculatePrices()` wird nicht mehr benötigt und kann gelöscht werden.
 }

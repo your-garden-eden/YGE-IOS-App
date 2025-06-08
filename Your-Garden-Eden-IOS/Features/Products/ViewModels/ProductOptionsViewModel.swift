@@ -12,7 +12,7 @@ class ProductOptionsViewModel: ObservableObject {
     @Published var selectedVariation: WooCommerceProductVariation?
     
     @Published var currentImage: WooCommerceImage?
-    @Published var displayPrice: String = "..." // Beginnt mit einem Platzhalter
+    @Published var displayPrice: String = "..."
     @Published var isAddToCartDisabled: Bool = true
     @Published var quantity: Int = 1
     
@@ -24,18 +24,22 @@ class ProductOptionsViewModel: ObservableObject {
         self.variations = variations
         self.currencySymbol = product.metaData.first(where: { $0.key == "_currency_symbol" })?.value as? String ?? "€"
         self.currentImage = product.images.first
+        
+        // Initialen Zustand setzen, als ob keine Variation gewählt wäre
+        updateState()
     }
     
     // MARK: - Public User Intents
     
-    /// Diese Funktion wird jetzt asynchron, da sie `updateState` aufruft.
-    func select(attributeSlug: String, optionSlug: String) async {
+    // Diese Funktion muss nicht mehr async sein.
+    func select(attributeSlug: String, optionSlug: String) {
         if selectedAttributes[attributeSlug] == optionSlug {
             selectedAttributes.removeValue(forKey: attributeSlug)
         } else {
             selectedAttributes[attributeSlug] = optionSlug
         }
-        await updateState()
+        // Direkter, synchroner Aufruf.
+        updateState()
     }
     
     func addToCart() {
@@ -46,7 +50,7 @@ class ProductOptionsViewModel: ObservableObject {
     // MARK: - Core Logic
     
     func availableOptionSlugs(for attribute: WooCommerceAttribute) -> Set<String> {
-        // ... (Dieser Code ist synchron und bleibt unverändert)
+        // Dieser Code ist synchron und bleibt unverändert
         guard let attributeSlug = attribute.slug else { return [] }
         let otherSelections = selectedAttributes.filter { $0.key != attributeSlug }
         let potentialVariations = variations.filter { variation in
@@ -59,8 +63,9 @@ class ProductOptionsViewModel: ObservableObject {
         return Set(availableSlugs)
     }
 
-    /// Diese Funktion muss jetzt asynchron sein, da sie den asynchronen PriceFormatter aufruft.
-    func updateState() async {
+    // --- KORREKTUR HIER ---
+    // Die Funktion ist jetzt wieder synchron, da sie keine await-Aufrufe mehr hat.
+    func updateState() {
         let matchingVariation = variations.first { variation in
             guard variation.attributes.count == selectedAttributes.count else { return false }
             return selectedAttributes.allSatisfy { (key, value) in
@@ -72,12 +77,20 @@ class ProductOptionsViewModel: ObservableObject {
         
         if let variation = matchingVariation {
             currentImage = variation.image ?? product.images.first
+            // Der Preis einer Variation ist immer ein einfacher String.
             displayPrice = "\(currencySymbol)\(variation.price)"
             isAddToCartDisabled = variation.stockStatus != .instock
         } else {
             currentImage = product.images.first
-            // Der Aufruf an die async-Funktion muss hier mit 'await' erfolgen.
-            displayPrice = await PriceFormatter.formatPrice(from: product.priceHtml) ?? "\(currencySymbol)\(product.price)"
+            
+            // Wir verwenden die neue, synchrone Funktion.
+            let formattedPrice = PriceFormatter.formatPriceString(
+                from: product.priceHtml,
+                fallbackPrice: product.price,
+                currencySymbol: self.currencySymbol
+            )
+            displayPrice = formattedPrice.display
+            
             isAddToCartDisabled = true
         }
     }

@@ -1,38 +1,44 @@
 import SwiftUI
 
 struct ProductCategoryRow: View {
-    let category: WooCommerceCategory
+    let label: String
+    let imageUrl: URL?
+    let localImageFilename: String?
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            // AsyncImage lädt das Bild
-            AsyncImage(url: category.image?.src.asURL()) { phase in
+        // GEÄNDERT: Die Ausrichtung des ZStacks ist jetzt .center.
+        ZStack(alignment: .center) {
+            // Das Bild bleibt die unterste Ebene.
+            AsyncImage(url: imageUrl) { phase in
                 switch phase {
                 case .success(let image):
                     image.resizable().aspectRatio(contentMode: .fill)
-                case .failure:
-                    placeholderImage()
-                case .empty:
-                    ShimmerView()
+                
+                case .failure, .empty:
+                    if let filename = localImageFilename {
+                        Image(filename)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    } else {
+                        placeholderImage()
+                    }
                 @unknown default:
                     EmptyView()
                 }
             }
 
-            // Gradient für die Lesbarkeit
-            LinearGradient(
-                gradient: Gradient(colors: [.clear, AppColors.secondaryDark.opacity(0.8)]),
-                startPoint: .center,
-                endPoint: .bottom
-            )
+            // GEÄNDERT: Wir verwenden jetzt einen durchgehenden, leichten
+            // dunklen Schleier über dem ganzen Bild für bessere Lesbarkeit.
+            Rectangle()
+                .fill(.black.opacity(0.40))
 
-            // Kategoriename
-            Text(category.name)
-                // UPDATED: Nutzt den "title2" Stil. Dieser ist prominent und passt gut auf Bild-Header.
+            // GEÄNDERT: Die Textfarbe ist jetzt .white.
+            Text(label)
                 .font(.title2.weight(.bold))
-                .foregroundColor(AppColors.textOnSecondary)
+                .foregroundColor(.white) // Textfarbe ist weiß
                 .padding()
-                .shadow(color: AppColors.secondaryDark.opacity(0.5), radius: 3, x: 0, y: 2)
+                // Der Schatten sorgt für zusätzlichen Kontrast.
+                .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 2)
         }
         .frame(height: 150)
         .background(AppColors.backgroundLightGray)

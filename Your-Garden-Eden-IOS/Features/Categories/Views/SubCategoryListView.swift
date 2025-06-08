@@ -3,6 +3,8 @@ import SwiftUI
 struct SubCategoryListView: View {
     @StateObject private var viewModel: SubCategoryViewModel
     @State private var selectedSubCategory: DisplayableSubCategory? = nil
+    
+    @Environment(\.dismiss) private var dismiss
 
     init(selectedMainCategoryAppItem: AppNavigationItem, parentWooCommerceCategoryID: Int) {
         _viewModel = StateObject(wrappedValue: SubCategoryViewModel(
@@ -15,38 +17,38 @@ struct SubCategoryListView: View {
         ZStack {
             AppColors.backgroundPage.ignoresSafeArea()
 
-            Group {
-                if let subCategory = selectedSubCategory {
-                    productListView(for: subCategory)
-                } else {
-                    subCategorySelectionView
-                }
+            // Die Logik wird durch `selectedSubCategory` gesteuert. Das ist gut.
+            if let subCategory = selectedSubCategory {
+                // Wir übergeben die Unterkategorie an die Produktliste-View
+                productListView(for: subCategory)
+            } else {
+                subCategorySelectionView
+            }
+        }
+        .navigationBarBackButtonHidden(true)
+        // Der .task wird nur einmal ausgeführt, wenn SubCategoryListView erscheint
+        .task {
+            if viewModel.displayableSubCategories.isEmpty {
+                await viewModel.loadSubCategories()
             }
         }
     }
 
     // MARK: - Subview für die Unterkategorie-Auswahl
     private var subCategorySelectionView: some View {
+        // Die View wird in einer @ViewBuilder-Property gekapselt, um die body-Property zu entlasten
         Group {
-            // KORREKTUR: Hier wurde der Name der Eigenschaft korrigiert.
             if viewModel.isLoadingSubcategories {
-                VStack(spacing: 12) {
-                    ProgressView().tint(AppColors.primary)
-                    Text("Lade Unterkategorien...")
-                        .font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .regular))
-                        .foregroundColor(AppColors.textMuted)
-                }
+                loadingView(text: "Lade Unterkategorien...")
+            } else if let errorMessage = viewModel.subcategoryErrorMessage {
+                errorView(message: errorMessage)
             } else if viewModel.displayableSubCategories.isEmpty {
-                Text("Keine Unterkategorien gefunden.")
-                    .font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .regular))
-                    .foregroundColor(AppColors.textMuted)
+                emptyView(text: "Keine Unterkategorien gefunden.")
             } else {
                 List(viewModel.displayableSubCategories) { subCat in
                     Button(action: {
+                        // Der Wechsel der Ansicht erfolgt hier.
                         selectedSubCategory = subCat
-                        Task {
-                            await viewModel.loadProducts(for: subCat, initialLoad: true)
-                        }
                     }) {
                         SubCategoryRow(subCategory: subCat)
                     }
@@ -58,46 +60,32 @@ struct SubCategoryListView: View {
                 .scrollContentBackground(.hidden)
             }
         }
-        .navigationBarBackButtonHidden(true)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Text(viewModel.mainCategoryAppItem.label)
-                    .font(AppFonts.montserrat(size: AppFonts.Size.headline, weight: .bold))
-                    .foregroundColor(AppColors.textHeadings)
-            }
-        }
-        .task {
-            if viewModel.displayableSubCategories.isEmpty && !viewModel.isLoadingSubcategories {
-                await viewModel.loadSubCategories()
-            }
-        }
+        .toolbar { categorySelectionToolbar }
     }
     
     // MARK: - Subview für die Produktliste
-    @ViewBuilder
     private func productListView(for subCategory: DisplayableSubCategory) -> some View {
         Group {
-            // NEU: Vollständiges Handling für Lade-, Fehler- und Leer-Zustand der Produkte
             if viewModel.isLoadingProducts && viewModel.products.isEmpty {
-                VStack(spacing: 12) {
-                    ProgressView().tint(AppColors.primary)
-                    Text("Lade Produkte...").font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .regular)).foregroundColor(AppColors.textMuted)
-                }
+                loadingView(text: "Lade Produkte...")
             } else if let errorMessage = viewModel.productErrorMessage {
-                 Text(errorMessage).foregroundColor(AppColors.error).multilineTextAlignment(.center).padding()
+                 errorView(message: errorMessage)
             } else if viewModel.products.isEmpty {
-                 Text("Keine Produkte in dieser Kategorie gefunden.").font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .regular)).foregroundColor(AppColors.textMuted)
+                 emptyView(text: "Keine Produkte in dieser Kategorie gefunden.")
             } else {
                 List {
                     ForEach(viewModel.products) { product in
                         NavigationLink(value: product) {
                             ProductCardView(product: product)
+                                .task {
+                                    // Wir laden mehr, wenn das letzte Element erscheint
+                                    if viewModel.isLastProduct(product) {
+                                        await viewModel.loadProducts(initialLoad: false)
+                                    }
+                                }
                         }
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
-                        .onAppear {
-                            Task { await viewModel.loadMoreProductsIfNeeded(currentItem: product) }
-                        }
                     }
 
                     if viewModel.isLoadingMoreProducts {
@@ -109,13 +97,38 @@ struct SubCategoryListView: View {
                 .scrollContentBackground(.hidden)
             }
         }
-        .navigationBarBackButtonHidden(true)
-        .toolbar {
+        .toolbar { productListToolbar(subCategory: subCategory) }
+        // Der Lade-Task wird nur EINMAL ausgeführt, wenn diese Ansicht erscheint.
+        .task(id: subCategory.id) { // id sorgt dafür, dass der Task bei Kategoriewechsel neu startet
+             await viewModel.loadProducts(for: subCategory, initialLoad: true)
+        }
+    }
+    
+    // MARK: - Toolbar & Helper Views
+    
+    private var categorySelectionToolbar: some ToolbarContent {
+        Group {
             ToolbarItem(placement: .navigationBarLeading) {
-                Button(action: {
-                    // Der Reset wird allein durch das Setzen der State-Variable ausgelöst
-                    selectedSubCategory = nil
-                }) {
+                Button(action: { dismiss() }) {
+                    HStack {
+                        Image(systemName: "chevron.backward")
+                        Text("Shop")
+                    }
+                }
+                .tint(AppColors.textLink)
+            }
+            ToolbarItem(placement: .principal) {
+                Text(viewModel.mainCategoryAppItem.label)
+                    .font(AppFonts.montserrat(size: AppFonts.Size.headline, weight: .bold))
+                    .foregroundColor(AppColors.textHeadings)
+            }
+        }
+    }
+    
+    private func productListToolbar(subCategory: DisplayableSubCategory) -> some ToolbarContent {
+        Group {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button(action: { selectedSubCategory = nil }) {
                     HStack {
                         Image(systemName: "chevron.backward")
                         Text(viewModel.mainCategoryAppItem.label)
@@ -123,12 +136,26 @@ struct SubCategoryListView: View {
                 }
                 .tint(AppColors.textLink)
             }
-            
             ToolbarItem(placement: .principal) {
                 Text(subCategory.label)
                     .font(AppFonts.montserrat(size: AppFonts.Size.headline, weight: .bold))
                     .foregroundColor(AppColors.textHeadings)
             }
         }
+    }
+    
+    private func loadingView(text: String) -> some View {
+        VStack(spacing: 12) {
+            ProgressView().tint(AppColors.primary)
+            Text(text).font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .regular)).foregroundColor(AppColors.textMuted)
+        }
+    }
+    
+    private func errorView(message: String) -> some View {
+        Text(message).foregroundColor(AppColors.error).multilineTextAlignment(.center).padding()
+    }
+
+    private func emptyView(text: String) -> some View {
+        Text(text).font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .regular)).foregroundColor(AppColors.textMuted)
     }
 }

@@ -30,7 +30,7 @@ struct ProductOptionsView: View {
         // Dieser Task wird ausgeführt, sobald die View erscheint,
         // um den initialen Preis korrekt und sicher zu berechnen.
         .task {
-            await viewModel.updateState()
+            viewModel.updateState()
         }
     }
     
@@ -74,7 +74,7 @@ struct ProductOptionsView: View {
                             // --- DIE KORREKTUR ---
                             // Wir wickeln den Aufruf der async-Funktion in einen Task.
                             Task {
-                                await viewModel.select(attributeSlug: attributeSlug, optionSlug: selectedOptionSlug)
+                                viewModel.select(attributeSlug: attributeSlug, optionSlug: selectedOptionSlug)
                             }
                         }
                     )
