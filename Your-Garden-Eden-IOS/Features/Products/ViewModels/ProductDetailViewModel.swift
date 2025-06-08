@@ -1,6 +1,6 @@
 import SwiftUI
 
-// Wir führen die Wrapper-Struktur wieder ein.
+// Die Wrapper-Struktur, die jedem Produkt eine einzigartige ID für die View gibt.
 struct IdentifiableDisplayProduct: Identifiable {
     let id = UUID()
     let product: WooCommerceProduct
@@ -13,7 +13,7 @@ class ProductDetailViewModel: ObservableObject {
     @Published var relatedProducts: [WooCommerceProduct] = []
     @Published var selectedImage: WooCommerceImage?
     
-    // GEÄNDERT: Verwendet jetzt wieder die sichere Wrapper-Struktur.
+    // Verwendet die sichere Wrapper-Struktur.
     @Published var displayRelatedProducts: [IdentifiableDisplayProduct] = []
     
     @Published var displayPrice: String = "..."
@@ -95,7 +95,7 @@ class ProductDetailViewModel: ObservableObject {
         return []
     }
     
-    // GEÄNDERT: Gibt jetzt wieder eine Liste von [IdentifiableDisplayProduct] zurück.
+    // Gibt die korrekte Liste von [IdentifiableDisplayProduct] zurück.
     private func createLoopedRelatedProducts(from products: [WooCommerceProduct]) -> [IdentifiableDisplayProduct] {
         guard !products.isEmpty else { return [] }
         var loopedProducts: [IdentifiableDisplayProduct] = []

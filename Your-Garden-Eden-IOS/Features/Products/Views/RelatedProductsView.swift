@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct RelatedProductsView: View {
-    // GEÄNDERT: Akzeptiert wieder die sichere Wrapper-Struktur.
+    // Akzeptiert die sichere Wrapper-Struktur.
     let products: [IdentifiableDisplayProduct]
 
     var body: some View {
@@ -13,7 +13,7 @@ struct RelatedProductsView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
-                    // Die ForEach-Schleife ist jetzt sicher gegen doppelte IDs.
+                    // Iteriert sicher über die Wrapper-Objekte.
                     ForEach(products) { identifiableProduct in
                         NavigationLink(value: identifiableProduct.product) {
                             ProductCardView(product: identifiableProduct.product)

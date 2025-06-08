@@ -1,12 +1,11 @@
 import SwiftUI
-import StoreKit
 
 struct ProductDetailView: View {
     @StateObject private var viewModel: ProductDetailViewModel
     @EnvironmentObject var wishlistState: WishlistState
     
     @State private var quantity: Int = 1
-    @State private var isDescriptionExpanded: Bool = false
+    // `isDescriptionExpanded` wird nicht mehr benötigt.
 
     private let productSlug: String
 
@@ -40,13 +39,9 @@ struct ProductDetailView: View {
                         .listRowSeparator(.hidden)
                         .listRowBackground(AppColors.backgroundComponent)
                     
-                    if !viewModel.displayRelatedProducts.isEmpty {
-                         RelatedProductsView(products: viewModel.displayRelatedProducts)
-                            .listRowInsets(EdgeInsets())
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(AppColors.backgroundPage)
-                    }
-                
+                    // --- KORREKTUR HIER ---
+                    // Der Aufruf der RelatedProductsView wurde von hier entfernt...
+                    
                 } else if let errorMessage = viewModel.errorMessage {
                     Text(errorMessage)
                         .padding()
@@ -80,9 +75,14 @@ struct ProductDetailView: View {
             
             actionButtonSection(product: product)
             
-            if let description = viewModel.formattedDescription, !description.characters.isEmpty {
+            // --- KORREKTUR HIER ---
+            // ...und an diese Stelle verschoben.
+            if !viewModel.displayRelatedProducts.isEmpty {
                 Divider()
-                productDescriptionView(description: description)
+                RelatedProductsView(products: viewModel.displayRelatedProducts)
+                    // Da die View jetzt innerhalb einer gepaddeten Sektion ist,
+                    // entfernen wir das vertikale Padding, um doppelte Abstände zu vermeiden.
+                    .padding(.vertical, 0)
             }
         }
     }
@@ -143,33 +143,10 @@ struct ProductDetailView: View {
             .font(.title2.weight(.bold))
             .foregroundColor(AppColors.price)
     }
-    
-    private func productDescriptionView(description: AttributedString) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Beschreibung")
-                .font(.headline.weight(.semibold))
-                .foregroundColor(AppColors.textHeadings)
-            Text(description)
-                .font(.body)
-                .foregroundColor(AppColors.textBase)
-                .lineLimit(isDescriptionExpanded ? nil : 5)
-                .contentTransition(.interpolate)
-            Button(action: {
-                withAnimation(.spring()) { isDescriptionExpanded.toggle() }
-            }) {
-                Text(isDescriptionExpanded ? "Weniger anzeigen" : "Mehr anzeigen")
-                    .font(.body.weight(.bold))
-                    .foregroundColor(AppColors.primary)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .padding(.top, 4)
-            }
-        }
-    }
 
     @ViewBuilder
     private func actionButtonSection(product: WooCommerceProduct) -> some View {
         VStack(spacing: 20) {
-            // --- FINALE KORREKTUR HIER ---
             if product.type == ProductType.variable {
                 NavigationLink(destination: ProductOptionsView(product: product, variations: viewModel.variations)) {
                     Text("Optionen wählen")
