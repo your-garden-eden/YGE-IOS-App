@@ -8,10 +8,42 @@ struct PriceFormatter {
         let strikethrough: String?
     }
     
+    // +++ NEUE, EINFACHE FUNKTION ZUR KORREKTEN FORMATTIERUNG +++
+    /// Formatiert einen einfachen Preis-String (z.B. "19.99") in einen lokalisierten String (z.B. "19,99 €").
+    /// Diese Funktion ist ideal für Preise, die bereits als reine Zahlen vorliegen (wie bei Variationen).
+    static func formatPrice(_ priceString: String?, currencySymbol: String) -> String {
+        // 1. Stelle sicher, dass wir einen gültigen String haben.
+        guard let validPriceString = priceString, !validPriceString.isEmpty else {
+            return "" // oder einen Platzhalter wie "N/A"
+        }
+        
+        // 2. Konvertiere den String in eine Zahl (Double). Ersetze Kommas, um sicherzugehen.
+        let numberString = validPriceString.replacingOccurrences(of: ",", with: ".")
+        guard let priceNumber = Double(numberString) else {
+            return "\(validPriceString)\(currencySymbol)" // Fallback, falls Konvertierung fehlschlägt
+        }
+        
+        // 3. Verwende einen NumberFormatter für die korrekte deutsche Darstellung.
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+        formatter.decimalSeparator = ","
+        formatter.groupingSeparator = "."
+        
+        // 4. Formatiere die Zahl und füge das Währungssymbol hinzu.
+        if let formattedNumber = formatter.string(from: NSNumber(value: priceNumber)) {
+            return "\(formattedNumber) \(currencySymbol)"
+        } else {
+            return "\(validPriceString) \(currencySymbol)" // Weiterer Fallback
+        }
+    }
+    
     static func formatPriceString(from htmlString: String?, fallbackPrice: String, currencySymbol: String) -> FormattedPrice {
         guard let validString = htmlString, !validString.isEmpty else {
-            // Kein HTML -> einfacher Preis
-            return FormattedPrice(display: "\(currencySymbol)\(fallbackPrice)", strikethrough: nil)
+            // Kein HTML -> einfachen Preis mit der neuen Funktion formatieren.
+            let formattedFallback = formatPrice(fallbackPrice, currencySymbol: currencySymbol)
+            return FormattedPrice(display: formattedFallback, strikethrough: nil)
         }
 
         // --- NEUE, SICHERE LOGIK ---
@@ -33,7 +65,8 @@ struct PriceFormatter {
         
         if plainString.isEmpty {
              // Wenn das Parsen fehlschlägt, den Fallback-Preis verwenden
-            return FormattedPrice(display: "\(currencySymbol)\(fallbackPrice)", strikethrough: nil)
+            let formattedFallback = formatPrice(fallbackPrice, currencySymbol: currencySymbol)
+            return FormattedPrice(display: formattedFallback, strikethrough: nil)
         }
         
         // Wenn alles andere fehlschlägt, den geparsten String als einzelnen Preis anzeigen.
@@ -42,24 +75,21 @@ struct PriceFormatter {
     
     /// **NEU:** Extrahiert Preise sicher mit Regex, um den HTML-Parser zu umgehen.
     private static func extractPricesWithRegex(from html: String, currencySymbol: String) -> FormattedPrice? {
-        // Sucht nach Zahlen (mit Komma/Punkt) im String.
         let regex = try! NSRegularExpression(pattern: "[0-9.,]+")
         let results = regex.matches(in: html, range: NSRange(html.startIndex..., in: html))
         let prices = results.map { String(html[Range($0.range, in: html)!]) }
 
         switch prices.count {
         case 2:
-            // Zwei Preise gefunden -> Sale-Preis. Annahme: der erste ist der alte Preis.
-            // Wir formatieren sie explizit mit dem Währungssymbol.
-            let strikethroughPrice = "\(currencySymbol)\(prices[0])"
-            let displayPrice = "\(currencySymbol)\(prices[1])"
+            // Zwei Preise gefunden -> Sale-Preis. Wir formatieren sie mit der neuen Funktion.
+            let strikethroughPrice = formatPrice(prices[0], currencySymbol: currencySymbol)
+            let displayPrice = formatPrice(prices[1], currencySymbol: currencySymbol)
             return FormattedPrice(display: displayPrice, strikethrough: strikethroughPrice)
         case 1:
             // Ein einzelner Preis im HTML.
-            let displayPrice = "\(currencySymbol)\(prices[0])"
+            let displayPrice = formatPrice(prices[0], currencySymbol: currencySymbol)
             return FormattedPrice(display: displayPrice, strikethrough: nil)
         default:
-            // Kein oder mehr als zwei Preise gefunden, wir können keine Annahme treffen.
             return nil
         }
     }
@@ -91,6 +121,4 @@ struct PriceFormatter {
             return ""
         }
     }
-    
-    // Die alte, veraltete Funktion wird komplett entfernt, um Verwirrung zu vermeiden.
 }

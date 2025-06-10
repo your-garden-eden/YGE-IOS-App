@@ -1,6 +1,5 @@
 import SwiftUI
 
-// Die Wrapper-Struktur, die jedem Produkt eine einzigartige ID für die View gibt.
 struct IdentifiableDisplayProduct: Identifiable {
     let id = UUID()
     let product: WooCommerceProduct
@@ -11,16 +10,15 @@ class ProductDetailViewModel: ObservableObject {
     @Published var product: WooCommerceProduct?
     @Published var variations: [WooCommerceProductVariation] = []
     @Published var relatedProducts: [WooCommerceProduct] = []
-    @Published var selectedImage: WooCommerceImage?
-    
-    // Verwendet die sichere Wrapper-Struktur.
     @Published var displayRelatedProducts: [IdentifiableDisplayProduct] = []
-    
     @Published var displayPrice: String = "..."
     @Published var formattedShortDescription: AttributedString?
     @Published var formattedDescription: AttributedString?
     @Published var isLoading = false
     @Published var errorMessage: String?
+
+    // WICHTIG: Die ausgewählte Bild-Property muss auch hier sein.
+    @Published var selectedImage: WooCommerceImage?
 
     private let productSlug: String
     private let initialProductData: WooCommerceProduct?
@@ -57,8 +55,10 @@ class ProductDetailViewModel: ObservableObject {
             updateState(with: currentProduct, variations: fetchedVariations, relatedProducts: fetchedRelatedProducts)
         } catch let error as WooCommerceAPIError {
             errorMessage = error.localizedDescriptionForUser
+            print("ProductDetailViewModel Error: \(error.debugDescription)")
         } catch {
             errorMessage = "Ein unerwarteter Fehler ist aufgetreten."
+            print("ProductDetailViewModel Error (Unknown): \(error.localizedDescription)")
         }
         isLoading = false
     }
@@ -77,6 +77,9 @@ class ProductDetailViewModel: ObservableObject {
         if let relatedProducts = relatedProducts {
             self.relatedProducts = relatedProducts
             self.displayRelatedProducts = createLoopedRelatedProducts(from: relatedProducts)
+            
+            // --- DEBUG-PRINT 2 ---
+            print("--- DEBUG (ViewModel): 'displayRelatedProducts' wurde mit \(self.displayRelatedProducts.count) Elementen gefüllt.")
         }
     }
     
@@ -88,6 +91,9 @@ class ProductDetailViewModel: ObservableObject {
     }
     
     private func fetchRelatedProducts(for product: WooCommerceProduct) async throws -> [WooCommerceProduct] {
+        // --- DEBUG-PRINT 1 ---
+        print("--- DEBUG (ViewModel): Prüfe 'relatedIds' für Produkt \(product.id). Anzahl: \(product.relatedIds.count). IDs: \(product.relatedIds)")
+
         if !product.relatedIds.isEmpty {
             let container = try await WooCommerceAPIManager.shared.getProducts(include: product.relatedIds)
             return container.products
@@ -95,7 +101,6 @@ class ProductDetailViewModel: ObservableObject {
         return []
     }
     
-    // Gibt die korrekte Liste von [IdentifiableDisplayProduct] zurück.
     private func createLoopedRelatedProducts(from products: [WooCommerceProduct]) -> [IdentifiableDisplayProduct] {
         guard !products.isEmpty else { return [] }
         var loopedProducts: [IdentifiableDisplayProduct] = []

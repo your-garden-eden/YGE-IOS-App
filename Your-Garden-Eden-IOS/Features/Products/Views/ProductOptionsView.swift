@@ -27,9 +27,10 @@ struct ProductOptionsView: View {
         .background(AppColors.backgroundPage)
         .navigationTitle("Optionen wählen")
         .navigationBarTitleDisplayMode(.inline)
-        // Dieser Task wird ausgeführt, sobald die View erscheint,
-        // um den initialen Preis korrekt und sicher zu berechnen.
         .task {
+            // .task ist besser als .onAppear für async-Operationen,
+            // aber hier rufen wir eine synchrone Funktion auf, was ok ist.
+            // Der initiale Preis wird hierdurch auch korrekt gesetzt.
             viewModel.updateState()
         }
     }
@@ -54,7 +55,6 @@ struct ProductOptionsView: View {
                 .font(.title.weight(.bold))
                 .foregroundColor(AppColors.textHeadings)
             
-            // Zeigt jetzt die @Published-Eigenschaft aus dem ViewModel an.
             Text(viewModel.displayPrice)
                 .font(.title2.weight(.bold))
                 .foregroundColor(AppColors.price)
@@ -63,22 +63,16 @@ struct ProductOptionsView: View {
     }
     
     private var attributesSection: some View {
-        VStack(alignment: .leading) {
-            ForEach(viewModel.product.attributes) { attribute in
-                if let attributeSlug = attribute.slug {
-                    AttributeSelectorView(
-                        attribute: attribute,
-                        availableOptionSlugs: viewModel.availableOptionSlugs(for: attribute),
-                        currentlySelectedOptionSlugForThisAttribute: viewModel.selectedAttributes[attributeSlug],
-                        onOptionSelect: { selectedOptionSlug in
-                            // --- DIE KORREKTUR ---
-                            // Wir wickeln den Aufruf der async-Funktion in einen Task.
-                            Task {
-                                viewModel.select(attributeSlug: attributeSlug, optionSlug: selectedOptionSlug)
-                            }
-                        }
-                    )
-                }
+        VStack(alignment: .leading, spacing: AppStyles.Spacing.medium) {
+            ForEach(viewModel.displayableAttributes, id: \.slug) { attribute in
+                AttributeSelectorView(
+                    attribute: attribute,
+                    availableOptionSlugs: viewModel.availableOptionSlugs(for: attribute),
+                    currentlySelectedOptionSlugForThisAttribute: viewModel.selectedAttributes[attribute.slug],
+                    onOptionSelect: { selectedOptionSlug in
+                        viewModel.select(attributeSlug: attribute.slug, optionSlug: selectedOptionSlug)
+                    }
+                )
             }
         }
         .padding(.horizontal)

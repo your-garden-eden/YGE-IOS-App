@@ -1,26 +1,16 @@
 import SwiftUI
 
 struct AttributeSelectorView: View {
-    let attribute: WooCommerceAttribute
+    // Akzeptiert jetzt die neue, reichhaltigere Datenstruktur
+    let attribute: DisplayableAttribute
     
-    // NEU: Diese Menge enthält die Slugs der Optionen, die klickbar sein sollen.
-    // Wird vom ViewModel berechnet.
     let availableOptionSlugs: Set<String>
-    
     let currentlySelectedOptionSlugForThisAttribute: String?
     let onOptionSelect: (String) -> Void
     
-    // HINWEIS: Die Eigenschaft `allProductVariations` wird nicht mehr benötigt,
-    // da die Berechnungslogik nun vollständig im ViewModel liegt.
-    
-    private var options: [(displayName: String, slug: String)] {
-        // Wir verwenden direkt die Optionen aus dem Attribut-Objekt.
-        return attribute.options.map { (displayName: $0, slug: $0.toSlug()) }
-    }
-    
     var body: some View {
         VStack(alignment: .leading, spacing: AppStyles.Spacing.small) {
-            if !options.isEmpty {
+            if !attribute.options.isEmpty {
                 attributeTitle
                 optionsScrollView
             }
@@ -30,7 +20,7 @@ struct AttributeSelectorView: View {
     
     private var attributeTitle: some View {
         Text("\(attribute.name):")
-            .font(.headline.weight(.semibold)) // Angepasste Schriftart für bessere Lesbarkeit
+            .font(.headline.weight(.semibold))
             .foregroundColor(AppColors.textHeadings)
             .padding(.leading, 4)
     }
@@ -38,28 +28,29 @@ struct AttributeSelectorView: View {
     private var optionsScrollView: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: AppStyles.Spacing.small) {
-                ForEach(options, id: \.slug) { option in
+                // Iteriert jetzt über `DisplayableOption`-Objekte
+                ForEach(attribute.options) { option in
                     let isSelected = currentlySelectedOptionSlugForThisAttribute == option.slug
-                    // NEU: Eine Option ist deaktiviert, wenn sie nicht in den `availableOptionSlugs`
-                    // enthalten ist UND sie nicht die aktuell ausgewählte ist.
-                    let isDisabled = !availableOptionSlugs.contains(option.slug) && !isSelected
+                    let isDisabled = !availableOptionSlugs.contains(option.slug)
                     
                     Button(action: {
+                        // Gibt den ECHTEN Slug an das ViewModel zurück
                         onOptionSelect(option.slug)
                     }) {
-                        optionButtonLabel(option: option, isSelected: isSelected)
+                        // Verwendet option.name für die Anzeige
+                        optionButtonLabel(optionName: option.name, isSelected: isSelected)
                     }
                     .disabled(isDisabled)
-                    .opacity(isDisabled ? 0.4 : 1.0) // Visuelles Feedback für deaktivierte Buttons
+                    .opacity(isDisabled ? 0.4 : 1.0)
                 }
             }
             .padding(.horizontal, 4)
         }
     }
 
-    private func optionButtonLabel(option: (displayName: String, slug: String), isSelected: Bool) -> some View {
-        Text(option.displayName)
-            .font(.footnote.weight(isSelected ? .bold : .regular)) // Angepasste Schriftart
+    private func optionButtonLabel(optionName: String, isSelected: Bool) -> some View {
+        Text(optionName)
+            .font(.footnote.weight(isSelected ? .bold : .regular))
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
             .background(
@@ -77,15 +68,4 @@ struct AttributeSelectorView: View {
     }
 }
 
-// Hilfsfunktion, um aus einem Optionsnamen einen Slug zu machen.
-// Beispiel: "Dunkel Blau" -> "dunkel-blau"
-extension String {
-    func toSlug() -> String {
-        let baseSlug = self.lowercased()
-            .replacingOccurrences(of: " ", with: "-")
-            .replacingOccurrences(of: "_", with: "-")
-            
-        let allowedCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-"))
-        return baseSlug.components(separatedBy: allowedCharacters.inverted).joined()
-    }
-}
+// Die `toSlug()`-Erweiterung wird nicht mehr benötigt und kann gelöscht werden.

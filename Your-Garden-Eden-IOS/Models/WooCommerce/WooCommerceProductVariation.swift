@@ -1,14 +1,7 @@
-// YGE-IOS-App/Core/Models/WooCommerce/CoreAPI/WooCommerceProductVariation.swift
 import Foundation
-
-// --- MODIFIZIERT ---
-// Wir haben mehrere Eigenschaften zu Optionalen (z.B. String?) gemacht,
-// um den "Decoding"-Fehler zu beheben. Die App kann nun `null`-Werte vom
-// Server für diese Felder korrekt verarbeiten.
 
 struct WooCommerceProductVariation: Codable, Identifiable, Hashable {
     let id: Int
-    // MODIFIZIERT: Diese Felder können null sein.
     let dateCreated: String?
     let dateCreatedGmt: String?
     let dateModified: String?
@@ -18,14 +11,19 @@ struct WooCommerceProductVariation: Codable, Identifiable, Hashable {
     let permalink: String
     let sku: String
     let price: String
-    let regularPrice: String
+    let regularPrice: String?
     let salePrice: String?
     let priceHtml: String?
     let dateOnSaleFrom: String?
     let dateOnSaleFromGmt: String?
     let dateOnSaleTo: String?
     let dateOnSaleToGmt: String?
-    let onSale: Bool
+
+    // --- KORREKTUR HIER ---
+    // Auch dieses Feld ist laut API-Antwort nicht immer vorhanden.
+    // Wir machen es zu einem Optional, um den Absturz zu verhindern.
+    let onSale: Bool?
+
     let status: String
     let purchasable: Bool
     let virtual: Bool
@@ -88,7 +86,6 @@ struct WooCommerceProductVariation: Codable, Identifiable, Hashable {
     }
 }
 
-// HINWEIS: Diese Erweiterung bleibt unverändert, sie war bereits korrekt.
 extension WooCommerceProductVariation.VariationAttribute {
     func optionAsSlug() -> String {
         if let slug = self.slug, !slug.trimmingCharacters(in: .whitespaces).isEmpty {
