@@ -1,3 +1,5 @@
+// Features/Products/Views/ProductOptionsView.swift
+
 import SwiftUI
 
 struct ProductOptionsView: View {
@@ -19,7 +21,7 @@ struct ProductOptionsView: View {
                     productInfoView
                     Divider()
                     attributesSection
-                    Spacer(minLength: 120)
+                    Spacer(minLength: 120) // Platz für den unteren Button
                 }
             }
             addToCartSection
@@ -28,9 +30,6 @@ struct ProductOptionsView: View {
         .navigationTitle("Optionen wählen")
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            // .task ist besser als .onAppear für async-Operationen,
-            // aber hier rufen wir eine synchrone Funktion auf, was ok ist.
-            // Der initiale Preis wird hierdurch auch korrekt gesetzt.
             viewModel.updateState()
         }
     }
@@ -87,18 +86,36 @@ struct ProductOptionsView: View {
             }
             
             Button(action: {
-                viewModel.addToCart()
-                dismiss()
+                Task {
+                    let success = await viewModel.handleAddToCart()
+                    if success {
+                        dismiss() // View bei Erfolg schließen
+                    }
+                }
             }) {
-                Text("In den Warenkorb")
-                    .font(.headline.weight(.bold))
-                    .foregroundColor(AppColors.textOnPrimary)
-                    .frame(maxWidth: .infinity)
-                    .padding()
+                if viewModel.isAddingToCart {
+                    ProgressView()
+                        .tint(AppColors.textOnPrimary)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                } else {
+                    Text("In den Warenkorb")
+                        .font(.headline.weight(.bold))
+                        .foregroundColor(AppColors.textOnPrimary)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                }
             }
             .background(viewModel.isAddToCartDisabled ? AppColors.primaryLight : AppColors.primary)
             .cornerRadius(AppStyles.BorderRadius.large)
-            .disabled(viewModel.isAddToCartDisabled)
+            .disabled(viewModel.isAddToCartDisabled || viewModel.isAddingToCart)
+            
+            if let error = viewModel.addToCartError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(AppColors.error)
+                    .multilineTextAlignment(.center)
+            }
         }
         .padding()
         .background(.thinMaterial)

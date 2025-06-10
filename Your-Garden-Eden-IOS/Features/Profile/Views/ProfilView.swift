@@ -49,6 +49,7 @@ struct ProfilView: View {
     @ViewBuilder
     private func loggedInView(user: UserModel) -> some View {
         List {
+            // BENUTZERINFORMATIONEN SECTION
             Section(header: Text("Benutzerinformationen").foregroundStyle(AppColors.textMuted)) {
                 InfoRow(label: "Name", value: user.fullName)
                 InfoRow(label: "E-Mail", value: user.email ?? "Keine E-Mail")
@@ -58,13 +59,10 @@ struct ProfilView: View {
             }
             .listRowBackground(AppColors.backgroundComponent)
 
-            Section(header: Text("Konto").foregroundStyle(AppColors.textMuted)) {
-                NavigationLink(destination: EditProfilView()) {
-                    Label("Profil bearbeiten", systemImage: "pencil")
-                }
-            }
-            .listRowBackground(AppColors.backgroundComponent)
+            // KORREKTUR: Die "Konto"-Section mit dem ungültigen NavigationLink wurde entfernt.
+            // Sobald du eine EditProfilView erstellst, kannst du sie hier wieder hinzufügen.
             
+            // ABMELDEN SECTION
             Section {
                 Button(role: .destructive) {
                     authManager.signOut()
@@ -162,5 +160,3 @@ struct InfoRow: View {
         }
     }
 }
-
-// KEIN PREVIEW PROVIDER MEHR.

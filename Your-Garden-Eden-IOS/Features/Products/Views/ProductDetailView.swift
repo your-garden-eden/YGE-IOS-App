@@ -4,7 +4,10 @@ struct ProductDetailView: View {
     @StateObject private var viewModel: ProductDetailViewModel
     @EnvironmentObject var wishlistState: WishlistState
     @State private var quantity: Int = 1
-    // isDescriptionExpanded wird nicht mehr benötigt
+    
+    // NEU: Zustände für den "In den Warenkorb"-Button bei einfachen Produkten
+    @State private var isAddingToCart = false
+    @State private var addToCartError: String?
 
     private let productSlug: String
 
@@ -21,15 +24,20 @@ struct ProductDetailView: View {
             AppColors.backgroundPage.ignoresSafeArea()
             List {
                 if viewModel.isLoading && viewModel.product == nil {
-                    ProgressView().frame(maxWidth: .infinity, alignment: .center).listRowBackground(AppColors.backgroundPage).listRowSeparator(.hidden)
+                    ProgressView().frame(maxWidth: .infinity, alignment: .center).listRowBackground(Color.clear)
                 } else if let product = viewModel.product {
                     productGalleryView(allImages: product.images).listRowInsets(EdgeInsets()).listRowSeparator(.hidden).listRowBackground(AppColors.backgroundComponent)
                     productDetailsSection(product: product).listRowInsets(EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16)).listRowSeparator(.hidden).listRowBackground(AppColors.backgroundComponent)
                 } else if let errorMessage = viewModel.errorMessage {
-                    Text(errorMessage).padding().listRowBackground(AppColors.backgroundPage).listRowSeparator(.hidden)
+                    Text(errorMessage).padding().listRowBackground(Color.clear)
                 }
-            }.listStyle(.plain).background(AppColors.backgroundPage).scrollContentBackground(.hidden)
-        }.navigationTitle(viewModel.product?.name ?? "").navigationBarTitleDisplayMode(.inline)
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(AppColors.backgroundPage)
+        }
+        .navigationTitle(viewModel.product?.name ?? "")
+        .navigationBarTitleDisplayMode(.inline)
         .task { await viewModel.loadDetails() }
     }
 
@@ -44,19 +52,16 @@ struct ProductDetailView: View {
             }
             actionButtonSection(product: product)
             
-            // --- DEBUG-PRINT 3 ---
-            let _ = print("--- DEBUG (View): Zeichne 'productDetailsSection'. Anzahl 'displayRelatedProducts': \(viewModel.displayRelatedProducts.count)")
-
             if !viewModel.displayRelatedProducts.isEmpty {
                 Divider()
                 RelatedProductsView(products: viewModel.displayRelatedProducts)
-                    .padding(.vertical, 0)
             }
         }
     }
 
     @ViewBuilder
     private func productGalleryView(allImages: [WooCommerceImage]) -> some View {
+        // ... (Dieser Teil bleibt unverändert) ...
         VStack(spacing: 8) {
             AsyncImage(url: URL(string: viewModel.selectedImage?.src ?? "")) { phase in
                 switch phase {
@@ -83,6 +88,7 @@ struct ProductDetailView: View {
     }
 
     private func productHeaderView(product: WooCommerceProduct) -> some View {
+        // ... (Dieser Teil bleibt unverändert) ...
         HStack(alignment: .top) {
             Text(product.name).font(.largeTitle.weight(.bold)).foregroundColor(AppColors.textHeadings)
             Spacer()
@@ -97,23 +103,57 @@ struct ProductDetailView: View {
     }
     
     private func productPriceView() -> some View {
+        // ... (Dieser Teil bleibt unverändert) ...
         Text(viewModel.displayPrice).font(.title2.weight(.bold)).foregroundColor(AppColors.price)
     }
 
     @ViewBuilder
     private func actionButtonSection(product: WooCommerceProduct) -> some View {
         VStack(spacing: 20) {
-            if product.type == ProductType.variable {
+            // Für variable Produkte (unverändert)
+            if product.type == .variable {
                 NavigationLink(destination: ProductOptionsView(product: product, variations: viewModel.variations)) {
                     Text("Optionen wählen").font(.headline.weight(.bold)).foregroundColor(AppColors.textOnPrimary).frame(maxWidth: .infinity).padding().background(AppColors.primary).cornerRadius(AppStyles.BorderRadius.large)
                 }.disabled(viewModel.variations.isEmpty && viewModel.isLoading)
+            
+            // KORREKTUR: Für einfache Produkte
             } else {
                 if product.soldIndividually == false {
                     Stepper("Menge: \(quantity)", value: $quantity, in: 1...10).font(.headline.weight(.semibold))
                 }
-                Button(action: { CartManager.shared.addToCart(product: product, variation: nil, quantity: quantity) }) {
-                    Text("In den Warenkorb").font(.headline.weight(.bold)).foregroundColor(AppColors.textOnPrimary).frame(maxWidth: .infinity).padding().background(AppColors.primary).cornerRadius(AppStyles.BorderRadius.large)
-                }.disabled(product.stockStatus != .instock)
+                
+                Button(action: {
+                    // Verwende asynchrone Logik
+                    Task {
+                        isAddingToCart = true
+                        addToCartError = nil
+                        do {
+                            // Rufe den KORREKTEN Manager auf
+                            try await CartAPIManager.shared.addItem(productId: product.id, quantity: quantity)
+                            // Optional: Zeige eine Erfolgsmeldung (z.B. Banner)
+                            isAddingToCart = false
+                        } catch {
+                            addToCartError = "Produkt konnte nicht hinzugefügt werden."
+                            isAddingToCart = false
+                        }
+                    }
+                }) {
+                    if isAddingToCart {
+                        ProgressView().tint(AppColors.textOnPrimary)
+                            .frame(maxWidth: .infinity).padding()
+                    } else {
+                        Text("In den Warenkorb").font(.headline.weight(.bold))
+                            .foregroundColor(AppColors.textOnPrimary)
+                            .frame(maxWidth: .infinity).padding()
+                    }
+                }
+                .background(AppColors.primary)
+                .cornerRadius(AppStyles.BorderRadius.large)
+                .disabled(product.stockStatus != .instock || isAddingToCart)
+                
+                if let error = addToCartError {
+                    Text(error).font(.caption).foregroundColor(AppColors.error)
+                }
             }
         }.padding(.top)
     }

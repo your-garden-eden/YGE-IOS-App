@@ -1,3 +1,5 @@
+// Features/Products/ViewModels/ProductOptionsViewModel.swift
+
 import SwiftUI
 import Combine
 
@@ -29,21 +31,23 @@ class ProductOptionsViewModel: ObservableObject {
     @Published var isAddToCartDisabled: Bool = true
     @Published var quantity: Int = 1
     
+    // NEU: Zusätzliche Zustände für die UI
+    @Published var isAddingToCart = false
+    @Published var addToCartError: String?
+
     // MARK: - Aufbereitete Daten für die View
-    // Dies ist die neue "Source of Truth" für die UI.
     private(set) var displayableAttributes: [DisplayableAttribute] = []
     
     private let currencySymbol: String
     private let allowedAttributeNames: Set<String> = ["Color", "Model"]
 
-    // MARK: - Initializer (MIT DER KORREKTUR)
+    // MARK: - Initializer
     init(product: WooCommerceProduct, variations: [WooCommerceProductVariation]) {
         self.product = product
         self.variations = variations
         self.currencySymbol = product.metaData.first(where: { $0.key == "_currency_symbol" })?.value as? String ?? "€"
         self.currentImage = product.images.first
         
-        // --- DIE KERNLOGIK ZUR DATENAUFBEREITUNG ---
         prepareDisplayableAttributes()
     }
     
@@ -84,7 +88,7 @@ class ProductOptionsViewModel: ObservableObject {
             }
     }
     
-    // ... der Rest des Codes bleibt strukturell gleich ...
+    // MARK: - User Actions
     
     func select(attributeSlug: String, optionSlug: String) {
         if selectedAttributes[attributeSlug] == optionSlug {
@@ -95,11 +99,35 @@ class ProductOptionsViewModel: ObservableObject {
         updateState()
     }
     
-    func addToCart() {
-        guard let variation = selectedVariation else { return }
-        CartManager.shared.addToCart(product: product, variation: variation, quantity: quantity)
+    // NEUE addToCart-Logik, die den CartAPIManager verwendet
+    @discardableResult
+    func handleAddToCart() async -> Bool {
+        guard let variation = selectedVariation else {
+            self.addToCartError = "Bitte wählen Sie eine gültige Option."
+            return false
+        }
+
+        isAddingToCart = true
+        addToCartError = nil
+        
+        do {
+            // Der Aufruf des KORREKTEN Managers
+            try await CartAPIManager.shared.addItem(
+                productId: variation.id,
+                quantity: self.quantity
+            )
+            isAddingToCart = false
+            return true // Erfolg
+        } catch {
+            print("Fehler beim Hinzufügen zum Warenkorb: \(error.localizedDescription)")
+            self.addToCartError = "Das Produkt konnte nicht zum Warenkorb hinzugefügt werden."
+            isAddingToCart = false
+            return false // Misserfolg
+        }
     }
     
+    // MARK: - State Update Logic
+
     func availableOptionSlugs(for attribute: DisplayableAttribute) -> Set<String> {
         let otherSelections = selectedAttributes.filter { $0.key != attribute.slug }
         let potentialVariations = variations.filter { variation in
@@ -114,7 +142,6 @@ class ProductOptionsViewModel: ObservableObject {
 
     func updateState() {
         let matchingVariation = variations.first { variation in
-            // Die Anzahl der API-Attribute der Variation muss der Anzahl der User-Auswahlen entsprechen.
             guard variation.attributes.count == selectedAttributes.count else { return false }
             
             return selectedAttributes.allSatisfy { (key, value) in

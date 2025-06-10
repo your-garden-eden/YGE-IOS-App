@@ -17,7 +17,6 @@ class ProductDetailViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
 
-    // WICHTIG: Die ausgewählte Bild-Property muss auch hier sein.
     @Published var selectedImage: WooCommerceImage?
 
     private let productSlug: String
@@ -66,20 +65,21 @@ class ProductDetailViewModel: ObservableObject {
     private func updateState(with product: WooCommerceProduct, variations: [WooCommerceProductVariation]? = nil, relatedProducts: [WooCommerceProduct]? = nil) {
         let currencySymbol = product.metaData.first(where: { $0.key == "_currency_symbol" })?.value as? String ?? "€"
         let formattedPrice = PriceFormatter.formatPriceString(from: product.priceHtml, fallbackPrice: product.price, currencySymbol: currencySymbol)
-        self.formattedShortDescription = HTMLParser.parse(html: product.shortDescription)
-        self.formattedDescription = HTMLParser.parse(html: product.description)
+        
+        // KORREKTUR: Verwende die neue 'strippingHTML' String-Extension und konvertiere das Ergebnis in einen AttributedString.
+        self.formattedShortDescription = AttributedString(product.shortDescription.strippingHTML())
+        self.formattedDescription = AttributedString(product.description.strippingHTML())
+        
         self.product = product
         self.selectedImage = product.images.first
         self.displayPrice = formattedPrice.display
+        
         if let variations = variations {
             self.variations = variations
         }
         if let relatedProducts = relatedProducts {
             self.relatedProducts = relatedProducts
             self.displayRelatedProducts = createLoopedRelatedProducts(from: relatedProducts)
-            
-            // --- DEBUG-PRINT 2 ---
-            print("--- DEBUG (ViewModel): 'displayRelatedProducts' wurde mit \(self.displayRelatedProducts.count) Elementen gefüllt.")
         }
     }
     
@@ -91,9 +91,6 @@ class ProductDetailViewModel: ObservableObject {
     }
     
     private func fetchRelatedProducts(for product: WooCommerceProduct) async throws -> [WooCommerceProduct] {
-        // --- DEBUG-PRINT 1 ---
-        print("--- DEBUG (ViewModel): Prüfe 'relatedIds' für Produkt \(product.id). Anzahl: \(product.relatedIds.count). IDs: \(product.relatedIds)")
-
         if !product.relatedIds.isEmpty {
             let container = try await WooCommerceAPIManager.shared.getProducts(include: product.relatedIds)
             return container.products
