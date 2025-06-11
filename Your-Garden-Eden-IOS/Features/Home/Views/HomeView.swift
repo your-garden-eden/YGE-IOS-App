@@ -6,7 +6,6 @@ struct HomeView: View {
 
     private let heroVideoNameInBundle = "hero_main_banner_yge"
     private let videoFileExtension = "mp4"
-
     @State private var player: AVPlayer?
     @State private var playerLooper: AVPlayerLooper?
     @State private var queuePlayer: AVQueuePlayer?
@@ -14,56 +13,11 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    
-                    // 1. Hero Banner als Video
-                    if let videoPlayer = player {
-                        VideoPlayer(player: videoPlayer)
-                            .frame(height: 200)
-                            .disabled(true)
-                            // KORREKTUR 1: Hintergrundfarbe setzen, um Schwarz zu vermeiden
-                            .background(AppColors.backgroundPage)
-                            .onAppear {
-                                videoPlayer.play()
-                            }
-                    } else {
-                        // Dieser Fallback wird jetzt angezeigt, während der Player initialisiert.
-                        // Er hat dieselbe Hintergrundfarbe wie das Video, daher kein "Blitz".
-                        AppColors.backgroundPage
-                            .frame(height: 0)
-                    }
-                    
-                    // 2. Bestseller Produkte Sektion
-                    if !viewModel.bestsellerProducts.isEmpty {
-                        VStack(alignment: .leading) {
-                            Text("Bestseller")
-                                .font(AppFonts.montserrat(size: AppFonts.Size.h3, weight: .semibold))
-                                .padding([.top, .horizontal])
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: AppStyles.Spacing.medium) {
-                                    ForEach(viewModel.bestsellerProducts) { product in
-                                        NavigationLink(value: product) {
-                                            ProductCardView(product: product)
-                                                .frame(width: 160)
-                                        }
-                                        .buttonStyle(PlainButtonStyle())
-                                    }
-                                }
-                                .padding(.horizontal).padding(.bottom)
-                            }
-                        }.padding(.top)
-                    } else if viewModel.isLoading {
-                        ProgressView("Lade Bestseller...").padding()
-                    } else if let errorMessage = viewModel.errorMessage {
-                        Text("Fehler: \(errorMessage)").foregroundColor(AppColors.error).padding()
-                    }
-
-                    // KORREKTUR 2: Der Platzhalter-Inhalt wurde entfernt.
-                    // Die Zeile ForEach(0..<5) ... wurde gelöscht.
-                    
-                    // Footer am Ende
-                    Spacer(minLength: AppStyles.Spacing.large)
-                    FooterView()
+                VStack(alignment: .leading, spacing: 32) {
+                    videoBannerSection
+                    categoryCarouselSection
+                    bestsellerSection
+                    FooterView().padding(.top, AppStyles.Spacing.large)
                 }
             }
             .background(AppColors.backgroundPage.ignoresSafeArea())
@@ -78,30 +32,140 @@ struct HomeView: View {
             .navigationDestination(for: WooCommerceProduct.self) { product in
                 ProductDetailView(productSlug: product.slug, initialProductData: product)
             }
+            .navigationDestination(for: DisplayableMainCategory.self) { category in
+                SubCategoryListView(
+                    selectedMainCategoryAppItem: category.appItem,
+                    parentWooCommerceCategoryID: category.id
+                )
+            }
             .onAppear {
-                if player == nil {
-                    initializePlayer()
-                }
-                if viewModel.bestsellerProducts.isEmpty && !viewModel.isLoading {
-                    viewModel.loadDataForHomeView()
+                if player == nil { initializePlayer() }
+                Task { await viewModel.loadAllData() }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var videoBannerSection: some View {
+        if let videoPlayer = player {
+            VideoPlayer(player: videoPlayer)
+                .frame(height: 200).disabled(true).background(AppColors.backgroundPage)
+                .onAppear { videoPlayer.play() }
+        } else {
+            Rectangle().fill(AppColors.backgroundPage).frame(height: 200)
+        }
+    }
+
+    @ViewBuilder
+    private var categoryCarouselSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Unsere Kategorien")
+                .font(AppFonts.montserrat(size: AppFonts.Size.h3, weight: .semibold))
+                .padding(.horizontal)
+
+            if viewModel.isLoadingCategories && viewModel.displayableCategories.isEmpty {
+                ProgressView().frame(height: 120).frame(maxWidth: .infinity)
+            } else if let errorMessage = viewModel.categoryErrorMessage {
+                ErrorStateView(message: errorMessage)
+            } else if !viewModel.displayableCategories.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: 16) {
+                        ForEach(viewModel.displayableCategories) { category in
+                            NavigationLink(value: category) {
+                                CategoryCarouselItemView(category: category)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal)
                 }
             }
         }
     }
 
+    @ViewBuilder
+    private var bestsellerSection: some View {
+        if !viewModel.bestsellerProducts.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Bestseller")
+                    .font(AppFonts.montserrat(size: AppFonts.Size.h3, weight: .semibold))
+                    .padding(.horizontal)
+                
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: AppStyles.Spacing.medium) {
+                        ForEach(viewModel.bestsellerProducts) { product in
+                            NavigationLink(value: product) {
+                                ProductCardView(product: product)
+                                    .frame(width: 160)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+            }
+        } else if viewModel.isLoadingBestsellers {
+            // Ladeindikator
+        } else if let errorMessage = viewModel.bestsellerErrorMessage {
+            ErrorStateView(message: errorMessage)
+        }
+    }
+
     private func initializePlayer() {
         guard let videoURL = Bundle.main.url(forResource: heroVideoNameInBundle, withExtension: videoFileExtension) else {
-            print("HomeView ERROR: Video '\(heroVideoNameInBundle).\(videoFileExtension)' not found.")
             return
         }
-        
         let playerItem = AVPlayerItem(url: videoURL)
         self.queuePlayer = AVQueuePlayer(playerItem: playerItem)
-        
         if let queuePlayer = self.queuePlayer {
             self.playerLooper = AVPlayerLooper(player: queuePlayer, templateItem: playerItem)
             queuePlayer.isMuted = true
             self.player = queuePlayer
         }
+    }
+}
+
+private struct CategoryCarouselItemView: View {
+    let category: DisplayableMainCategory
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            if let imageName = category.appItem.imageFilename {
+                Image(imageName)
+                    .resizable().scaledToFill().frame(width: 80, height: 80).clipShape(Circle())
+            } else {
+                ZStack {
+                    Circle().fill(Color.gray.opacity(0.1))
+                    Image(systemName: "photo.fill")
+                        .resizable().scaledToFit().foregroundColor(Color.gray.opacity(0.4)).padding(20)
+                }
+                .frame(width: 80, height: 80)
+            }
+            
+            Text(category.appItem.label)
+                .font(AppFonts.montserrat(size: AppFonts.Size.caption, weight: .semibold))
+                // KORREKTUR: 'textBody' existiert nicht, 'textBase' ist korrekt.
+                .foregroundColor(AppColors.textBase)
+                .frame(width: 90)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+        }
+        .overlay(
+            Circle()
+                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                .frame(width: 80, height: 80)
+                .offset(y: -22)
+        )
+        .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: 2)
+    }
+}
+
+
+private struct ErrorStateView: View {
+    let message: String
+    var body: some View {
+        Text(message)
+            .font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .regular))
+            .foregroundColor(AppColors.error).padding().frame(maxWidth: .infinity, alignment: .center).multilineTextAlignment(.center)
     }
 }

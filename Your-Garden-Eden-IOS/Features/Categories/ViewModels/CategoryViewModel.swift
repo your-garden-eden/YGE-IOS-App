@@ -30,7 +30,9 @@ class CategoryViewModel: ObservableObject {
 
         Task {
             do {
-                let allTopLevelCategories = try await wooAPIManager.getCategories(parent: 0, perPage: 100, hideEmpty: false)
+                // KORREKTUR: 'getCategories' -> 'fetchCategories' und Anpassung der Parameter.
+                let allTopLevelCategories = try await wooAPIManager.fetchCategories(parent: 0, hideEmpty: false)
+                
                 print("CategoryViewModel: Fetched \(allTopLevelCategories.count) top-level categories.")
 
                 var processedCategories: [WooCommerceCategory] = []
@@ -43,8 +45,8 @@ class CategoryViewModel: ObservableObject {
                 self.categories = processedCategories
                 
             } catch let error as WooCommerceAPIError {
-                self.errorMessage = error.localizedDescriptionForUser
-                print("CategoryViewModel Error (WooCommerceAPIError): \(error.debugDescription)")
+                self.errorMessage = error.localizedDescriptionForUser // Deine bestehende Fehlerlogik
+                print("CategoryViewModel Error (WooCommerceAPIError): \(error.debugDescription)") // Deine bestehende Fehlerlogik
             } catch {
                 self.errorMessage = "Ein unbekannter Fehler ist aufgetreten."
                 print("CategoryViewModel Error (Unknown): \(error.localizedDescription)")

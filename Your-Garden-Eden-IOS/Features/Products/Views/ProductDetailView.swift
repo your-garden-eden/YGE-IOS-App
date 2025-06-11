@@ -5,7 +5,9 @@ struct ProductDetailView: View {
     @EnvironmentObject var wishlistState: WishlistState
     @State private var quantity: Int = 1
     
-    // NEU: Zustände für den "In den Warenkorb"-Button bei einfachen Produkten
+    // NEU: Zustand für die ausklappbare Beschreibung
+    @State private var isDescriptionExpanded = false
+    
     @State private var isAddingToCart = false
     @State private var addToCartError: String?
 
@@ -28,6 +30,23 @@ struct ProductDetailView: View {
                 } else if let product = viewModel.product {
                     productGalleryView(allImages: product.images).listRowInsets(EdgeInsets()).listRowSeparator(.hidden).listRowBackground(AppColors.backgroundComponent)
                     productDetailsSection(product: product).listRowInsets(EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16)).listRowSeparator(.hidden).listRowBackground(AppColors.backgroundComponent)
+                    
+                    // NEU: Die Produktbeschreibung als eigene Sektion, um sie stylen zu können.
+                    if let description = viewModel.formattedDescription, !description.characters.isEmpty {
+                        productDescriptionView(description: description)
+                            .listRowInsets(EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(AppColors.backgroundComponent)
+                    }
+                    
+                    // NEU: Ähnliche Produkte bekommen ihre eigene Sektion
+                    if !viewModel.displayRelatedProducts.isEmpty {
+                        relatedProductsSection
+                            .listRowInsets(EdgeInsets(top: 16, leading: 0, bottom: 16, trailing: 0)) // Volle Breite
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear) // Transparenter Hintergrund
+                    }
+                    
                 } else if let errorMessage = viewModel.errorMessage {
                     Text(errorMessage).padding().listRowBackground(Color.clear)
                 }
@@ -51,17 +70,52 @@ struct ProductDetailView: View {
                 Text(shortDescription).font(.body).foregroundColor(AppColors.textBase)
             }
             actionButtonSection(product: product)
+        }
+    }
+    
+    // NEU: Eigene View für die Produktbeschreibung mit "Mehr/Weniger"-Logik
+    @ViewBuilder
+    private func productDescriptionView(description: AttributedString) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Beschreibung")
+                .font(AppFonts.montserrat(size: AppFonts.Size.headline, weight: .semibold))
+                .foregroundColor(AppColors.textHeadings)
             
-            if !viewModel.displayRelatedProducts.isEmpty {
-                Divider()
-                RelatedProductsView(products: viewModel.displayRelatedProducts)
+            Text(description)
+                .font(.body)
+                .foregroundColor(AppColors.textMuted)
+                // Steuert die Anzahl der Zeilen basierend auf dem State
+                .lineLimit(isDescriptionExpanded ? nil : 5)
+            
+            // Button wird nur angezeigt, wenn der Text potenziell länger als 5 Zeilen ist.
+            // (Diese Logik kann man bei Bedarf noch verfeinern, aber so ist sie robust)
+            Button(action: {
+                withAnimation(.easeInOut) {
+                    isDescriptionExpanded.toggle()
+                }
+            }) {
+                Text(isDescriptionExpanded ? "Weniger anzeigen" : "Mehr lesen...")
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(AppColors.textLink)
             }
+            .buttonStyle(.plain) // Wichtig: Macht nur den Text klickbar, nicht die ganze Zeile
+        }
+    }
+    
+    // NEU: Eigene View für die ähnlichen Produkte
+    private var relatedProductsSection: some View {
+        VStack(alignment: .leading) {
+            Text("Das könnte Ihnen auch gefallen")
+                .font(AppFonts.montserrat(size: AppFonts.Size.headline, weight: .semibold))
+                .foregroundColor(AppColors.textHeadings)
+                .padding(.horizontal)
+            
+            RelatedProductsView(products: viewModel.displayRelatedProducts)
         }
     }
 
     @ViewBuilder
     private func productGalleryView(allImages: [WooCommerceImage]) -> some View {
-        // ... (Dieser Teil bleibt unverändert) ...
         VStack(spacing: 8) {
             AsyncImage(url: URL(string: viewModel.selectedImage?.src ?? "")) { phase in
                 switch phase {
@@ -88,7 +142,6 @@ struct ProductDetailView: View {
     }
 
     private func productHeaderView(product: WooCommerceProduct) -> some View {
-        // ... (Dieser Teil bleibt unverändert) ...
         HStack(alignment: .top) {
             Text(product.name).font(.largeTitle.weight(.bold)).foregroundColor(AppColors.textHeadings)
             Spacer()
@@ -103,34 +156,26 @@ struct ProductDetailView: View {
     }
     
     private func productPriceView() -> some View {
-        // ... (Dieser Teil bleibt unverändert) ...
         Text(viewModel.displayPrice).font(.title2.weight(.bold)).foregroundColor(AppColors.price)
     }
 
     @ViewBuilder
     private func actionButtonSection(product: WooCommerceProduct) -> some View {
         VStack(spacing: 20) {
-            // Für variable Produkte (unverändert)
             if product.type == .variable {
                 NavigationLink(destination: ProductOptionsView(product: product, variations: viewModel.variations)) {
                     Text("Optionen wählen").font(.headline.weight(.bold)).foregroundColor(AppColors.textOnPrimary).frame(maxWidth: .infinity).padding().background(AppColors.primary).cornerRadius(AppStyles.BorderRadius.large)
                 }.disabled(viewModel.variations.isEmpty && viewModel.isLoading)
-            
-            // KORREKTUR: Für einfache Produkte
             } else {
                 if product.soldIndividually == false {
                     Stepper("Menge: \(quantity)", value: $quantity, in: 1...10).font(.headline.weight(.semibold))
                 }
-                
                 Button(action: {
-                    // Verwende asynchrone Logik
                     Task {
                         isAddingToCart = true
                         addToCartError = nil
                         do {
-                            // Rufe den KORREKTEN Manager auf
                             try await CartAPIManager.shared.addItem(productId: product.id, quantity: quantity)
-                            // Optional: Zeige eine Erfolgsmeldung (z.B. Banner)
                             isAddingToCart = false
                         } catch {
                             addToCartError = "Produkt konnte nicht hinzugefügt werden."
@@ -139,18 +184,12 @@ struct ProductDetailView: View {
                     }
                 }) {
                     if isAddingToCart {
-                        ProgressView().tint(AppColors.textOnPrimary)
-                            .frame(maxWidth: .infinity).padding()
+                        ProgressView().tint(AppColors.textOnPrimary).frame(maxWidth: .infinity).padding()
                     } else {
-                        Text("In den Warenkorb").font(.headline.weight(.bold))
-                            .foregroundColor(AppColors.textOnPrimary)
-                            .frame(maxWidth: .infinity).padding()
+                        Text("In den Warenkorb").font(.headline.weight(.bold)).foregroundColor(AppColors.textOnPrimary).frame(maxWidth: .infinity).padding()
                     }
                 }
-                .background(AppColors.primary)
-                .cornerRadius(AppStyles.BorderRadius.large)
-                .disabled(product.stockStatus != .instock || isAddingToCart)
-                
+                .background(AppColors.primary).cornerRadius(AppStyles.BorderRadius.large).disabled(product.stockStatus != .instock || isAddingToCart)
                 if let error = addToCartError {
                     Text(error).font(.caption).foregroundColor(AppColors.error)
                 }

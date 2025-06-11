@@ -33,7 +33,7 @@ class CartViewModel: ObservableObject {
         if cartAPIManager.currentCart == nil && !cartAPIManager.isLoading {
             Task {
                 print("CartViewModel: Initializing and ensuring cart is loaded via CartAPIManager.")
-                await cartAPIManager.ensureTokensAndCartLoaded()
+                 cartAPIManager.ensureTokensAndCartLoaded()
             }
         }
     }

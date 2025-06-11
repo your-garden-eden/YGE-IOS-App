@@ -1,31 +1,26 @@
 import SwiftUI
 
 struct DisplayableSubCategory: Identifiable, Hashable {
-    let id: Int // WooCommerce Category ID
+    let id: Int
     let label: String
     let iconFilename: String?
 }
 
 @MainActor
 class SubCategoryViewModel: ObservableObject {
-    // MARK: - Subcategory State
     @Published var displayableSubCategories: [DisplayableSubCategory] = []
     @Published var isLoadingSubcategories = false
     @Published var subcategoryErrorMessage: String?
 
-    // MARK: - Product List State
     @Published var products: [WooCommerceProduct] = []
-    @Published var isLoadingProducts = false // Für initialen Produkt-Load
-    @Published var isLoadingMoreProducts = false // Für Paginierung
+    @Published var isLoadingProducts = false
+    @Published var isLoadingMoreProducts = false
     @Published var productErrorMessage: String?
     
     private(set) var currentPage: Int = 1
     private(set) var totalPages: Int = 1
-    
-    // Wir speichern die ausgewählte Unterkategorie hier, um sie nicht in der View übergeben zu müssen.
     private(set) var currentSubCategory: DisplayableSubCategory?
 
-    // MARK: - General Properties
     let mainCategoryAppItem: AppNavigationItem
     private let parentWooCommerceCategoryID: Int
     private let apiManager = WooCommerceAPIManager.shared
@@ -35,7 +30,6 @@ class SubCategoryViewModel: ObservableObject {
         self.parentWooCommerceCategoryID = parentWooCommerceCategoryID
     }
 
-    // Lädt die Liste der Unterkategorien
     func loadSubCategories() async {
         guard !isLoadingSubcategories else { return }
         isLoadingSubcategories = true
@@ -43,7 +37,8 @@ class SubCategoryViewModel: ObservableObject {
         displayableSubCategories = []
         
         do {
-            let wooSubCategories = try await apiManager.getCategories(parent: parentWooCommerceCategoryID, perPage: 100, hideEmpty: true)
+            // KORREKTUR 1: 'getCategories' -> 'fetchCategories'
+            let wooSubCategories = try await apiManager.fetchCategories(parent: parentWooCommerceCategoryID, hideEmpty: true)
             guard let definedSubItems = mainCategoryAppItem.subItems else {
                 self.isLoadingSubcategories = false
                 return
@@ -62,16 +57,11 @@ class SubCategoryViewModel: ObservableObject {
         self.isLoadingSubcategories = false
     }
     
-    // Lädt Produkte
     func loadProducts(for subCategory: DisplayableSubCategory? = nil, initialLoad: Bool) async {
-        // Wenn eine neue Unterkategorie gesetzt wird, merken wir sie uns
         if let subCategory = subCategory {
             self.currentSubCategory = subCategory
         }
-        
-        // Stellen sicher, dass wir eine Kategorie haben, für die wir laden können
         guard let currentSubCategory = self.currentSubCategory else { return }
-        
         if !initialLoad && (currentPage > totalPages && totalPages != 0) { return }
         if (initialLoad && isLoadingProducts) || (!initialLoad && isLoadingMoreProducts) { return }
 
@@ -86,7 +76,8 @@ class SubCategoryViewModel: ObservableObject {
         self.productErrorMessage = nil
 
         do {
-            let container = try await apiManager.getProducts(categoryId: currentSubCategory.id, perPage: 10, page: currentPage)
+            // KORREKTUR 2: 'getProducts' -> 'fetchProducts'
+            let container = try await apiManager.fetchProducts(categoryId: currentSubCategory.id, perPage: 10, page: currentPage)
             let newProducts = container.products
             
             if initialLoad {
@@ -109,8 +100,6 @@ class SubCategoryViewModel: ObservableObject {
         else { self.isLoadingMoreProducts = false }
     }
     
-    // --- NEUE HELPER FUNKTION ---
-    // Prüft, ob ein Produkt das letzte in der Liste ist.
     func isLastProduct(_ product: WooCommerceProduct) -> Bool {
         return products.last?.id == product.id
     }
