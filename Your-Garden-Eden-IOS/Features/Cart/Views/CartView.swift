@@ -120,7 +120,7 @@ struct CartView: View {
     @ViewBuilder
     private func totalsView(totals: WooCommerceStoreCartTotals, currencySymbol: String) -> some View {
         VStack(alignment: .trailing, spacing: AppStyles.Spacing.xSmall) {
-            HStack { Text("Zwischensumme Artikel"); Spacer(); Text("\(currencySymbol)\(totals.totalItems)") }
+            HStack { Text("Zwischensumme Artikel"); Spacer(); Text("\(currencySymbol)\(String(describing: totals.totalItems))") }
                 .font(AppFonts.roboto(size: AppFonts.Size.body))
             
             if let shippingTotalString = totals.totalShipping, let shippingTotalValue = Double(shippingTotalString), shippingTotalValue > 0 {

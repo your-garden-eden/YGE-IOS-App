@@ -16,7 +16,6 @@ class ProductDetailViewModel: ObservableObject {
     @Published var formattedDescription: AttributedString?
     @Published var isLoading = false
     @Published var errorMessage: String?
-
     @Published var selectedImage: WooCommerceImage?
 
     private let productSlug: String
@@ -44,9 +43,8 @@ class ProductDetailViewModel: ObservableObject {
             if let initialData = self.initialProductData, self.product == nil {
                 currentProduct = initialData
             } else {
-                // KORREKTUR 1: 'getProductBySlug' -> 'fetchProductBySlug'
                 guard let fetchedProduct = try await WooCommerceAPIManager.shared.fetchProductBySlug(productSlug: self.productSlug) else {
-                    throw WooCommerceAPIError.productNotFound // Deine bestehende Fehlerlogik bleibt erhalten
+                    throw WooCommerceAPIError.productNotFound
                 }
                 currentProduct = fetchedProduct
             }
@@ -54,8 +52,8 @@ class ProductDetailViewModel: ObservableObject {
             let fetchedRelatedProducts = try await fetchRelatedProducts(for: currentProduct)
             updateState(with: currentProduct, variations: fetchedVariations, relatedProducts: fetchedRelatedProducts)
         } catch let error as WooCommerceAPIError {
-            errorMessage = error.localizedDescriptionForUser // Deine bestehende Fehlerlogik
-            print("ProductDetailViewModel Error: \(error.debugDescription)") // Deine bestehende Fehlerlogik
+            errorMessage = error.localizedDescriptionForUser
+            print("ProductDetailViewModel Error: \(error.debugDescription)")
         } catch {
             errorMessage = "Ein unerwarteter Fehler ist aufgetreten."
             print("ProductDetailViewModel Error (Unknown): \(error.localizedDescription)")
@@ -69,7 +67,6 @@ class ProductDetailViewModel: ObservableObject {
         
         self.formattedShortDescription = AttributedString(product.shortDescription.strippingHTML())
         self.formattedDescription = AttributedString(product.description.strippingHTML())
-        
         self.product = product
         self.selectedImage = product.images.first
         self.displayPrice = formattedPrice.display
@@ -85,7 +82,6 @@ class ProductDetailViewModel: ObservableObject {
     
     private func fetchVariations(for product: WooCommerceProduct) async throws -> [WooCommerceProductVariation] {
         if product.type == .variable && !product.variations.isEmpty {
-            // KORREKTUR 2: 'getProductVariations' -> 'fetchProductVariations'
             return try await WooCommerceAPIManager.shared.fetchProductVariations(productId: product.id)
         }
         return []
@@ -93,7 +89,6 @@ class ProductDetailViewModel: ObservableObject {
     
     private func fetchRelatedProducts(for product: WooCommerceProduct) async throws -> [WooCommerceProduct] {
         if !product.relatedIds.isEmpty {
-            // KORREKTUR 3: 'getProducts' -> 'fetchProducts'
             let container = try await WooCommerceAPIManager.shared.fetchProducts(include: product.relatedIds)
             return container.products
         }

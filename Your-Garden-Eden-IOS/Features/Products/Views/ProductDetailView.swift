@@ -5,7 +5,6 @@ struct ProductDetailView: View {
     @EnvironmentObject var wishlistState: WishlistState
     @State private var quantity: Int = 1
     
-    // NEU: Zustand für die ausklappbare Beschreibung
     @State private var isDescriptionExpanded = false
     
     @State private var isAddingToCart = false
@@ -31,7 +30,6 @@ struct ProductDetailView: View {
                     productGalleryView(allImages: product.images).listRowInsets(EdgeInsets()).listRowSeparator(.hidden).listRowBackground(AppColors.backgroundComponent)
                     productDetailsSection(product: product).listRowInsets(EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16)).listRowSeparator(.hidden).listRowBackground(AppColors.backgroundComponent)
                     
-                    // NEU: Die Produktbeschreibung als eigene Sektion, um sie stylen zu können.
                     if let description = viewModel.formattedDescription, !description.characters.isEmpty {
                         productDescriptionView(description: description)
                             .listRowInsets(EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16))
@@ -39,12 +37,11 @@ struct ProductDetailView: View {
                             .listRowBackground(AppColors.backgroundComponent)
                     }
                     
-                    // NEU: Ähnliche Produkte bekommen ihre eigene Sektion
                     if !viewModel.displayRelatedProducts.isEmpty {
                         relatedProductsSection
-                            .listRowInsets(EdgeInsets(top: 16, leading: 0, bottom: 16, trailing: 0)) // Volle Breite
+                            .listRowInsets(EdgeInsets(top: 16, leading: 0, bottom: 16, trailing: 0))
                             .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear) // Transparenter Hintergrund
+                            .listRowBackground(Color.clear)
                     }
                     
                 } else if let errorMessage = viewModel.errorMessage {
@@ -73,7 +70,6 @@ struct ProductDetailView: View {
         }
     }
     
-    // NEU: Eigene View für die Produktbeschreibung mit "Mehr/Weniger"-Logik
     @ViewBuilder
     private func productDescriptionView(description: AttributedString) -> some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -84,11 +80,8 @@ struct ProductDetailView: View {
             Text(description)
                 .font(.body)
                 .foregroundColor(AppColors.textMuted)
-                // Steuert die Anzahl der Zeilen basierend auf dem State
                 .lineLimit(isDescriptionExpanded ? nil : 5)
             
-            // Button wird nur angezeigt, wenn der Text potenziell länger als 5 Zeilen ist.
-            // (Diese Logik kann man bei Bedarf noch verfeinern, aber so ist sie robust)
             Button(action: {
                 withAnimation(.easeInOut) {
                     isDescriptionExpanded.toggle()
@@ -98,14 +91,13 @@ struct ProductDetailView: View {
                     .font(.caption.weight(.bold))
                     .foregroundColor(AppColors.textLink)
             }
-            .buttonStyle(.plain) // Wichtig: Macht nur den Text klickbar, nicht die ganze Zeile
+            .buttonStyle(.plain)
         }
     }
     
-    // NEU: Eigene View für die ähnlichen Produkte
     private var relatedProductsSection: some View {
         VStack(alignment: .leading) {
-            Text("Das könnte Ihnen auch gefallen")
+            Text("Was Kunden auch kaufen")
                 .font(AppFonts.montserrat(size: AppFonts.Size.headline, weight: .semibold))
                 .foregroundColor(AppColors.textHeadings)
                 .padding(.horizontal)
@@ -167,9 +159,11 @@ struct ProductDetailView: View {
                     Text("Optionen wählen").font(.headline.weight(.bold)).foregroundColor(AppColors.textOnPrimary).frame(maxWidth: .infinity).padding().background(AppColors.primary).cornerRadius(AppStyles.BorderRadius.large)
                 }.disabled(viewModel.variations.isEmpty && viewModel.isLoading)
             } else {
+                // KORREKTUR: Der alte Stepper wird durch unsere neue, benutzerdefinierte View ersetzt.
                 if product.soldIndividually == false {
-                    Stepper("Menge: \(quantity)", value: $quantity, in: 1...10).font(.headline.weight(.semibold))
+                    quantitySelector()
                 }
+                
                 Button(action: {
                     Task {
                         isAddingToCart = true
@@ -189,11 +183,58 @@ struct ProductDetailView: View {
                         Text("In den Warenkorb").font(.headline.weight(.bold)).foregroundColor(AppColors.textOnPrimary).frame(maxWidth: .infinity).padding()
                     }
                 }
-                .background(AppColors.primary).cornerRadius(AppStyles.BorderRadius.large).disabled(product.stockStatus != .instock || isAddingToCart)
+                .background(AppColors.primary)
+                .cornerRadius(AppStyles.BorderRadius.large)
+                .disabled(product.stockStatus != .instock || isAddingToCart)
+                
                 if let error = addToCartError {
                     Text(error).font(.caption).foregroundColor(AppColors.error)
                 }
             }
         }.padding(.top)
+    }
+    
+    // NEU: Ein benutzerdefinierter "Quantity Selector", der den Stepper ersetzt.
+    @ViewBuilder
+    private func quantitySelector() -> some View {
+        HStack {
+            Text("Menge")
+                .font(.headline.weight(.semibold))
+
+            Spacer()
+
+            // Minus-Button
+            Button(action: {
+                if quantity > 1 {
+                    quantity -= 1
+                }
+            }) {
+                Image(systemName: "minus.circle.fill")
+            }
+            // Button wird deaktiviert, wenn die Menge 1 ist.
+            .disabled(quantity <= 1)
+            // Die Opazität sorgt für einen weicheren "deaktiviert"-Effekt als das harte Ausgrauen.
+            .opacity(quantity <= 1 ? 0.4 : 1.0)
+
+            // Anzeige der Menge
+            Text("\(quantity)")
+                .font(.title3.weight(.bold))
+                .frame(minWidth: 40, alignment: .center) // Gibt der Zahl Platz
+
+            // Plus-Button
+            Button(action: {
+                // Begrenzt die maximale Menge (hier auf 10, kann angepasst werden)
+                if quantity < 10 {
+                    quantity += 1
+                }
+            }) {
+                Image(systemName: "plus.circle.fill")
+            }
+            .disabled(quantity >= 10)
+            .opacity(quantity >= 10 ? 0.4 : 1.0)
+        }
+        .font(.title2) // Steuert die Größe der Icons
+        .foregroundColor(AppColors.primaryDark) // Setzt die Farbe für die Icons
+        .buttonStyle(.plain) // Sorgt dafür, dass die Buttons keinen eigenen Hintergrund bekommen
     }
 }

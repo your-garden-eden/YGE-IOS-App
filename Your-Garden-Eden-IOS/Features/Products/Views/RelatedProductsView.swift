@@ -1,30 +1,27 @@
 import SwiftUI
 
 struct RelatedProductsView: View {
-    // Akzeptiert die sichere Wrapper-Struktur.
     let products: [IdentifiableDisplayProduct]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Das könnte Ihnen auch gefallen")
-                .font(.title3.weight(.bold))
-                .foregroundColor(AppColors.textHeadings)
-                .padding(.horizontal)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 16) {
-                    // Iteriert sicher über die Wrapper-Objekte.
-                    ForEach(products) { identifiableProduct in
-                        NavigationLink(value: identifiableProduct.product) {
-                            ProductCardView(product: identifiableProduct.product)
-                                .frame(width: 160)
-                        }
+        // Die View ist jetzt nur noch die ScrollView selbst.
+        // Der Titel und der Hintergrund werden von der aufrufenden View (ProductDetailView) gesteuert.
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 16) {
+                ForEach(products) { identifiableProduct in
+                    // NavigationLink ist bereits in der ProductDetailView definiert,
+                    // aber hier ist er auch okay, falls die View woanders genutzt wird.
+                    NavigationLink(value: identifiableProduct.product) {
+                        ProductCardView(product: identifiableProduct.product)
+                            .frame(width: 160)
                     }
+                    .buttonStyle(.plain)
                 }
-                .padding(.horizontal)
             }
+            .padding(.horizontal)
         }
-        .padding(.vertical)
-        .background(AppColors.backgroundLightGray.opacity(0.5))
+        // KORREKTUR: Gib der ScrollView eine feste Höhe, damit sie nicht kollabiert.
+        // Passe die Höhe bei Bedarf an das Design deiner ProductCardView an.
+        .frame(height: 240)
     }
 }

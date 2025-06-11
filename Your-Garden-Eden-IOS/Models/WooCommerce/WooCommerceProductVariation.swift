@@ -18,17 +18,15 @@ struct WooCommerceProductVariation: Codable, Identifiable, Hashable {
     let dateOnSaleFromGmt: String?
     let dateOnSaleTo: String?
     let dateOnSaleToGmt: String?
-
-    // --- KORREKTUR HIER ---
-    // Auch dieses Feld ist laut API-Antwort nicht immer vorhanden.
-    // Wir machen es zu einem Optional, um den Absturz zu verhindern.
     let onSale: Bool?
-
     let status: String
     let purchasable: Bool
     let virtual: Bool
     let downloadable: Bool
-    let taxStatus: String
+    
+    // KORREKTUR: Dieses Feld fehlt laut deinen Logs manchmal in der API-Antwort.
+    let taxStatus: String?
+    
     let taxClass: String?
     let manageStock: Bool
     let stockQuantity: Int?
