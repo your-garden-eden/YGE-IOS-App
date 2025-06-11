@@ -1,17 +1,14 @@
-// Core/Models/Navigation/AppNavigationModels.swift
-
 import Foundation
 
-// Stellt ein Unter-Navigationselement dar (z.B. eine Unterkategorie).
+// KORREKTUR: Enthält jetzt nur noch die absolut notwendigen Felder. 'iconFilename' ist entfernt.
 struct AppSubNavigationItem: Identifiable, Hashable {
     let id = UUID()
     let label: String
     let i18nId: String
     let linkSlug: String
-    let iconFilename: String?
 }
 
-// Stellt ein Haupt-Navigationselement dar (z.B. eine Hauptkategorie).
+// Diese Struktur bleibt unverändert.
 struct AppNavigationItem: Identifiable, Hashable {
     let id = UUID()
     let mainCategorySlug: String

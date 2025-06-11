@@ -1,51 +1,48 @@
-// Core/Utils/Extensions/String+Extensions.swift
 import Foundation
 
 extension String {
     
-    /// Entfernt HTML-Tags sicher aus einem String und dekodiert gängige HTML-Entities.
+    /// Entfernt HTML-Tags und dekodiert gängige HTML-Entitäten auf eine thread-sichere, SYNCHRONE Weise.
+    /// Diese Methode verwendet keine UI-Frameworks und kann von jedem Thread aus aufgerufen werden.
     func strippingHTML() -> String {
-        // Wenn der String leer ist, direkt einen leeren String zurückgeben.
         guard !self.isEmpty else { return "" }
         
-        // 1. HTML-Tags mit Regex entfernen
-        let pattern = "<[^>]+>"
-        var strippedString = self.replacingOccurrences(of: pattern, with: "", options: .regularExpression, range: nil)
+        // 1. HTML-Tags mit Regex entfernen.
+        var result = self.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression, range: nil)
         
-        // 2. Gängige HTML-Entities dekodieren (jede Ersetzung auf einer eigenen Zeile für Lesbarkeit)
-        strippedString = strippedString.replacingOccurrences(of: " ", with: " ") // non-breaking space
-        strippedString = strippedString.replacingOccurrences(of: "&", with: "&")
-        strippedString = strippedString.replacingOccurrences(of: "<", with: "<")
-        strippedString = strippedString.replacingOccurrences(of: ">", with: ">")
-//        strippedString = strippedString.replacingOccurrences(of: """, with: "\"") // KORREKTUR: """ statt '"""'
-        strippedString = strippedString.replacingOccurrences(of: "'", with: "'")
-        strippedString = strippedString.replacingOccurrences(of: "€", with: "€")
+        // 2. Ein Array von Tupeln für die Ersetzungen.
+        // DIE REIHENFOLGE IST ENTSCHEIDEND: & muss immer zuerst ersetzt werden.
+        let htmlEntities: [(String, String)] = [
+            ("&", "&"),    // Ampersand
+            (" ", " "),   // Non-breaking space
+            ("€", "€"),   // Euro
+            ("<", "<"),     // Less than
+            (">", ">"),     // Greater than
+//            (""", "\""),  // Double quote
+            ("'", "'")    // Single quote
+        ]
         
-        // 3. Ergebnis zurückgeben und überflüssige Leerzeichen am Anfang/Ende entfernen
-        return strippedString.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 3. Jede Entität durch ihr Zeichen ersetzen.
+        for (entity, character) in htmlEntities {
+            result = result.replacingOccurrences(of: entity, with: character)
+        }
+        
+        // 4. Ergebnis zurückgeben und überflüssige Leerzeichen am Anfang/Ende entfernen.
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
-    /// Konvertiert einen Attribut-Slug (z.B. "pa_farbe") in einen besser lesbaren Anzeigenamen.
+    // ... (Der Rest deiner Erweiterung bleibt unverändert) ...
     func displayableAttributeName() -> String {
         var nameToProcess = self
-        if nameToProcess.hasPrefix("pa_") {
-            nameToProcess = String(nameToProcess.dropFirst(3))
-        }
+        if nameToProcess.hasPrefix("pa_") { nameToProcess = String(nameToProcess.dropFirst(3)) }
         let words = nameToProcess.replacingOccurrences(of: "_", with: " ").split(separator: " ")
         return words.map { $0.capitalized }.joined(separator: " ")
     }
-    
-    /// Macht nur den ersten Buchstaben des gesamten Strings groß.
     func capitalizedSentence() -> String {
-        guard let firstCharacter = self.first else {
-            return ""
-        }
+        guard let firstCharacter = self.first else { return "" }
         return firstCharacter.uppercased() + self.dropFirst()
     }
-    
-    /// Konvertiert den String in ein optionales URL-Objekt.
     func asURL() -> URL? {
         return URL(string: self)
     }
 }
-// KORREKTUR: Die überflüssige schließende Klammer am Ende wurde entfernt.

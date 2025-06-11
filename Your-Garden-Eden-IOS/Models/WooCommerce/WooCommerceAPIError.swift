@@ -7,11 +7,10 @@ enum WooCommerceAPIError: Error {
     case serverError(statusCode: Int, message: String?, errorCode: String?)
     case noData
     case decodingError(Error)
-    
-    // --- NEU: Der fehlende Fehlerfall ---
-    // Dieser wird ausgelöst, wenn eine Anfrage für ein spezifisches Produkt (z.B. per Slug)
-    // erfolgreich ist, aber kein Produkt zurückgibt.
     case productNotFound
+    
+    // --- KORREKTUR: Der fehlende Fehlerfall wird hier hinzugefügt ---
+    case internalError(String)
     
     case underlying(Error)
 
@@ -29,10 +28,15 @@ enum WooCommerceAPIError: Error {
             return "Keine Daten vom Server erhalten. Die Anfrage war möglicherweise erfolgreich, aber die Antwort war leer."
         case .decodingError:
             return "Die Antwort vom Server konnte nicht verarbeitet werden. Bitte versuchen Sie es später erneut."
-        
-        // --- NEU: Benutzerfreundliche Nachricht für den neuen Fall ---
         case .productNotFound:
             return "Das gesuchte Produkt konnte leider nicht gefunden werden."
+            
+        // --- KORREKTUR: Benutzerfreundliche Nachricht für den neuen Fall ---
+        case .internalError(let message):
+            // Diese Nachricht sollte idealerweise nicht dem Benutzer angezeigt werden,
+            // aber wir geben eine generische Meldung als Fallback.
+            print("Internal Error Occurred: \(message)")
+            return "Ein interner Fehler in der App ist aufgetreten. Bitte starten Sie die App neu."
             
         case .underlying(let error):
             return "Ein unerwarteter Fehler ist aufgetreten: \(error.localizedDescription)"
@@ -54,10 +58,12 @@ enum WooCommerceAPIError: Error {
             return "WooCommerceAPIError: The server responded with success, but returned no data."
         case .decodingError(let error):
             return "WooCommerceAPIError: Failed to decode the JSON response. Error: \(error.localizedDescription)"
-        
-        // --- NEU: Debug-Beschreibung für den neuen Fall ---
         case .productNotFound:
             return "WooCommerceAPIError: Product not found. The API call for a specific resource (e.g., by slug) returned no product."
+            
+        // --- KORREKTUR: Debug-Beschreibung für den neuen Fall ---
+        case .internalError(let message):
+            return "WooCommerceAPIError: An internal logic error occurred: \(message)"
             
         case .underlying(let error):
             return "WooCommerceAPIError: An underlying error occurred: \(error)"
@@ -66,8 +72,6 @@ enum WooCommerceAPIError: Error {
 }
 
 // MARK: - WooCommerce Error Response Struct
-// Dieses Struct wird verwendet, um die Fehler-JSON-Antwort von der WooCommerce-API zu parsen.
-// (Dieser Teil bleibt unverändert)
 struct WooCommerceErrorResponse: Decodable, Error {
     let code: String?
     let message: String?
