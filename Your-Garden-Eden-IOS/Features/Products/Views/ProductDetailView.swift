@@ -1,118 +1,191 @@
+// Features/Products/Views/ProductDetailView.swift
+
 import SwiftUI
 
 struct ProductDetailView: View {
+    // Der Haupt-ViewModel, der die Daten lädt.
     @StateObject private var viewModel: ProductDetailViewModel
-    
-    @ObservedObject private var cartManager = CartAPIManager.shared
     @EnvironmentObject var wishlistState: WishlistState
     
-    @State private var quantity: Int = 1
-    @State private var isAddingToCart = false
-    @State private var addToCartError: String?
+    @State private var showAddedToCartConfirmation = false
 
-    init(productSlug: String, initialProductData: WooCommerceProduct? = nil) {
-        _viewModel = StateObject(wrappedValue: ProductDetailViewModel(
-            productSlug: productSlug,
-            initialProductData: initialProductData
-        ))
+    init(product: WooCommerceProduct) {
+        _viewModel = StateObject(wrappedValue: ProductDetailViewModel(product: product))
     }
     
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                if let product = viewModel.product {
-                    // WIEDERHERGESTELLT: Bildergalerie
-                    productGalleryView(images: product.images)
+        ZStack(alignment: .bottom) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    productGallery
+                    productHeader
                     
-                    VStack(alignment: .leading, spacing: 16) {
-                        productHeaderView(product: product)
-                        
-                        // KORRIGIERT: Preisansicht mit der neuen, synchronen strippingHTML() Funktion
-                        Text((product.priceHtml ?? product.price).strippingHTML())
-                            .font(AppFonts.montserrat(size: AppFonts.Size.title2, weight: .semibold))
-                            .foregroundColor(AppColors.price)
-                        
-                        // WIEDERHERGESTELLT: Beschreibung
-                        Text(product.description.strippingHTML())
-                            .font(AppFonts.roboto(size: AppFonts.Size.body))
-                            .foregroundColor(AppColors.textMuted)
-                        
-                        Divider()
-                        
-                        actionSection(product: product)
+                    // Zeige die Optionen nur an, wenn sie geladen sind.
+                    if viewModel.isLoadingVariations {
+                        ProgressView().frame(height: 100)
+                    } else if let optionsVM = viewModel.optionsViewModel {
+                        // GEÄNDERT: Delegiert an den neuen ViewModel
+                        OptionsSectionView(viewModel: optionsVM)
+                    } else if let error = viewModel.loadingError {
+                        Text(error).foregroundColor(.red).padding()
                     }
-                    .padding()
                     
-                } else if viewModel.isLoading {
-                    ProgressView().tint(AppColors.primary).padding(.top, 50)
-                } else if let errorMessage = viewModel.errorMessage {
-                    Text("Fehler: \(errorMessage)").foregroundColor(AppColors.error).padding()
+                    Divider()
+                    descriptionSection
+                    
+                    Spacer(minLength: 140)
                 }
             }
+            
+            // GEÄNDERT: Die Logik kommt jetzt vom optionsViewModel
+            if let optionsVM = viewModel.optionsViewModel {
+                AddToCartSectionView(viewModel: optionsVM, showConfirmation: $showAddedToCartConfirmation)
+            }
         }
-        .navigationTitle(viewModel.product?.name.strippingHTML() ?? "")
+        .background(AppColors.backgroundPage.ignoresSafeArea())
+        .navigationTitle(viewModel.product.name.strippingHTML())
         .navigationBarTitleDisplayMode(.inline)
-        .task {
-            await viewModel.loadDetails()
+        .task { await viewModel.loadVariationsIfNeeded() } // Startet den Ladevorgang
+        .overlay(addedToCartBanner)
+    }
+    
+    // MARK: - Subviews
+    
+    @ViewBuilder private var productGallery: some View {
+        // GEÄNDERT: Das Bild kommt jetzt auch vom optionsViewModel, wenn verfügbar.
+        let imageURL = viewModel.optionsViewModel?.currentImage?.src.asURL() ?? viewModel.product.images.first?.src.asURL()
+        
+        AsyncImage(url: imageURL) { phase in
+            switch phase {
+            case .success(let image):
+                image.resizable().scaledToFit()
+            case .failure:
+                Image(systemName: "photo.fill").font(.largeTitle).foregroundColor(AppColors.textMuted)
+            default:
+                ProgressView()
+            }
+        }
+        .frame(minHeight: 300)
+        .background(AppColors.backgroundComponent)
+    }
+    
+    @ViewBuilder private var productHeader: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top) {
+                Text(viewModel.product.name.strippingHTML()).font(.largeTitle.weight(.bold))
+                Spacer()
+                Button(action: { wishlistState.toggleWishlistStatus(for: viewModel.product) }) {
+                    Image(systemName: wishlistState.isProductInWishlist(productId: viewModel.product.id) ? "heart.fill" : "heart")
+                        .symbolRenderingMode(.multicolor)
+                }
+                .font(.title)
+                .animation(.spring(), value: wishlistState.isProductInWishlist(productId: viewModel.product.id))
+            }
+            
+            // GEÄNDERT: Der Preis kommt jetzt auch vom optionsViewModel.
+            Text(viewModel.optionsViewModel?.displayPrice ?? viewModel.initialDisplayPrice)
+                .font(.title2.weight(.semibold))
+                .foregroundColor(AppColors.price)
+                .animation(.easeInOut, value: viewModel.optionsViewModel?.displayPrice)
+        }
+        .padding(.horizontal)
+    }
+    
+    @ViewBuilder private var descriptionSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Beschreibung").font(.headline)
+            // GEÄNDERT: Die Beschreibung passt sich der Auswahl an.
+            let description = viewModel.optionsViewModel?.selectedVariation?.description ?? viewModel.product.description
+            ExpandableText(text: description.strippingHTML(), lineLimit: 4)
+        }
+        .padding(.horizontal)
+    }
+    
+    @ViewBuilder private var addedToCartBanner: some View {
+        if showAddedToCartConfirmation {
+            Text("Zum Warenkorb hinzugefügt")
+                .fontWeight(.semibold).padding().background(Color.green)
+                .foregroundColor(.white).cornerRadius(12).shadow(radius: 10)
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .frame(maxHeight: .infinity, alignment: .top).padding(.top)
         }
     }
+}
 
-    @ViewBuilder
-    private func productGalleryView(images: [WooCommerceImage]) -> some View {
-        TabView {
-            ForEach(images) { image in
-                AsyncImage(url: image.src.asURL()) { phase in
-                    switch phase {
-                    case .success(let img): img.resizable().aspectRatio(contentMode: .fit)
-                    case .failure: Image(systemName: "photo.fill").font(.largeTitle).foregroundColor(AppColors.textMuted)
-                    default: ProgressView().tint(AppColors.primary)
+
+// MARK: - Neue, ausgelagerte Subviews für die Klarheit
+
+private struct OptionsSectionView: View {
+    @ObservedObject var viewModel: ProductOptionsViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ForEach(viewModel.displayableAttributes) { attribute in
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(attribute.name).font(.headline)
+                    
+                    let selection = Binding<String?>(
+                        get: { viewModel.selectedAttributes[attribute.slug] },
+                        set: { viewModel.select(attributeSlug: attribute.slug, optionSlug: $0) }
+                    )
+                    
+                    Picker(attribute.name, selection: selection) {
+                        Text("Bitte wählen").tag(nil as String?)
+                        ForEach(attribute.options) { option in
+                            Text(option.name).tag(option.slug as String?)
+                        }
                     }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
                 }
             }
         }
-        .frame(height: 300).tabViewStyle(.page).background(AppColors.backgroundComponent)
+        .padding(.horizontal)
     }
-    
-    @ViewBuilder
-    private func productHeaderView(product: WooCommerceProduct) -> some View {
-        HStack(alignment: .top) {
-            Text(product.name.strippingHTML())
-                .font(AppFonts.montserrat(size: AppFonts.Size.largeTitle, weight: .bold))
-                .foregroundColor(AppColors.textHeadings)
-            Spacer()
-            Button(action: { wishlistState.toggleWishlistStatus(for: product.id) }) {
-                Image(systemName: wishlistState.isProductInWishlist(productId: product.id) ? "heart.fill" : "heart")
-                    .font(.title2).foregroundColor(AppColors.wishlistIcon)
+}
+
+private struct AddToCartSectionView: View {
+    @ObservedObject var viewModel: ProductOptionsViewModel
+    @Binding var showConfirmation: Bool
+
+    var body: some View {
+        VStack(spacing: 12) {
+            if !viewModel.product.soldIndividually {
+                QuantitySelectorView(quantity: $viewModel.quantity)
+                    .padding(.horizontal)
             }
-        }
-    }
-    
-    @ViewBuilder
-    private func actionSection(product: WooCommerceProduct) -> some View {
-        VStack(spacing: 16) {
-            if !product.soldIndividually {
-                 Stepper("Menge: \(quantity)", value: $quantity, in: 1...10).font(AppFonts.roboto(size: AppFonts.Size.headline))
-            }
+            
             Button(action: {
                 Task {
-                    isAddingToCart = true; addToCartError = nil
-                    do { try await cartManager.addItem(productId: product.id, quantity: quantity) }
-                    catch { addToCartError = "Produkt konnte nicht hinzugefügt werden." }
-                    isAddingToCart = false
+                    let success = await viewModel.handleAddToCart()
+                    if success {
+                        withAnimation { showConfirmation = true }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            withAnimation { showConfirmation = false }
+                        }
+                    }
                 }
             }) {
-                if isAddingToCart {
-                    ProgressView().tint(AppColors.textOnPrimary).frame(maxWidth: .infinity, minHeight: 24)
-                } else {
-                    Text("In den Warenkorb").font(AppFonts.montserrat(size: AppFonts.Size.headline, weight: .bold))
-                        .foregroundColor(AppColors.textOnPrimary).frame(maxWidth: .infinity)
+                HStack {
+                    if viewModel.isAddingToCart {
+                        ProgressView().tint(.white)
+                    } else {
+                        Text("In den Warenkorb")
+                    }
                 }
+                .fontWeight(.bold)
+                .frame(maxWidth: .infinity)
             }
-            .disabled(isAddingToCart || product.stockStatus != .instock)
-            .padding().background(product.stockStatus == .instock ? AppColors.primary : AppColors.textMuted).cornerRadius(AppStyles.BorderRadius.large)
-            if let error = addToCartError {
-                Text(error).font(AppFonts.roboto(size: AppFonts.Size.caption)).foregroundColor(AppColors.error)
+            .buttonStyle(.borderedProminent)
+            .tint(AppColors.primary)
+            .controlSize(.large)
+            .disabled(viewModel.isAddToCartDisabled || viewModel.isAddingToCart)
+            
+            if let error = viewModel.addToCartError {
+                Text(error).font(.caption).foregroundColor(.red)
             }
         }
+        .padding()
+        .background(.thinMaterial)
     }
 }

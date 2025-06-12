@@ -1,6 +1,7 @@
+// Core/Errors/WooCommerceAPIError.swift
+
 import Foundation
 
-// MARK: - WooCommerce API Error Enum
 enum WooCommerceAPIError: Error {
     case invalidURL
     case networkError(Error)
@@ -8,10 +9,9 @@ enum WooCommerceAPIError: Error {
     case noData
     case decodingError(Error)
     case productNotFound
-    
-    // --- KORREKTUR: Der fehlende Fehlerfall wird hier hinzugefügt ---
+    case notAuthenticated // <-- NEU HINZUGEFÜGT
+
     case internalError(String)
-    
     case underlying(Error)
 
     // Benutzerfreundliche Beschreibung
@@ -30,14 +30,11 @@ enum WooCommerceAPIError: Error {
             return "Die Antwort vom Server konnte nicht verarbeitet werden. Bitte versuchen Sie es später erneut."
         case .productNotFound:
             return "Das gesuchte Produkt konnte leider nicht gefunden werden."
-            
-        // --- KORREKTUR: Benutzerfreundliche Nachricht für den neuen Fall ---
+        case .notAuthenticated:
+            return "Sie müssen angemeldet sein, um diese Aktion auszuführen."
         case .internalError(let message):
-            // Diese Nachricht sollte idealerweise nicht dem Benutzer angezeigt werden,
-            // aber wir geben eine generische Meldung als Fallback.
             print("Internal Error Occurred: \(message)")
             return "Ein interner Fehler in der App ist aufgetreten. Bitte starten Sie die App neu."
-            
         case .underlying(let error):
             return "Ein unerwarteter Fehler ist aufgetreten: \(error.localizedDescription)"
         }
@@ -60,18 +57,16 @@ enum WooCommerceAPIError: Error {
             return "WooCommerceAPIError: Failed to decode the JSON response. Error: \(error.localizedDescription)"
         case .productNotFound:
             return "WooCommerceAPIError: Product not found. The API call for a specific resource (e.g., by slug) returned no product."
-            
-        // --- KORREKTUR: Debug-Beschreibung für den neuen Fall ---
+        case .notAuthenticated:
+            return "WooCommerceAPIError: User is not authenticated. A valid JWT token was required but not found."
         case .internalError(let message):
             return "WooCommerceAPIError: An internal logic error occurred: \(message)"
-            
         case .underlying(let error):
             return "WooCommerceAPIError: An underlying error occurred: \(error)"
         }
     }
 }
 
-// MARK: - WooCommerce Error Response Struct
 struct WooCommerceErrorResponse: Decodable, Error {
     let code: String?
     let message: String?

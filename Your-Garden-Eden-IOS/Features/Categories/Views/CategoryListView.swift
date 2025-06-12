@@ -1,40 +1,31 @@
+// Features/Categories/Views/CategoryListView.swift
+
 import SwiftUI
 
 struct CategoryListView: View {
     @StateObject private var viewModel = CategoryViewModel()
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                AppColors.backgroundPage.ignoresSafeArea()
-                contentView
-            }
-            .navigationTitle("Shop")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Text("Shop")
-                        .font(AppFonts.montserrat(size: AppFonts.Size.headline, weight: .bold))
-                        .foregroundColor(AppColors.textHeadings)
-                }
-            }
-            .onAppear {
-                if viewModel.categories.isEmpty {
-                    viewModel.fetchMainCategories()
-                }
-            }
-            .navigationDestination(for: WooCommerceCategory.self) { category in
-                if let appNavItem = AppNavigationData.findItem(forMainCategorySlug: category.slug) {
-                    SubCategoryListView(
-                        selectedMainCategoryAppItem: appNavItem,
-                        parentWooCommerceCategoryID: category.id
-                    )
-                }
-            }
-            .navigationDestination(for: WooCommerceProduct.self) { product in
-                ProductDetailView(productSlug: product.slug, initialProductData: product)
+        // DER NavigationStack WURDE ENTFERNT
+        ZStack {
+            AppColors.backgroundPage.ignoresSafeArea()
+            contentView
+        }
+        .navigationTitle("Shop")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("Shop")
+                    .font(AppFonts.montserrat(size: AppFonts.Size.headline, weight: .bold))
+                    .foregroundColor(AppColors.textHeadings)
             }
         }
+        .onAppear {
+            if viewModel.categories.isEmpty {
+                viewModel.fetchMainCategories()
+            }
+        }
+        // DIE .navigationDestination Modifier WURDEN ENTFERNT
     }
     
     @ViewBuilder
@@ -50,25 +41,18 @@ struct CategoryListView: View {
         }
     }
     
-    // MARK: - List
-    
     private var categoryList: some View {
         List {
-            // Wir iterieren direkt über die Kategorien vom ViewModel.
             ForEach(viewModel.categories) { wooCategory in
-                // Wir suchen das passende lokale Navigationselement.
                 if let navItem = AppNavigationData.findItem(forMainCategorySlug: wooCategory.slug) {
-                    // Wenn wir es finden, erstellen wir den NavigationLink.
                     NavigationLink(value: wooCategory) {
-                        // Wir übergeben die Daten direkt an die ProductCategoryRow.
                         ProductCategoryRow(
-                            label: navItem.label, // Der korrekte Text
-                            imageUrl: wooCategory.image?.src.asURL(), // Die API-Bild-URL
-                            localImageFilename: navItem.imageFilename // Das lokale Fallback-Bild
+                            label: navItem.label,
+                            imageUrl: wooCategory.image?.src.asURL(),
+                            localImageFilename: navItem.imageFilename
                         )
                     }
                 }
-                // Wenn kein navItem gefunden wird, wird für diese API-Kategorie keine Zeile erstellt.
             }
             .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
             .listRowSeparator(.hidden)
@@ -77,8 +61,6 @@ struct CategoryListView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
     }
-    
-    // MARK: - Helper Views
     
     private var loadingView: some View {
         VStack(spacing: 12) {

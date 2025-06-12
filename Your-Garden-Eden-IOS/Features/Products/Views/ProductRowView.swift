@@ -1,86 +1,69 @@
+// MARK: - ProductRowView.swift
+
 import SwiftUI
 
 struct ProductRowView: View {
     let product: WooCommerceProduct
 
     var body: some View {
-        HStack(alignment: .top, spacing: AppStyles.Spacing.medium) {
-            // MARK: - Produktbild
-            if let firstImage = product.images.first, let imageUrl = URL(string: firstImage.src) {
-                AsyncImage(url: imageUrl) { phase in
-                    switch phase {
-                    case .empty:
-                        ProgressView().frame(width: 80, height: 80)
-                            .background(AppColors.backgroundLightGray)
-                            .clipShape(RoundedRectangle(cornerRadius: AppStyles.BorderRadius.medium))
-                    case .success(let image):
-                        image.resizable().aspectRatio(contentMode: .fill)
-                             .frame(width: 80, height: 80)
-                             .clipShape(RoundedRectangle(cornerRadius: AppStyles.BorderRadius.medium))
-                             .overlay(RoundedRectangle(cornerRadius: AppStyles.BorderRadius.medium).stroke(AppColors.borderLight, lineWidth: 1))
-                    case .failure:
-                        Image(systemName: "photo.on.rectangle.angled").resizable().aspectRatio(contentMode: .fit)
-                            .foregroundColor(AppColors.textMuted.opacity(0.7)).frame(width: 50, height: 50)
-                            .frame(width: 80, height: 80)
-                            .background(AppColors.backgroundLightGray)
-                            .clipShape(RoundedRectangle(cornerRadius: AppStyles.BorderRadius.medium))
-                    @unknown default:
-                        EmptyView()
-                    }
-                }
-            } else {
-                RoundedRectangle(cornerRadius: AppStyles.BorderRadius.medium).fill(AppColors.backgroundLightGray).frame(width: 80, height: 80)
-                    .overlay(Image(systemName: "photo.on.rectangle.angled").font(.title).foregroundColor(AppColors.textMuted.opacity(0.7)))
-            }
+        HStack(alignment: .top, spacing: 16) {
+            // Produktbild
+            productImage
+                .frame(width: 90, height: 90)
+                .background(AppColors.backgroundLightGray)
+                .cornerRadius(AppStyles.BorderRadius.medium)
+                .clipped()
 
-            // MARK: - Produktdetails
-            VStack(alignment: .leading, spacing: AppStyles.Spacing.xSmall) {
-                // KORREKTUR: Der Aufruf ist jetzt wieder synchron und gültig.
+            // Produktdetails
+            VStack(alignment: .leading, spacing: 6) {
                 Text(product.name.strippingHTML())
-                    .font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .semibold))
+                    .font(AppFonts.montserrat(size: AppFonts.Size.headline, weight: .semibold))
                     .foregroundColor(AppColors.textHeadings)
                     .lineLimit(2)
-
-                if !product.shortDescription.isEmpty {
-                    // KORREKTUR: Der Aufruf ist jetzt wieder synchron und gültig.
-                    Text(product.shortDescription.strippingHTML())
-                        .font(AppFonts.roboto(size: AppFonts.Size.caption, weight: .regular))
-                        .foregroundColor(AppColors.textMuted)
-                        .lineLimit(2)
-                        .padding(.top, AppStyles.Spacing.xxSmall)
-                }
                 
-                Spacer()
-
-                HStack(alignment: .bottom) {
-                    VStack(alignment: .leading, spacing: AppStyles.Spacing.xxSmall) {
-                        // KORREKTUR: Der Aufruf ist jetzt wieder synchron und gültig.
-                        let priceText = (product.priceHtml ?? product.price).strippingHTML()
-                        Text(priceText)
-                            .font(AppFonts.roboto(size: AppFonts.Size.headline, weight: .bold))
-                            .foregroundColor(AppColors.price)
-
-                        if product.onSale, product.regularPrice != product.price, !product.regularPrice.isEmpty {
-                            let regularPriceText = product.regularPrice.strippingHTML()
-                            Text(regularPriceText)
-                                .font(AppFonts.roboto(size: AppFonts.Size.caption, weight: .regular))
-                                .foregroundColor(AppColors.textMuted)
-                                .strikethrough()
-                        }
-                    }
-                    
-                    Spacer()
-                    
-                    Text(product.stockStatus == .instock ? "Auf Lager" : (product.backordersAllowed ? "Lieferbar" : "Ausverkauft"))
-                        .font(AppFonts.roboto(size: AppFonts.Size.caption, weight: .medium))
-                        .foregroundColor(product.stockStatus == .instock ? AppColors.inStock : (product.backordersAllowed ? AppColors.warning : AppColors.error))
-                        .padding(.horizontal, AppStyles.Spacing.small)
-                        .padding(.vertical, AppStyles.Spacing.xxSmall)
-                        .background((product.stockStatus == .instock ? AppColors.inStock : (product.backordersAllowed ? AppColors.warning : AppColors.error)).opacity(0.15))
-                        .clipShape(Capsule())
-                }
+                Spacer() // Schiebt Preis und Status nach unten
+                
+                Text((product.priceHtml ?? product.price).strippingHTML())
+                    .font(AppFonts.roboto(size: AppFonts.Size.subheadline, weight: .bold))
+                    .foregroundColor(AppColors.price)
+                
+                // Angepasster Lagerstatus als "Chip"
+                stockStatusView
             }
-            .frame(minHeight: 70)
+            .frame(height: 90) // Stellt sicher, dass die VStack die gleiche Höhe wie das Bild hat
         }
+        .padding(AppStyles.Spacing.medium)
+        .background(AppColors.backgroundComponent)
+        .cornerRadius(AppStyles.BorderRadius.large)
+    }
+    
+    @ViewBuilder
+    private var productImage: some View {
+        AsyncImage(url: product.images.first?.src.asURL()) { phase in
+            switch phase {
+            case .success(let image):
+                image.resizable().aspectRatio(contentMode: .fill)
+            case .failure, .empty:
+                Image(systemName: "photo.fill")
+                    .font(.largeTitle)
+                    .foregroundColor(AppColors.textMuted.opacity(0.5))
+            @unknown default:
+                ProgressView().tint(AppColors.primary)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var stockStatusView: some View {
+        // Direkter Zugriff, da `stockStatus` nicht optional ist
+        let isInStock = product.stockStatus == .instock
+        
+        Text(isInStock ? "Auf Lager" : "Nicht verfügbar")
+            .font(AppFonts.roboto(size: AppFonts.Size.caption, weight: .bold))
+            .foregroundColor(isInStock ? AppColors.success : AppColors.error)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background((isInStock ? AppColors.success : AppColors.error).opacity(0.15))
+            .cornerRadius(AppStyles.BorderRadius.small)
     }
 }

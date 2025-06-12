@@ -1,46 +1,65 @@
+// ContentView.swift
+
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var authManager = FirebaseAuthManager.shared
-    @StateObject private var cartAPIManager = CartAPIManager.shared
-    @StateObject private var wishlistState: WishlistState
-
-    init() {
-        // Korrekte Initialisierung: Das WishlistState-Objekt wird mit den
-        // Abhängigkeiten (wie dem authManager) erstellt.
-        _wishlistState = StateObject(wrappedValue: WishlistState(authManager: FirebaseAuthManager.shared))
-        print("✅ ContentView initialized. All managers are set up.")
-    }
+    // Die ContentView empfängt die Manager nur noch. Sie besitzt sie nicht.
+    // Das @StateObject von früher ist hier nicht mehr nötig.
+    @EnvironmentObject var authManager: AuthManager
+    @EnvironmentObject var cartAPIManager: CartAPIManager
+    @EnvironmentObject var wishlistState: WishlistState
 
     var body: some View {
-        // Deine Tab-Struktur ist korrekt.
-        TabView {
-            HomeView()
-                .tabItem { Label("Home", systemImage: "house.fill") }
-                .tag(0)
-
-            CategoryListView()
-                .tabItem { Label("Shop", systemImage: "bag.fill") }
-                .tag(1)
-
-            CartView()
-                .tabItem { Label("Warenkorb", systemImage: "cart.fill") }
-                .tag(2)
-            
-            // Die WishlistView wird hier platziert. Sie wird automatisch
-            // das wishlistState-Objekt aus der Umgebung empfangen.
-            WishlistView()
-                .tabItem { Label("Wunschliste", systemImage: "heart.fill") }
-                .tag(3)
-
-            ProfilView()
-                .tabItem { Label("Profil", systemImage: "person.fill") }
-                .tag(4)
+        // Der NavigationStack ist die Wurzel der Navigation.
+        NavigationStack {
+            // Die TabView ist der Inhalt des NavigationStack.
+            TabView {
+                HomeView()
+                    .tabItem { Label("Home", systemImage: "house.fill") }
+                
+                CategoryListView()
+                    .tabItem { Label("Shop", systemImage: "bag.fill") }
+                
+                CartView() // Du musst sicherstellen, dass diese View existiert
+                    .tabItem { Label("Warenkorb", systemImage: "cart.fill") }
+                
+                WishlistView()
+                    .tabItem { Label("Wunschliste", systemImage: "heart.fill") }
+                
+                ProfilView() // Du musst sicherstellen, dass diese View existiert
+                    .tabItem { Label("Profil", systemImage: "person.fill") }
+            }
+            // HINWEIS: Die Modifier wurden von der TabView hierher verschoben.
         }
-        // Hier werden die zentralen Objekte für die gesamte App verfügbar gemacht.
-        // Das ist die "Single Source of Truth".
-        .environmentObject(authManager)
-        .environmentObject(cartAPIManager)
-        .environmentObject(wishlistState)
+        // Die .navigationDestination Modifier gehören direkt zum NavigationStack.
+        // Das stellt sicher, dass sie für alle Inhalte innerhalb des Stacks gelten.
+        .navigationDestination(for: WooCommerceProduct.self) { product in
+            ProductDetailView(product: product)
+        }
+        .navigationDestination(for: WooCommerceCategory.self) { category in
+            if let appNavItem = AppNavigationData.findItem(forMainCategorySlug: category.slug) {
+                SubCategoryListView(
+                    selectedMainCategoryAppItem: appNavItem,
+                    parentWooCommerceCategoryID: category.id
+                )
+            } else {
+                CategoryDetailView(category: category)
+            }
+        }
+        .navigationDestination(for: DisplayableMainCategory.self) { category in
+             SubCategoryListView(
+                 selectedMainCategoryAppItem: category.appItem,
+                 parentWooCommerceCategoryID: category.id
+             )
+        }
+    }
+}
+
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        ContentView()
+            .environmentObject(AuthManager.shared)
+            .environmentObject(CartAPIManager.shared)
+            .environmentObject(WishlistState(authManager: AuthManager.shared))
     }
 }

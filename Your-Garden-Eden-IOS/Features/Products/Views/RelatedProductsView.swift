@@ -1,27 +1,32 @@
+// Features/Products/Views/RelatedProductsView.swift
+
 import SwiftUI
 
 struct RelatedProductsView: View {
+    // Die View erhält die Liste der Produkte, die sie anzeigen soll.
     let products: [IdentifiableDisplayProduct]
 
     var body: some View {
-        // Die View ist jetzt nur noch die ScrollView selbst.
-        // Der Titel und der Hintergrund werden von der aufrufenden View (ProductDetailView) gesteuert.
+        // Horizontale Scroll-Ansicht für die Produktkarten
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 16) {
+                // Iteriert durch die eindeutig identifizierbaren Produkte
                 ForEach(products) { identifiableProduct in
-                    // NavigationLink ist bereits in der ProductDetailView definiert,
-                    // aber hier ist er auch okay, falls die View woanders genutzt wird.
+                    
+                    // Jede Karte ist ein Navigationslink zur jeweiligen Detailseite.
+                    // Der 'value' ist das 'WooCommerceProduct', das Hashable ist.
                     NavigationLink(value: identifiableProduct.product) {
+                        
+                        // Die ProductCardView zeigt das eigentliche Produkt an.
                         ProductCardView(product: identifiableProduct.product)
-                            .frame(width: 160)
+                            .frame(width: 160) // Eine feste Breite für die Karten im Karussell
+                        
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.plain) // Verhindert, dass der ganze Link blau eingefärbt wird
                 }
             }
-            .padding(.horizontal)
+            .padding(.horizontal) // Fügt seitlichen Abstand hinzu
+            .padding(.vertical, 8) // Fügt etwas Abstand oben/unten hinzu
         }
-        // KORREKTUR: Gib der ScrollView eine feste Höhe, damit sie nicht kollabiert.
-        // Passe die Höhe bei Bedarf an das Design deiner ProductCardView an.
-        .frame(height: 240)
     }
 }

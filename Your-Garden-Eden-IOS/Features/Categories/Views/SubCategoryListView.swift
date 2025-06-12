@@ -1,3 +1,5 @@
+// Features/Categories/Views/SubCategoryListView.swift
+
 import SwiftUI
 
 struct SubCategoryListView: View {
@@ -16,6 +18,7 @@ struct SubCategoryListView: View {
     var body: some View {
         ZStack {
             AppColors.backgroundPage.ignoresSafeArea()
+            
             if let subCategory = selectedSubCategory {
                 productListView(for: subCategory)
             } else {
@@ -28,15 +31,20 @@ struct SubCategoryListView: View {
                 await viewModel.loadSubCategories()
             }
         }
+        // DER ÜBERFLÜSSIGE .navigationDestination WURDE HIER ENTFERNT.
+        // Die ContentView übernimmt diese Aufgabe zentral für die ganze App.
     }
 
     // MARK: - Subview für die Unterkategorie-Auswahl
     private var subCategorySelectionView: some View {
         Group {
-            if viewModel.isLoadingSubcategories { loadingView(text: "Lade Unterkategorien...") }
-            else if let errorMessage = viewModel.subcategoryErrorMessage { errorView(message: errorMessage) }
-            else if viewModel.displayableSubCategories.isEmpty { emptyView(text: "Keine Unterkategorien gefunden.") }
-            else {
+            if viewModel.isLoadingSubcategories {
+                loadingView(text: "Lade Unterkategorien...")
+            } else if let errorMessage = viewModel.subcategoryErrorMessage {
+                errorView(message: errorMessage)
+            } else if viewModel.displayableSubCategories.isEmpty {
+                emptyView(text: "Keine Unterkategorien gefunden.")
+            } else {
                 List(viewModel.displayableSubCategories) { subCat in
                     Button(action: { selectedSubCategory = subCat }) {
                         SubCategoryRow(subCategory: subCat)
@@ -55,29 +63,40 @@ struct SubCategoryListView: View {
     // MARK: - Subview für die Produktliste
     private func productListView(for subCategory: DisplayableSubCategory) -> some View {
         Group {
-            if viewModel.isLoadingProducts && viewModel.products.isEmpty { loadingView(text: "Lade Produkte...") }
-            else if let errorMessage = viewModel.productErrorMessage { errorView(message: errorMessage) }
-            else if viewModel.products.isEmpty { emptyView(text: "Keine Produkte in dieser Kategorie gefunden.") }
-            else {
+            if viewModel.isLoadingProducts && viewModel.products.isEmpty {
+                loadingView(text: "Lade Produkte...")
+            } else if let errorMessage = viewModel.productErrorMessage {
+                errorView(message: errorMessage)
+            } else if viewModel.products.isEmpty {
+                emptyView(text: "Keine Produkte in dieser Kategorie gefunden.")
+            } else {
                 List {
                     ForEach(viewModel.products) { product in
+                        // Dieser NavigationLink übergibt nur den Wert. Perfekt.
                         NavigationLink(value: product) {
-                            ProductCardView(product: product)
+                            ProductRowView(product: product)
                                 .task {
-                                    if viewModel.isLastProduct(product) { await viewModel.loadProducts(initialLoad: false) }
+                                    if viewModel.isLastProduct(product) {
+                                        await viewModel.loadProducts(initialLoad: false)
+                                    }
                                 }
                         }
-                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                     }
                     if viewModel.isLoadingMoreProducts {
-                        HStack { Spacer(); ProgressView().tint(AppColors.primary); Spacer() }.listRowBackground(Color.clear)
+                        HStack { Spacer(); ProgressView().tint(AppColors.primary); Spacer() }
+                            .listRowBackground(Color.clear)
                     }
                 }
-                .listStyle(.plain).scrollContentBackground(.hidden)
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
             }
         }
         .toolbar { productListToolbar(subCategory: subCategory) }
-        .task(id: subCategory.id) { await viewModel.loadProducts(for: subCategory, initialLoad: true) }
+        .task(id: subCategory.id) {
+            await viewModel.loadProducts(for: subCategory, initialLoad: true)
+        }
     }
     
     // MARK: - Toolbar & Helper Views
@@ -118,17 +137,22 @@ struct SubCategoryListView: View {
     private func loadingView(text: String) -> some View {
         VStack(spacing: 12) {
             ProgressView().tint(AppColors.primary)
-            // KORREKTUR: Verwende die korrekte Font-Größe aus deinem Design-System.
-            Text(text).font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .regular)).foregroundColor(AppColors.textMuted)
+            Text(text)
+                .font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .regular))
+                .foregroundColor(AppColors.textMuted)
         }
     }
     
     private func errorView(message: String) -> some View {
-        Text(message).foregroundColor(.red).multilineTextAlignment(.center).padding()
+        Text(message)
+            .foregroundColor(.red)
+            .multilineTextAlignment(.center)
+            .padding()
     }
 
     private func emptyView(text: String) -> some View {
-        // KORREKTUR: Verwende die korrekte Font-Größe aus deinem Design-System.
-        Text(text).font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .regular)).foregroundColor(AppColors.textMuted)
+        Text(text)
+            .font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .regular))
+            .foregroundColor(AppColors.textMuted)
     }
 }

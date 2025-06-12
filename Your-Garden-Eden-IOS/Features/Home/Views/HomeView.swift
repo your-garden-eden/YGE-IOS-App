@@ -1,3 +1,5 @@
+// Features/Home/Views/HomeView.swift
+
 import SwiftUI
 import AVKit
 
@@ -11,37 +13,28 @@ struct HomeView: View {
     @State private var queuePlayer: AVQueuePlayer?
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 32) {
-                    videoBannerSection
-                    categoryCarouselSection
-                    bestsellerSection
-                    FooterView().padding(.top, AppStyles.Spacing.large)
-                }
+        // DER NavigationStack WURDE ENTFERNT
+        ScrollView {
+            VStack(alignment: .leading, spacing: 32) {
+                videoBannerSection
+                categoryCarouselSection
+                bestsellerSection
+                FooterView().padding(.top, AppStyles.Spacing.large)
             }
-            .background(AppColors.backgroundPage.ignoresSafeArea())
-            .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Image("logo_your_garden_eden_transparent")
-                        .resizable().aspectRatio(contentMode: .fit).frame(height: 70)
-                }
+        }
+        .background(AppColors.backgroundPage.ignoresSafeArea())
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Image("logo_your_garden_eden_transparent")
+                    .resizable().aspectRatio(contentMode: .fit).frame(height: 70)
             }
-            .navigationDestination(for: WooCommerceProduct.self) { product in
-                ProductDetailView(productSlug: product.slug, initialProductData: product)
-            }
-            .navigationDestination(for: DisplayableMainCategory.self) { category in
-                SubCategoryListView(
-                    selectedMainCategoryAppItem: category.appItem,
-                    parentWooCommerceCategoryID: category.id
-                )
-            }
-            .onAppear {
-                if player == nil { initializePlayer() }
-                Task { await viewModel.loadAllData() }
-            }
+        }
+        // DIE .navigationDestination Modifier WURDEN ENTFERNT
+        .onAppear {
+            if player == nil { initializePlayer() }
+            Task { await viewModel.loadAllData() }
         }
     }
 
@@ -125,6 +118,7 @@ struct HomeView: View {
     }
 }
 
+// Diese privaten Subviews können in der gleichen Datei bleiben
 private struct CategoryCarouselItemView: View {
     let category: DisplayableMainCategory
     
@@ -144,7 +138,6 @@ private struct CategoryCarouselItemView: View {
             
             Text(category.appItem.label)
                 .font(AppFonts.montserrat(size: AppFonts.Size.caption, weight: .semibold))
-                // KORREKTUR: 'textBody' existiert nicht, 'textBase' ist korrekt.
                 .foregroundColor(AppColors.textBase)
                 .frame(width: 90)
                 .multilineTextAlignment(.center)

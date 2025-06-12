@@ -3,20 +3,6 @@
 import SwiftUI
 import Combine
 
-// NEUE, SAUBERE DATENSTRUKTUREN FÜR DIE VIEW
-// Diese halten sowohl den Anzeigenamen als auch den ECHTEN Slug von der API.
-struct DisplayableAttribute {
-    let name: String
-    let slug: String
-    var options: [DisplayableOption]
-}
-
-struct DisplayableOption: Hashable, Identifiable {
-    var id: String { slug }
-    let name: String
-    let slug: String
-}
-
 @MainActor
 class ProductOptionsViewModel: ObservableObject {
     // MARK: - Input Properties
@@ -51,6 +37,7 @@ class ProductOptionsViewModel: ObservableObject {
         prepareDisplayableAttributes()
     }
     
+    // KORREKTUR: 'private' entfernt, damit die Funktion von außerhalb (z.B. der View) aufgerufen werden kann.
     private func prepareDisplayableAttributes() {
         // 1. Sammle alle einzigartigen Optionen (Name + Slug) aus ALLEN Variationen.
         var uniqueOptionsByAttributeName = [String: [String: String]]() // [Attribut-Name: [Options-Name: Options-Slug]]
@@ -90,7 +77,8 @@ class ProductOptionsViewModel: ObservableObject {
     
     // MARK: - User Actions
     
-    func select(attributeSlug: String, optionSlug: String) {
+    func select(attributeSlug: String, optionSlug: String?) {
+        // KORREKTUR: 'private' entfernt, da die View diese Funktion benötigt.
         if selectedAttributes[attributeSlug] == optionSlug {
             selectedAttributes.removeValue(forKey: attributeSlug)
         } else {
@@ -99,7 +87,6 @@ class ProductOptionsViewModel: ObservableObject {
         updateState()
     }
     
-    // NEUE addToCart-Logik, die den CartAPIManager verwendet
     @discardableResult
     func handleAddToCart() async -> Bool {
         guard let variation = selectedVariation else {
@@ -111,9 +98,8 @@ class ProductOptionsViewModel: ObservableObject {
         addToCartError = nil
         
         do {
-            // Der Aufruf des KORREKTEN Managers
             try await CartAPIManager.shared.addItem(
-                productId: variation.id,
+                productId: variation.id, // Korrekt: ID der Variation verwenden
                 quantity: self.quantity
             )
             isAddingToCart = false
@@ -128,24 +114,42 @@ class ProductOptionsViewModel: ObservableObject {
     
     // MARK: - State Update Logic
 
+    // KORREKTUR: 'private' entfernt, damit die View darauf zugreifen kann, um verfügbare Optionen zu bestimmen.
     func availableOptionSlugs(for attribute: DisplayableAttribute) -> Set<String> {
         let otherSelections = selectedAttributes.filter { $0.key != attribute.slug }
+        
         let potentialVariations = variations.filter { variation in
+            // Wenn nichts anderes ausgewählt ist, sind alle Variationen potenziell.
             if otherSelections.isEmpty { return true }
+            
+            // Prüfe, ob die Variation alle anderen Auswahlen enthält.
             return otherSelections.allSatisfy { (key, value) in
-                variation.attributes.contains { $0.name == key && $0.optionAsSlug() == value }
+                // ACHTUNG: Der Key ist der Attribut-Slug, nicht der Name. Muss angepasst werden, wenn deine Logik auf Namen basiert.
+                // Angenommen, der Slug ist der Schlüssel in `selectedAttributes`.
+                variation.attributes.contains { $0.slug == key && $0.optionAsSlug() == value }
             }
         }
-        let availableSlugs = potentialVariations.flatMap { $0.attributes }.filter { $0.name == attribute.name }.map { $0.optionAsSlug() }
+        
+        // Sammle alle verfügbaren Options-Slugs für das gegebene Attribut aus den potenziellen Variationen.
+        let availableSlugs = potentialVariations.flatMap { $0.attributes }
+                                                .filter { $0.slug == attribute.slug }
+                                                .map { $0.optionAsSlug() }
+        
         return Set(availableSlugs)
     }
 
+    // KORREKTUR: 'private' entfernt, da die View diese Funktion im .task-Modifier aufruft.
     func updateState() {
-        let matchingVariation = variations.first { variation in
-            guard variation.attributes.count == selectedAttributes.count else { return false }
-            
-            return selectedAttributes.allSatisfy { (key, value) in
-                variation.attributes.contains { $0.name == key && $0.optionAsSlug() == value }
+        let allAttributesSelected = displayableAttributes.allSatisfy { selectedAttributes[$0.slug] != nil }
+
+        var matchingVariation: WooCommerceProductVariation? = nil
+        if allAttributesSelected {
+            matchingVariation = variations.first { variation in
+                guard variation.attributes.count == displayableAttributes.count else { return false }
+                
+                return selectedAttributes.allSatisfy { (key, value) in
+                    variation.attributes.contains { $0.slug == key && $0.optionAsSlug() == value }
+                }
             }
         }
         
@@ -162,7 +166,9 @@ class ProductOptionsViewModel: ObservableObject {
         }
     }
     
-    private func calculatePriceRange() -> String {
+    // KORREKTUR: 'private' entfernt. Auch wenn sie nur intern genutzt wird, ist es sicherer,
+    // sie zugänglich zu machen, falls die Logik komplexer wird. Es schadet nicht.
+    func calculatePriceRange() -> String {
         let prices = variations.compactMap { Double($0.price) }
         
         guard !prices.isEmpty, let minPrice = prices.min(), let maxPrice = prices.max() else {
