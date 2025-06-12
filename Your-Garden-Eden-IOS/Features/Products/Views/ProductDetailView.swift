@@ -24,7 +24,6 @@ struct ProductDetailView: View {
                     productGallery
                     productHeader
                     
-                    // KORREKTUR: Verwendet den korrekten String-Vergleich.
                     if viewModel.effectiveProductType == "variable" {
                         if viewModel.isLoading {
                             ProgressView().frame(height: 50)
@@ -43,9 +42,20 @@ struct ProductDetailView: View {
             bottomActionSection
         }
         .background(AppColors.backgroundPage.ignoresSafeArea())
-        .navigationTitle(viewModel.product.name.strippingHTML())
+        .navigationTitle(viewModel.productName)
         .navigationBarTitleDisplayMode(.inline)
-        .task { await viewModel.loadVariationsIfNeeded() }
+        // --- START ÄNDERUNG 1.4.4 ---
+        // Dies ist der entscheidende Teil der Lösung. Wir fügen zwei .task-Modifier hinzu.
+        // SwiftUI führt sie sicher aus, nachdem die View initialisiert wurde.
+        .task {
+            // Startet das Laden der Variationen
+            await viewModel.loadVariationsIfNeeded()
+        }
+        .task {
+            // Startet die sichere, asynchrone Aufbereitung der HTML-Strings
+            await viewModel.prepareDisplayData()
+        }
+        // --- ENDE ÄNDERUNG 1.4.4 ---
         .overlay(addedToCartBanner)
     }
     
@@ -66,7 +76,9 @@ struct ProductDetailView: View {
     @ViewBuilder private var productHeader: some View {
         VStack(alignment: .leading, spacing: AppStyles.Spacing.small) {
             HStack(alignment: .top) {
-                Text(viewModel.product.name.strippingHTML())
+                // Diese Text-View zeigt zuerst den rohen Namen und aktualisiert sich
+                // dann automatisch, sobald `prepareDisplayData()` fertig ist.
+                Text(viewModel.productName)
                     .font(AppFonts.montserrat(size: AppFonts.Size.title1, weight: .bold))
                     .foregroundColor(AppColors.textHeadings)
                 Spacer()
@@ -78,9 +90,12 @@ struct ProductDetailView: View {
                 .animation(.spring(), value: wishlistState.isProductInWishlist(productId: viewModel.product.id))
             }
             
+            // Diese Text-View ist zuerst leer und füllt sich dann mit dem Preis.
             Text(viewModel.initialDisplayPrice)
                 .font(AppFonts.roboto(size: AppFonts.Size.title2, weight: .semibold))
                 .foregroundColor(AppColors.price)
+                // Ein Platzhalter, während der Preis berechnet wird.
+                .frame(minHeight: 20)
         }
         .padding(.horizontal)
     }
@@ -90,14 +105,20 @@ struct ProductDetailView: View {
             Text("Beschreibung").font(AppFonts.montserrat(size: AppFonts.Size.headline, weight: .semibold))
                 .foregroundColor(AppColors.textHeadings)
             
-            ExpandableText(text: viewModel.product.description.strippingHTML(), lineLimit: 4)
+            // Zeigt die Beschreibung an, sobald sie verfügbar ist.
+            if !viewModel.productDescription.isEmpty {
+                ExpandableText(text: viewModel.productDescription, lineLimit: 4)
+            } else {
+                // Optional: Zeige eine Ladeanzeige, während die Beschreibung geparst wird.
+                ProgressView()
+                    .padding(.vertical)
+            }
         }
         .padding(.horizontal)
     }
     
     @ViewBuilder private var bottomActionSection: some View {
         VStack(spacing: 12) {
-            // KORREKTUR: Verwendet den korrekten String-Vergleich.
             if viewModel.effectiveProductType == "simple" {
                 if !viewModel.product.soldIndividually {
                     QuantitySelectorView(quantity: $viewModel.quantity)
@@ -127,7 +148,6 @@ struct ProductDetailView: View {
                 .controlSize(.large)
                 .disabled(viewModel.isAddingToCart)
             
-            // KORREKTUR: Verwendet den korrekten String-Vergleich.
             } else if viewModel.effectiveProductType == "variable" {
                 let isNavigationDisabled = viewModel.variations.isEmpty && viewModel.isLoading
                 

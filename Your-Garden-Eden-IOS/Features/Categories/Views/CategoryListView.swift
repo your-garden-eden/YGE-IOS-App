@@ -8,7 +8,13 @@
 import SwiftUI
 
 struct CategoryListView: View {
-    @StateObject private var viewModel = CategoryViewModel()
+    // --- START ÄNDERUNG 1.1 ---
+    // @StateObject wird durch @EnvironmentObject ersetzt.
+    // Die View erstellt den ViewModel nicht mehr selbst, sondern empfängt die zentrale,
+    // in der App-Datei erstellte Instanz. Dies ist der entscheidende Schritt zur
+    // Behebung der UI-Zyklen.
+    @EnvironmentObject private var viewModel: CategoryViewModel
+    // --- ENDE ÄNDERUNG 1.1 ---
 
     var body: some View {
         ZStack {
@@ -24,16 +30,13 @@ struct CategoryListView: View {
                     .foregroundColor(AppColors.textHeadings)
             }
         }
-        // --- START KORREKTUR ---
-        // .onAppear wurde durch .task ersetzt.
-        // .task ist der moderne und sichere Weg, um asynchrone Operationen
-        // beim Erscheinen einer View zu starten. Es verhindert die "AttributeGraph"-Zyklen.
         .task {
+            // Dieser Aufruf ist jetzt sicher, da er auf dem stabilen,
+            // zentralen ViewModel ausgeführt wird.
             if viewModel.categories.isEmpty {
                  viewModel.fetchMainCategories()
             }
         }
-        // --- ENDE KORREKTUR ---
     }
     
     @ViewBuilder
@@ -52,7 +55,6 @@ struct CategoryListView: View {
     private var categoryList: some View {
         List {
             ForEach(viewModel.categories) { wooCategory in
-                // Wir stellen sicher, dass der slug nicht leer ist, bevor wir den Link erstellen.
                 if let navItem = AppNavigationData.findItem(forMainCategorySlug: wooCategory.slug), !wooCategory.slug.isEmpty {
                     NavigationLink(value: wooCategory) {
                         ProductCategoryRow(

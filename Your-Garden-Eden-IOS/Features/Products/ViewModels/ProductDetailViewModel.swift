@@ -11,33 +11,63 @@ import SwiftUI
 class ProductDetailViewModel: ObservableObject {
     let product: WooCommerceProduct
     
+    // --- START ÄNDERUNG 1.4.1 ---
+    // Die Eigenschaften werden zu @Published Var, damit sie nach der asynchronen
+    // Vorbereitung aktualisiert werden können und die UI darauf reagiert.
+    @Published var productName: String
+    @Published var productDescription: String
+    @Published var initialDisplayPrice: String
+    // --- ENDE ÄNDERUNG 1.4.1 ---
+    
     @Published private(set) var isLoading: Bool = false
     @Published private(set) var loadingError: String?
     @Published private(set) var variations: [WooCommerceProductVariation] = []
     @Published var quantity: Int = 1
     @Published private(set) var isAddingToCart: Bool = false
 
-    let initialDisplayPrice: String
-
-    /// Gibt den effektiven Produkttyp als String zurück.
-    /// Ein Produkt gilt als "variable", wenn es so getaggt ist, oder wenn es als "simple" getaggt ist, aber Variations-IDs hat.
     var effectiveProductType: String {
-        if product.type.rawValue == "variable" {
-            return "variable"
-        }
-        if product.type.rawValue == "simple" && !product.variations.isEmpty {
-            return "variable"
-        }
+        if product.type == .variable { return "variable" }
+        if !product.variations.isEmpty { return "variable" }
+        if product.attributes.contains(where: { $0.variation }) { return "variable" }
         return "simple"
     }
 
     init(product: WooCommerceProduct) {
         self.product = product
-        self.initialDisplayPrice = (product.priceHtml ?? product.price).strippingHTML()
+        
+        // --- START ÄNDERUNG 1.4.2 ---
+        // Der Initializer wird extrem schnell und sicher gemacht.
+        // Er verwendet die Roh-Daten oder Platzhalter. KEINE HTML-Verarbeitung hier!
+        self.productName = product.name // Temporär der rohe Name
+        self.productDescription = "" // Leerer Platzhalter
+        self.initialDisplayPrice = "" // Leerer Platzhalter
+        // --- ENDE ÄNDERUNG 1.4.2 ---
     }
     
+    // --- START ÄNDERUNG 1.4.3 ---
+    // NEUE, ASYNCHRONE FUNKTION:
+    // Diese Funktion übernimmt die rechenintensive Arbeit. Sie wird von der View
+    // in einem .task-Block aufgerufen, also sicher und asynchron.
+    func prepareDisplayData() async {
+        // Bereite die sauberen Strings vor.
+        // Diese Operation läuft jetzt sicher, nachdem die View initialisiert wurde.
+        let cleanedName = product.name.strippingHTML()
+        let cleanedDescription = product.description.strippingHTML()
+        let formattedPrice = PriceFormatter.formatPriceString(
+            from: product.priceHtml,
+            fallbackPrice: product.price,
+            currencySymbol: "€"
+        )
+        
+        // Aktualisiere die @Published-Eigenschaften.
+        // Da die Funktion @MainActor ist, ist dieser Zugriff threadsicher.
+        self.productName = cleanedName
+        self.productDescription = cleanedDescription
+        self.initialDisplayPrice = formattedPrice.display
+    }
+    // --- ENDE ÄNDERUNG 1.4.3 ---
+    
     func loadVariationsIfNeeded() async {
-        // KORREKTUR: Verwendet den String-Vergleich.
         guard self.effectiveProductType == "variable", variations.isEmpty, !isLoading else {
             return
         }
@@ -57,7 +87,6 @@ class ProductDetailViewModel: ObservableObject {
     }
     
     func addSimpleProductToCart() async -> Bool {
-        // KORREKTUR: Verwendet den String-Vergleich.
         guard self.effectiveProductType == "simple", !isAddingToCart else { return false }
         
         isAddingToCart = true

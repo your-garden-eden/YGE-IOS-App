@@ -2,6 +2,7 @@
 import Foundation
 import StoreKit
 
+
 struct WooCommerceProduct: Identifiable, Hashable, Codable {
     let id: Int
     let name: String
@@ -18,9 +19,9 @@ struct WooCommerceProduct: Identifiable, Hashable, Codable {
     let description: String
     let shortDescription: String
     let sku: String
-    let price: String // Beachte: Kann auch als Zahl kommen, ggf. anpassen wie totalSales
-    let regularPrice: String // Beachte: Kann auch als Zahl kommen, ggf. anpassen wie totalSales
-    let salePrice: String? // Beachte: Kann auch als Zahl kommen, ggf. anpassen wie totalSales
+    let price: String
+    let regularPrice: String
+    let salePrice: String?
     let priceHtml: String?
     let dateOnSaleFrom: String?
     let dateOnSaleFromGmt: String?
@@ -28,7 +29,7 @@ struct WooCommerceProduct: Identifiable, Hashable, Codable {
     let dateOnSaleToGmt: String?
     let onSale: Bool
     let purchasable: Bool
-    let totalSales: Int // Wird jetzt flexibel dekodiert (String oder Int)
+    let totalSales: Int
     let virtual: Bool
     let downloadable: Bool
     let externalUrl: String?
@@ -36,21 +37,21 @@ struct WooCommerceProduct: Identifiable, Hashable, Codable {
     let taxStatus: String
     let taxClass: String?
     let manageStock: Bool
-    let stockQuantity: Int? // Beachte: Kann leerer String "" sein, ggf. anpassen
+    let stockQuantity: Int?
     let stockStatus: StockStatus
     let backorders: String
     let backordersAllowed: Bool
     let backordered: Bool
     let lowStockAmount: Int?
     let soldIndividually: Bool
-    let weight: String? // Beachte: Kann auch als Zahl kommen, ggf. anpassen
+    let weight: String?
     let dimensions: WooCommerceProductDimension
     let shippingRequired: Bool
     let shippingTaxable: Bool
     let shippingClass: String?
     let shippingClassId: Int
     let reviewsAllowed: Bool
-    let averageRating: String // Beachte: Kann auch als Zahl kommen, ggf. anpassen
+    let averageRating: String
     let ratingCount: Int
     let relatedIds: [Int]
     let upsellIds: [Int]
@@ -60,7 +61,7 @@ struct WooCommerceProduct: Identifiable, Hashable, Codable {
     let categories: [WooCommerceCategoryRef]
     let tags: [WooCommerceTagRef]
     let images: [WooCommerceImage]
-    let attributes: [WooCommerceAttribute]
+    let attributes: [WooCommerceAttribute] // <-- Dies bezieht sich jetzt korrekt auf die externe Datei
     let defaultAttributes: [WooCommerceDefaultAttribute]
     let variations: [Int]
     let groupedProducts: [Int]?
@@ -146,13 +147,12 @@ struct WooCommerceProduct: Identifiable, Hashable, Codable {
         onSale = try container.decode(Bool.self, forKey: .onSale)
         purchasable = try container.decode(Bool.self, forKey: .purchasable)
         
-        // Flexible Dekodierung für totalSales
         if let salesInt = try? container.decode(Int.self, forKey: .totalSales) {
             totalSales = salesInt
         } else if let salesString = try? container.decode(String.self, forKey: .totalSales) {
-            totalSales = Int(salesString) ?? 0 // Fallback auf 0, wenn String-Konvertierung fehlschlägt
+            totalSales = Int(salesString) ?? 0
         } else {
-            totalSales = 0 // Ultimativer Fallback
+            totalSales = 0
         }
         
         virtual = try container.decode(Bool.self, forKey: .virtual)
@@ -208,7 +208,7 @@ struct WooCommerceProduct: Identifiable, Hashable, Codable {
         try container.encodeIfPresent(dateOnSaleFrom, forKey: .dateOnSaleFrom); try container.encodeIfPresent(dateOnSaleFromGmt, forKey: .dateOnSaleFromGmt);
         try container.encodeIfPresent(dateOnSaleTo, forKey: .dateOnSaleTo); try container.encodeIfPresent(dateOnSaleToGmt, forKey: .dateOnSaleToGmt);
         try container.encode(onSale, forKey: .onSale); try container.encode(purchasable, forKey: .purchasable);
-        try container.encode(totalSales, forKey: .totalSales); // totalSales wird als Int enkodiert
+        try container.encode(totalSales, forKey: .totalSales);
         try container.encode(virtual, forKey: .virtual); try container.encode(downloadable, forKey: .downloadable);
         try container.encodeIfPresent(externalUrl, forKey: .externalUrl); try container.encodeIfPresent(buttonText, forKey: .buttonText);
         try container.encode(taxStatus, forKey: .taxStatus); try container.encodeIfPresent(taxClass, forKey: .taxClass);
@@ -230,7 +230,6 @@ struct WooCommerceProduct: Identifiable, Hashable, Codable {
         try container.encode(metaData, forKey: .metaData);
     }
 
-    // Manueller Memberwise Initializer (gekürzt für Lesbarkeit, stelle sicher, dass alle Properties enthalten sind, wenn du ihn brauchst)
     init(id: Int, name: String, slug: String, permalink: String, dateCreated: String, dateCreatedGmt: String,
          dateModified: String?, dateModifiedGmt: String?, type: ProductType, status: String, featured: Bool,
          catalogVisibility: String, description: String, shortDescription: String, sku: String,
