@@ -1,9 +1,18 @@
+//
+//  CartView.swift
+//  Your-Garden-Eden-IOS
+//
+//  Created by ... // Dein Erstellungsdatum
+//
+
 import SwiftUI
 
 struct CartView: View {
     
-    // Das ViewModel wird direkt mit @StateObject initialisiert und ist daher nicht optional.
     @StateObject private var viewModel = CartViewModel()
+    
+    // Greift auf den in EnvironmentValues+Extensions.swift definierten Key zu.
+    @Environment(\.selectedTab) private var selectedTab
 
     var body: some View {
         NavigationView {
@@ -25,6 +34,14 @@ struct CartView: View {
                 }
             }
             .navigationTitle("Warenkorb")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                 ToolbarItem(placement: .principal) {
+                     Text("Warenkorb")
+                         .font(AppFonts.montserrat(size: AppFonts.Size.headline, weight: .bold))
+                         .foregroundColor(AppColors.textHeadings)
+                 }
+            }
             .task {
                 await viewModel.refreshCart()
             }
@@ -40,13 +57,31 @@ struct CartView: View {
         VStack {
             List {
                 ForEach(viewModel.items) { item in
-                    CartRowView(item: item) { newQuantity in
-                        viewModel.updateQuantity(for: item, newQuantity: newQuantity)
+                    VStack(alignment: .leading, spacing: AppStyles.Spacing.medium) {
+                        CartRowView(item: item) { newQuantity in
+                            viewModel.updateQuantity(for: item, newQuantity: newQuantity)
+                        }
+                        
+                        Button(role: .destructive) {
+                            withAnimation {
+                                viewModel.removeItem(item)
+                            }
+                        } label: {
+                            Label("Entfernen", systemImage: "trash")
+                                .font(AppFonts.roboto(size: AppFonts.Size.caption))
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.leading, 8)
                     }
+                    .padding(.vertical, AppStyles.Spacing.small)
                     .listRowBackground(AppColors.backgroundComponent)
                     .listRowSeparator(.hidden)
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                        Button(role: .destructive) { viewModel.removeItem(item) } label: {
+                        Button(role: .destructive) {
+                            withAnimation {
+                                viewModel.removeItem(item)
+                            }
+                        } label: {
                             Label("Löschen", systemImage: "trash.fill")
                         }
                     }
@@ -55,9 +90,6 @@ struct CartView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
 
-            // KORREKTUR 1: Sicherer Zugriff auf `viewModel.totals`.
-            // Dies behebt den Fehler "Value of optional type 'CartViewModel?' must be unwrapped".
-            // Wir prüfen, ob 'totals' einen Wert hat, bevor wir die View erstellen.
             if let totals = viewModel.totals {
                 cartTotalsView(totals: totals)
             }
@@ -70,14 +102,16 @@ struct CartView: View {
                 Text("Zwischensumme").font(AppFonts.roboto(size: AppFonts.Size.body))
                     .foregroundColor(AppColors.textMuted)
                 Spacer()
-                Text(totals.totalPrice ?? "N/A").font(AppFonts.roboto(size: AppFonts.Size.body, weight: .medium))
+                // Greift auf die neue, berechnete Eigenschaft im Totals-Modell zu.
+                Text(totals.totalItemsPriceFormatted).font(AppFonts.roboto(size: AppFonts.Size.body, weight: .medium))
                     .foregroundColor(AppColors.textBase)
             }
             HStack {
                 Text("Versand").font(AppFonts.roboto(size: AppFonts.Size.body))
                     .foregroundColor(AppColors.textMuted)
                 Spacer()
-                Text(totals.totalShipping ?? "Wird berechnet").font(AppFonts.roboto(size: AppFonts.Size.body, weight: .medium))
+                // Greift auf die neue, berechnete Eigenschaft im Totals-Modell zu.
+                Text(totals.totalShippingFormatted).font(AppFonts.roboto(size: AppFonts.Size.body, weight: .medium))
                     .foregroundColor(AppColors.textBase)
             }
             
@@ -88,7 +122,8 @@ struct CartView: View {
                     .font(AppFonts.montserrat(size: AppFonts.Size.title3, weight: .bold))
                     .foregroundColor(AppColors.textHeadings)
                 Spacer()
-                Text("\(totals.currencySymbol ?? "")\(totals.totalPrice ?? "0,00")")
+                // Greift auf die neue, berechnete Eigenschaft im Totals-Modell zu.
+                Text(totals.totalPriceFormatted)
                     .font(AppFonts.montserrat(size: AppFonts.Size.title3, weight: .bold))
                     .foregroundColor(AppColors.textHeadings)
             }
@@ -99,6 +134,7 @@ struct CartView: View {
                     .foregroundColor(AppColors.textOnPrimary)
                     .frame(maxWidth: .infinity).padding()
                     .background(AppColors.primary).cornerRadius(AppStyles.BorderRadius.large)
+                    .appShadow(AppStyles.Shadows.small)
             }
             .padding(.top, AppStyles.Spacing.small)
         }
@@ -119,8 +155,20 @@ struct CartView: View {
             Text("Füge Produkte hinzu, um sie hier zu sehen.")
                 .font(AppFonts.roboto(size: AppFonts.Size.body))
                 .foregroundColor(AppColors.textMuted).multilineTextAlignment(.center)
+            
+            Button(action: {
+                // Wechselt zum ersten Tab (Shop) durch Schreiben in die Environment-Bindung.
+                selectedTab.wrappedValue = 0
+            }) {
+                Text("Weiter einkaufen")
+                    .font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .bold))
+                    .padding(.horizontal, 40)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(AppColors.primary)
+            .controlSize(.large)
+            .padding(.top)
         }
         .padding()
     }
 }
-

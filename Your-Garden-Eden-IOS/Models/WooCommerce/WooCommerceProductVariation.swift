@@ -19,16 +19,28 @@ struct WooCommerceProductVariation: Codable, Identifiable, Hashable {
     let dateOnSaleTo: String?
     let dateOnSaleToGmt: String?
     let onSale: Bool?
-    let status: String
+    
+    // --- START ÄNDERUNG 1.5.2 ---
+    // Vorsorgliche Änderung: Der Status kann bei Variationen manchmal vom Eltern-Produkt
+    // geerbt und daher weggelassen werden. Optional machen erhöht die Stabilität.
+    let status: String?
+    // --- ENDE ÄNDERUNG 1.5.2 ---
+    
     let purchasable: Bool
     let virtual: Bool
     let downloadable: Bool
     
-    // KORREKTUR: Dieses Feld fehlt laut deinen Logs manchmal in der API-Antwort.
     let taxStatus: String?
-    
     let taxClass: String?
-    let manageStock: Bool
+    
+    // --- START ÄNDERUNG 1.5.1 (DIE ENTSCHEIDENDE KORREKTUR) ---
+    // Das Feld `manage_stock` wird als optional (`Bool?`) deklariert.
+    // Der JSON-Decoder kann die Daten jetzt auch dann erfolgreich parsen,
+    // wenn dieses Feld in der Server-Antwort fehlt.
+    // Der Wert ist dann `nil`, was wir im Code sicher abfragen können.
+    let manageStock: Bool?
+    // --- ENDE ÄNDERUNG 1.5.1 ---
+    
     let stockQuantity: Int?
     let stockStatus: StockStatus
     let backorders: String

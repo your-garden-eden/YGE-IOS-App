@@ -1,14 +1,9 @@
+// Dateiname: z.B. WooCommerceStoreCart.swift
 import Foundation
 
 // MARK: - WooCommerce Store Cart (Hauptmodell)
-// RADIKAL ÜBERARBEITET: Fast alle Eigenschaften sind jetzt optional,
-// um einen Absturz bei einem leeren Warenkorb zu verhindern.
-
 struct WooCommerceStoreCart: Codable, Equatable {
-    let currency: Currency? // Währungsinformationen sollten relativ stabil sein, aber sicher ist sicher.
-    
-    // Diese Arrays und Objekte sind die Hauptursache für die Abstürze.
-    // Sie werden bei einem leeren Warenkorb oft komplett weggelassen.
+    let currency: Currency?
     var items: [Item]?
     var coupons: [Coupon]?
     var shippingRates: [ShippingRate]?
@@ -18,12 +13,10 @@ struct WooCommerceStoreCart: Codable, Equatable {
         case currency
         case items
         case coupons
-        case shippingRates = "shipping_rates" // Wichtig: CodingKey beibehalten
+        case shippingRates = "shipping_rates"
         case totals
     }
 
-    // Ein berechneter Wert, um sicherzustellen, dass wir immer ein Array haben,
-    // auch wenn die API 'nil' sendet. Erleichtert die UI-Logik.
     var safeItems: [Item] {
         return items ?? []
     }
@@ -32,11 +25,11 @@ struct WooCommerceStoreCart: Codable, Equatable {
 // MARK: - Item (Warenkorb-Artikel)
 struct Item: Codable, Equatable, Identifiable {
     let key: String
-    let id: Int // Produkt-ID
+    let id: Int
     let quantity: Int
     let name: String
-    let totals: ItemTotals? // Auch die Totals eines Items können fehlen
-    let images: [ImageSource]? // Bilder könnten fehlen
+    let totals: ItemTotals?
+    let images: [ImageSource]?
 
     struct ItemTotals: Codable, Equatable {
         let lineTotal: String?
@@ -57,7 +50,6 @@ struct Item: Codable, Equatable, Identifiable {
 }
 
 // MARK: - Totals (Gesamtsummen)
-// ÜBERARBEITET: Alle Eigenschaften sind jetzt optional.
 struct Totals: Codable, Equatable {
     let totalItems: String?
     let totalPrice: String?
@@ -72,11 +64,28 @@ struct Totals: Codable, Equatable {
         case currencyCode = "currency_code"
         case currencySymbol = "currency_symbol"
     }
+
+    // --- START: BERECHNETE EIGENSCHAFTEN ---
+    var totalItemsPriceFormatted: String {
+        return PriceFormatter.formatPrice(totalItems, currencySymbol: currencySymbol ?? "€")
+    }
+
+    var totalShippingFormatted: String {
+        if totalShipping == "0" {
+            return "Kostenlos"
+        }
+        return PriceFormatter.formatPrice(totalShipping, currencySymbol: currencySymbol ?? "€")
+    }
+
+    var totalPriceFormatted: String {
+        return PriceFormatter.formatPrice(totalPrice, currencySymbol: currencySymbol ?? "€")
+    }
+    // --- ENDE: BERECHNETE EIGENSCHAFTEN ---
 }
 
 // MARK: - ShippingRate (Versandtarife)
 struct ShippingRate: Codable, Equatable, Identifiable {
-    var id: String { rateId } // Für Identifiable
+    var id: String { rateId }
     let rateId: String
     let name: String
     let price: String
