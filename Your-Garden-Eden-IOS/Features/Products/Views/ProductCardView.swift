@@ -1,4 +1,9 @@
-// Features/Products/Views/ProductCardView.swift
+//
+//  ProductCardView.swift
+//  Your-Garden-Eden-IOS
+//
+//  Created by Josef Ewert on 28.05.25.
+//
 
 import SwiftUI
 
@@ -7,28 +12,26 @@ struct ProductCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Das Bild ist jetzt das einzige Element im oberen Bereich.
             productImage
             
-            // Text-Inhalt mit Padding
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: AppStyles.Spacing.xSmall) {
                 Text(product.name.strippingHTML())
-                    .font(.headline)
-                    .foregroundColor(.primary)
+                    .font(AppFonts.montserrat(size: AppFonts.Size.headline, weight: .semibold))
+                    .foregroundColor(AppColors.textHeadings)
                     .lineLimit(2)
                     .frame(minHeight: 45, alignment: .top)
 
                 Text((product.priceHtml ?? product.price).strippingHTML())
-                    .font(.subheadline)
-                    .fontWeight(.bold)
-                    .foregroundColor(.secondary)
+                    .font(AppFonts.roboto(size: AppFonts.Size.subheadline, weight: .bold))
+                    .foregroundColor(AppColors.price)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, AppStyles.Spacing.medium)
+            .padding(.vertical, AppStyles.Spacing.small)
         }
-        .background(Color(UIColor.systemBackground))
-        .cornerRadius(12)
-        .shadow(color: .black.opacity(0.08), radius: 5, x: 0, y: 2)
+        .background(AppColors.backgroundComponent)
+        .cornerRadius(AppStyles.BorderRadius.large)
+        // --- FINALE KORREKTUR HIER ---
+        .appShadow(AppStyles.Shadows.small)
     }
 
     private var productImage: some View {
@@ -36,14 +39,14 @@ struct ProductCardView: View {
             switch phase {
             case .success(let image):
                 image.resizable().aspectRatio(contentMode: .fit)
-            case .failure:
+            case .failure, .empty:
                 Image(systemName: "photo.on.rectangle.angled")
                     .font(.largeTitle)
-                    .foregroundColor(Color(UIColor.systemGray4))
+                    .foregroundColor(AppColors.textMuted.opacity(0.5))
                     .frame(maxWidth: .infinity, minHeight: 180)
-                    .background(Color(UIColor.systemGray6))
-            default:
-                ProgressView()
+                    .background(AppColors.backgroundLightGray)
+            @unknown default:
+                ProgressView().tint(AppColors.primary)
                     .frame(maxWidth: .infinity, minHeight: 180)
             }
         }

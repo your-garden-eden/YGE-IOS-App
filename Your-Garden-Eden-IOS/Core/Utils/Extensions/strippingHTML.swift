@@ -1,29 +1,41 @@
-// Core/Extensions/String+Extensions.swift
+//
+//  String+Extensions.swift
+//  Your-Garden-Eden-IOS
+//
+//  Created by Josef Ewert on 28.05.25.
+//
 
 import Foundation
 
 extension String {
     
-    /// Entfernt HTML-Tags und bereinigt gängige HTML-Entitäten für die Anzeige in der App.
+    /// **NEUE, ROBUSTE IMPLEMENTIERUNG**
+    /// Wandelt einen HTML-String sicher in einen reinen Text-String um.
+    /// Diese Methode verwendet Apples NSAttributedString, um sowohl HTML-Tags als auch Entitäten (wie   oder €) korrekt zu verarbeiten.
     func strippingHTML() -> String {
+        // Stellt sicher, dass die Eingabe nicht leer ist.
         guard !self.isEmpty else { return "" }
         
-        var result = self
+        // Konvertiert den String in Daten, die von NSAttributedString gelesen werden können.
+        guard let data = self.data(using: .utf8) else {
+            return self // Falls die Konvertierung fehlschlägt, den Originalstring zurückgeben.
+        }
         
-        // --- FINALE KORREKTUR: Ersetzt die häufigsten HTML-Entitäten in der richtigen Reihenfolge ---
-        result = result.replacingOccurrences(of: " ", with: " ")
-        result = result.replacingOccurrences(of: "€", with: "€")
-        result = result.replacingOccurrences(of: "&", with: "&")
-        result = result.replacingOccurrences(of: "<", with: "<")
-        result = result.replacingOccurrences(of: ">", with: ">")
-      
-        result = result.replacingOccurrences(of: "'", with: "'")
+        // Definiert die Optionen für das Lesen des HTML-Dokuments.
+        let options: [NSAttributedString.DocumentReadingOptionKey: Any] = [
+            .documentType: NSAttributedString.DocumentType.html,
+            .characterEncoding: String.Encoding.utf8.rawValue
+        ]
         
-        // Entfernt alle verbleibenden HTML-Tags
-        result = result.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression, range: nil)
+        // Versucht, den HTML-Code in einen Attributed String zu parsen.
+        // Wenn dies gelingt, gibt die .string-Eigenschaft den reinen Text zurück.
+        if let attributedString = try? NSAttributedString(data: data, options: options, documentAttributes: nil) {
+            return attributedString.string
+        }
         
-        // Entfernt überflüssige Leerzeichen am Anfang und Ende
-        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Fallback: Sollte die obere Methode wider Erwarten fehlschlagen,
+        // wird zumindest versucht, die offensichtlichen Tags zu entfernen.
+        return self.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression, range: nil)
     }
     
     func displayableAttributeName() -> String {

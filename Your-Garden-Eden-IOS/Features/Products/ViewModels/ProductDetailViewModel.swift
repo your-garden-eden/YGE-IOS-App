@@ -1,55 +1,73 @@
-// Features/Products/ViewModels/ProductDetailViewModel.swift
+//
+//  ProductDetailViewModel.swift
+//  Your-Garden-Eden-IOS
+//
+//  Created by Josef Ewert on 28.05.25.
+//
 
 import SwiftUI
 
 @MainActor
 class ProductDetailViewModel: ObservableObject {
-    // MARK: - Input Property
     let product: WooCommerceProduct
     
-    // MARK: - Published State
-    @Published private(set) var isLoadingVariations: Bool = false
+    @Published private(set) var isLoading: Bool = false
     @Published private(set) var loadingError: String?
-    
-    // NEU: Hält den spezialisierten ViewModel, sobald die Variationen geladen sind.
-    @Published private(set) var optionsViewModel: ProductOptionsViewModel?
-    
-    // NEU: Hält den initialen Preis, bevor eine Variante gewählt wird.
+    @Published private(set) var variations: [WooCommerceProductVariation] = []
+    @Published var quantity: Int = 1
+    @Published private(set) var isAddingToCart: Bool = false
+
     let initialDisplayPrice: String
 
-    // MARK: - Initializer
+    /// Gibt den effektiven Produkttyp als String zurück.
+    /// Ein Produkt gilt als "variable", wenn es so getaggt ist, oder wenn es als "simple" getaggt ist, aber Variations-IDs hat.
+    var effectiveProductType: String {
+        if product.type.rawValue == "variable" {
+            return "variable"
+        }
+        if product.type.rawValue == "simple" && !product.variations.isEmpty {
+            return "variable"
+        }
+        return "simple"
+    }
+
     init(product: WooCommerceProduct) {
         self.product = product
         self.initialDisplayPrice = (product.priceHtml ?? product.price).strippingHTML()
     }
     
-    // MARK: - Data Loading
-    
     func loadVariationsIfNeeded() async {
-        // Nur für variable Produkte laden und nur einmal.
-        guard product.type == .variable, optionsViewModel == nil, !isLoadingVariations else {
-            // Für einfache Produkte erstellen wir sofort einen "Dummy" ViewModel
-            if product.type == .simple && optionsViewModel == nil {
-                self.optionsViewModel = ProductOptionsViewModel(product: product, variations: [])
-            }
+        // KORREKTUR: Verwendet den String-Vergleich.
+        guard self.effectiveProductType == "variable", variations.isEmpty, !isLoading else {
             return
         }
         
-        self.isLoadingVariations = true
+        self.isLoading = true
         self.loadingError = nil
         
         do {
             let fetchedVariations = try await WooCommerceAPIManager.shared.fetchProductVariations(productId: product.id)
-            
-            // Erstelle und speichere den neuen, spezialisierten ViewModel.
-            self.optionsViewModel = ProductOptionsViewModel(product: product, variations: fetchedVariations)
-            
+            self.variations = fetchedVariations
         } catch {
             let errorMessage = "Die Produktoptionen konnten nicht geladen werden."
-            print("🔴 Failed to load variations: \(error)")
             self.loadingError = errorMessage
         }
         
-        self.isLoadingVariations = false
+        self.isLoading = false
+    }
+    
+    func addSimpleProductToCart() async -> Bool {
+        // KORREKTUR: Verwendet den String-Vergleich.
+        guard self.effectiveProductType == "simple", !isAddingToCart else { return false }
+        
+        isAddingToCart = true
+        defer { isAddingToCart = false }
+        
+        do {
+            try await CartAPIManager.shared.addItem(productId: product.id, quantity: self.quantity)
+            return true
+        } catch {
+            return false
+        }
     }
 }

@@ -1,4 +1,9 @@
-// Features/Wishlist/Views/WishlistView.swift
+//
+//  WishlistView.swift
+//  Your-Garden-Eden-IOS
+//
+//  Created by Josef Ewert on 28.05.25.
+//
 
 import SwiftUI
 
@@ -18,13 +23,11 @@ struct WishlistView: View {
         }
         .navigationTitle("Wunschliste")
         .task {
-            // KORREKTUR: Der korrekte Funktionsname wird verwendet.
             if wishlistState.wishlistProducts.isEmpty && authManager.isLoggedIn {
                 await wishlistState.fetchWishlistProducts()
             }
         }
         .refreshable {
-            // KORREKTUR: Der korrekte Funktionsname wird auch hier verwendet.
             await wishlistState.fetchWishlistProducts()
         }
     }
@@ -48,17 +51,7 @@ struct WishlistView: View {
         List {
             ForEach(products) { product in
                 NavigationLink(value: product) {
-                    HStack {
-                        AsyncImage(url: product.images.first?.src.asURL()) { image in
-                            image.resizable().aspectRatio(contentMode: .fill)
-                        } placeholder: {
-                            Color.gray.opacity(0.3)
-                        }
-                        .frame(width: 60, height: 60)
-                        .cornerRadius(8)
-                        
-                        Text(product.name.strippingHTML())
-                    }
+                    ProductRowView(product: product) // Verwendung der konsistenten ProductRowView
                 }
             }
             .onDelete(perform: deleteItems)
@@ -70,23 +63,9 @@ struct WishlistView: View {
         let productsToDelete = offsets.map { wishlistState.wishlistProducts[$0] }
         
         for product in productsToDelete {
-            let parentProductId = product.parentId == 0 ? product.id : product.parentId
-            let variationId = product.parentId != 0 ? product.id : nil
-            
-            wishlistState.removeProduct(productId: parentProductId, variationId: variationId)
+            wishlistState.toggleWishlistStatus(for: product)
         }
     }
 }
 
-struct WishlistView_Previews: PreviewProvider {
-    static var previews: some View {
-        let authManager = AuthManager.shared
-        let wishlistState = WishlistState(authManager: authManager)
-        
-        return NavigationView {
-            WishlistView()
-                .environmentObject(wishlistState)
-                .environmentObject(authManager)
-        }
-    }
-}
+

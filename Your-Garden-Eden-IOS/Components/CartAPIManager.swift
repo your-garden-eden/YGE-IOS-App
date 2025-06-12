@@ -1,4 +1,9 @@
-// Core/Networking/CartAPIManager.swift
+//
+//  CartAPIManager.swift
+//  Your-Garden-Eden-IOS
+//
+//  Created by Josef Ewert on 28.05.25.
+//
 
 import Foundation
 import Combine
@@ -27,28 +32,22 @@ final class CartAPIManager: ObservableObject {
         print("🛒 CartAPIManager initialized.")
         
         self.initializationTask = Task {
-            // Nur den Gast-Token laden, wenn der User NICHT eingeloggt ist.
             if AuthManager.shared.getAuthToken() == nil {
                 self.cartToken = try? KeychainHelper.getCartToken()
             }
-            _ = await getCart()
+            await getCart()
             self.initializationTask = nil
         }
     }
 
     private func ensureTokensAreAvailable() async throws {
         if let task = initializationTask { await task.value }
-        
-        // Wenn der User eingeloggt ist, reicht der JWT-Token.
         if AuthManager.shared.getAuthToken() != nil { return }
-        
-        // Ansonsten für Gäste sicherstellen, dass wir einen Token haben.
         if cartToken == nil && cartNonce == nil {
-            print("🛒 CartAPIManager: Both Cart-Token and Nonce are missing for GUEST. Actively fetching...")
-            _ = await getCart()
+            await getCart()
         }
         guard cartToken != nil || cartNonce != nil else {
-            let error = WooCommerceAPIError.internalError("Could not obtain any GUEST authentication token (Cart-Token or Nonce).")
+            let error = WooCommerceAPIError.internalError("Could not obtain GUEST auth token.")
             self.errorMessage = error.localizedDescription
             throw error
         }
@@ -58,58 +57,67 @@ final class CartAPIManager: ObservableObject {
     
     func addItem(productId: Int, quantity: Int, variationId: Int? = nil) async throws {
         try await ensureTokensAreAvailable()
-        
-        var body: [String: Any] = [
-            "id": productId,
-            "quantity": quantity
-        ]
-        
-        // Wichtige Korrektur: Die Store-API bevorzugt 'variation_id' für variable Produkte
+        var body: [String: Any]
         if let variationId = variationId, variationId > 0 {
              body = ["id": variationId, "quantity": quantity]
+        } else {
+             body = ["id": productId, "quantity": quantity]
         }
-        
-        try await performCartRequest(path: "cart/add-item", httpMethod: "POST", body: body)
+        let cart = try await performCartRequest(path: "cart/add-item", httpMethod: "POST", body: body)
+        updateCart(with: cart)
     }
     
     func updateItemQuantity(itemKey: String, quantity: Int) async throws {
         try await ensureTokensAreAvailable()
         let body = ["quantity": quantity]
-        try await performCartRequest(path: "cart/items/\(itemKey)", httpMethod: "PUT", body: body)
+        let cart = try await performCartRequest(path: "cart/items/\(itemKey)", httpMethod: "PUT", body: body)
+        updateCart(with: cart)
     }
     
     func removeItem(itemKey: String) async throws {
         try await ensureTokensAreAvailable()
-        try await performCartRequest(path: "cart/items/\(itemKey)", httpMethod: "DELETE")
+        let cart = try await performCartRequest(path: "cart/items/\(itemKey)", httpMethod: "DELETE")
+        updateCart(with: cart)
     }
     
     func clearCart() async throws {
         try await ensureTokensAreAvailable()
-        try await performCartRequest(path: "cart/items", httpMethod: "DELETE")
+        let cart = try await performCartRequest(path: "cart/items", httpMethod: "DELETE")
+        updateCart(with: cart)
     }
     
-    @discardableResult
-    func getCart() async -> WooCommerceStoreCart? {
-        do { return try await performCartRequest(path: "cart", httpMethod: "GET") }
-        catch { return nil }
+    func getCart() async {
+        let cart = try? await performCartRequest(path: "cart", httpMethod: "GET")
+        updateCart(with: cart)
+    }
+    
+    // MARK: - Safe Update Helper
+    
+    /// **NEU: Eine sichere Methode zum Aktualisieren des Warenkorbs.**
+    /// Sie stellt sicher, dass die Zuweisung zum @Published-Property nicht mit dem View-Update-Zyklus kollidiert.
+    private func updateCart(with cart: WooCommerceStoreCart?) {
+        Task { @MainActor in
+            self.currentCart = cart
+        }
     }
     
     // MARK: - Private Request Logic
     
     @discardableResult
-    private func performCartRequest(path: String, httpMethod: String, body: [String: Any]) async throws -> WooCommerceStoreCart? {
-        let requestBody = try? JSONSerialization.data(withJSONObject: body, options: [])
+    private func performCartRequest(path: String, httpMethod: String, body: [String: Any]? = nil) async throws -> WooCommerceStoreCart? {
+        var requestBody: Data? = nil
+        if let body = body {
+            requestBody = try? JSONSerialization.data(withJSONObject: body, options: [])
+        }
         return try await performBaseRequest(path: path, httpMethod: httpMethod, body: requestBody)
     }
-    
-    @discardableResult
-    private func performCartRequest(path: String, httpMethod: String) async throws -> WooCommerceStoreCart? {
-        return try await performBaseRequest(path: path, httpMethod: httpMethod, body: nil)
-    }
-    
-    @discardableResult
+
     private func performBaseRequest(path: String, httpMethod: String, body: Data?) async throws -> WooCommerceStoreCart? {
-        isLoading = true; errorMessage = nil; defer { isLoading = false }
+        // HINWEIS: isLoading und errorMessage werden jetzt in einer eigenen Task-Kapsel gesetzt.
+        Task { @MainActor in isLoading = true; errorMessage = nil }
+        defer {
+            Task { @MainActor in isLoading = false }
+        }
         
         var urlString = storeApiBaseURL + path
         if httpMethod == "GET" { urlString += "?_=\(Date().timeIntervalSince1970)" }
@@ -119,26 +127,12 @@ final class CartAPIManager: ObservableObject {
         request.httpMethod = httpMethod
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        // --- *** DIE INTELLIGENTE TOKEN-LOGIK *** ---
         if let jwtToken = AuthManager.shared.getAuthToken() {
-            // 1. BENUTZER IST EINGELOGGT: JWT-Token verwenden.
-            print("🛒 CartAPIManager: Performing request as LOGGED-IN user.")
             request.setValue("Bearer \(jwtToken)", forHTTPHeaderField: "Authorization")
-            
-            // Lokalen Gast-Token proaktiv löschen, um Konflikte zu vermeiden
-            if self.cartToken != nil {
-                self.cartToken = nil
-                try? KeychainHelper.deleteCartToken()
-            }
+            if self.cartToken != nil { self.cartToken = nil; try? KeychainHelper.deleteCartToken() }
         } else {
-            // 2. BENUTZER IST GAST: Gast-Token oder Nonce verwenden.
-            print("🛒 CartAPIManager: Performing request as GUEST user.")
-            if let token = self.cartToken {
-                request.setValue(token, forHTTPHeaderField: "Cart-Token")
-            }
-            if let nonce = self.cartNonce {
-                request.setValue(nonce, forHTTPHeaderField: "X-WC-Store-API-Nonce")
-            }
+            if let token = self.cartToken { request.setValue(token, forHTTPHeaderField: "Cart-Token") }
+            if let nonce = self.cartNonce { request.setValue(nonce, forHTTPHeaderField: "X-WC-Store-API-Nonce") }
         }
         
         if let body = body { request.httpBody = body }
@@ -147,29 +141,27 @@ final class CartAPIManager: ObservableObject {
             let (data, response) = try await session.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse else { throw WooCommerceAPIError.networkError(NSError(domain: "CartAPIManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response"])) }
 
-            if let newNonce = httpResponse.value(forHTTPHeaderField: "X-WC-Store-API-Nonce") {
-                self.cartNonce = newNonce
-            }
+            if let newNonce = httpResponse.value(forHTTPHeaderField: "X-WC-Store-API-Nonce") { self.cartNonce = newNonce }
             
-            // Den Gast-Token nur speichern, wenn der Benutzer NICHT eingeloggt ist.
             if AuthManager.shared.getAuthToken() == nil {
                 if let newToken = httpResponse.value(forHTTPHeaderField: "Cart-Token"), newToken != self.cartToken {
-                    self.cartToken = newToken
-                    try KeychainHelper.saveCartToken(newToken)
-                    print("🛒 CartAPIManager: New GUEST Cart-Token received and saved.")
+                    self.cartToken = newToken; try KeychainHelper.saveCartToken(newToken)
                 }
             }
             
             guard (200...299).contains(httpResponse.statusCode) else {
                 let errorBody = String(data: data, encoding: .utf8) ?? "No error body"; print("🔴 CartAPIManager Error: Status \(httpResponse.statusCode). Body: \(errorBody)")
-                let apiError = WooCommerceAPIError.serverError(statusCode: httpResponse.statusCode, message: "Serverfehler: \(httpResponse.statusCode)", errorCode: nil); self.errorMessage = apiError.localizedDescription; throw apiError
+                let apiError = WooCommerceAPIError.serverError(statusCode: httpResponse.statusCode, message: "Serverfehler: \(httpResponse.statusCode)", errorCode: nil)
+                Task { @MainActor in self.errorMessage = apiError.localizedDescription }; throw apiError
             }
             
-            if data.isEmpty { self.currentCart = nil; return nil }
+            if data.isEmpty { return nil }
             let decoder = JSONDecoder(); decoder.keyDecodingStrategy = .convertFromSnakeCase
-            let updatedCart = try decoder.decode(WooCommerceStoreCart.self, from: data); self.currentCart = updatedCart; return updatedCart
+            return try decoder.decode(WooCommerceStoreCart.self, from: data)
         } catch {
-            print("🔴 CartAPIManager: Failed to perform request for path '\(path)': \(error)"); if error is KeychainError { self.errorMessage = "Ein Sicherheitsproblem ist aufgetreten." } else if self.errorMessage == nil { self.errorMessage = "Ein Netzwerkfehler ist aufgetreten." }; throw error
+            print("🔴 CartAPIManager: Failed to perform request for path '\(path)': \(error)")
+            let finalErrorMsg = (error as? KeychainError) != nil ? "Ein Sicherheitsproblem ist aufgetreten." : "Ein Netzwerkfehler ist aufgetreten."
+            Task { @MainActor in if self.errorMessage == nil { self.errorMessage = finalErrorMsg } }; throw error
         }
     }
 }

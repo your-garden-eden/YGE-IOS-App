@@ -1,4 +1,9 @@
-// MARK: - ProductRowView.swift
+//
+//  ProductRowView.swift
+//  Your-Garden-Eden-IOS
+//
+//  Created by Josef Ewert on 28.05.25.
+//
 
 import SwiftUI
 
@@ -7,30 +12,27 @@ struct ProductRowView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
-            // Produktbild
             productImage
                 .frame(width: 90, height: 90)
                 .background(AppColors.backgroundLightGray)
                 .cornerRadius(AppStyles.BorderRadius.medium)
                 .clipped()
 
-            // Produktdetails
             VStack(alignment: .leading, spacing: 6) {
                 Text(product.name.strippingHTML())
                     .font(AppFonts.montserrat(size: AppFonts.Size.headline, weight: .semibold))
                     .foregroundColor(AppColors.textHeadings)
                     .lineLimit(2)
                 
-                Spacer() // Schiebt Preis und Status nach unten
+                Spacer()
                 
                 Text((product.priceHtml ?? product.price).strippingHTML())
                     .font(AppFonts.roboto(size: AppFonts.Size.subheadline, weight: .bold))
                     .foregroundColor(AppColors.price)
                 
-                // Angepasster Lagerstatus als "Chip"
                 stockStatusView
             }
-            .frame(height: 90) // Stellt sicher, dass die VStack die gleiche Höhe wie das Bild hat
+            .frame(height: 90)
         }
         .padding(AppStyles.Spacing.medium)
         .background(AppColors.backgroundComponent)
@@ -55,7 +57,6 @@ struct ProductRowView: View {
     
     @ViewBuilder
     private var stockStatusView: some View {
-        // Direkter Zugriff, da `stockStatus` nicht optional ist
         let isInStock = product.stockStatus == .instock
         
         Text(isInStock ? "Auf Lager" : "Nicht verfügbar")

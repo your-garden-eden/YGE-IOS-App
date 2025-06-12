@@ -1,9 +1,13 @@
-// Features/Products/Views/ProductDetailView.swift
+//
+//  ProductDetailView.swift
+//  Your-Garden-Eden-IOS
+//
+//  Created by Josef Ewert on 28.05.25.
+//
 
 import SwiftUI
 
 struct ProductDetailView: View {
-    // Der Haupt-ViewModel, der die Daten lädt.
     @StateObject private var viewModel: ProductDetailViewModel
     @EnvironmentObject var wishlistState: WishlistState
     
@@ -16,53 +20,43 @@ struct ProductDetailView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: AppStyles.Spacing.xLarge) {
                     productGallery
                     productHeader
                     
-                    // Zeige die Optionen nur an, wenn sie geladen sind.
-                    if viewModel.isLoadingVariations {
-                        ProgressView().frame(height: 100)
-                    } else if let optionsVM = viewModel.optionsViewModel {
-                        // GEÄNDERT: Delegiert an den neuen ViewModel
-                        OptionsSectionView(viewModel: optionsVM)
-                    } else if let error = viewModel.loadingError {
-                        Text(error).foregroundColor(.red).padding()
+                    // KORREKTUR: Verwendet den korrekten String-Vergleich.
+                    if viewModel.effectiveProductType == "variable" {
+                        if viewModel.isLoading {
+                            ProgressView().frame(height: 50)
+                        } else if let error = viewModel.loadingError {
+                            Text(error).foregroundColor(AppColors.error).padding()
+                        }
                     }
                     
                     Divider()
                     descriptionSection
                     
-                    Spacer(minLength: 140)
+                    Spacer(minLength: 150)
                 }
             }
             
-            // GEÄNDERT: Die Logik kommt jetzt vom optionsViewModel
-            if let optionsVM = viewModel.optionsViewModel {
-                AddToCartSectionView(viewModel: optionsVM, showConfirmation: $showAddedToCartConfirmation)
-            }
+            bottomActionSection
         }
         .background(AppColors.backgroundPage.ignoresSafeArea())
         .navigationTitle(viewModel.product.name.strippingHTML())
         .navigationBarTitleDisplayMode(.inline)
-        .task { await viewModel.loadVariationsIfNeeded() } // Startet den Ladevorgang
+        .task { await viewModel.loadVariationsIfNeeded() }
         .overlay(addedToCartBanner)
     }
     
     // MARK: - Subviews
     
     @ViewBuilder private var productGallery: some View {
-        // GEÄNDERT: Das Bild kommt jetzt auch vom optionsViewModel, wenn verfügbar.
-        let imageURL = viewModel.optionsViewModel?.currentImage?.src.asURL() ?? viewModel.product.images.first?.src.asURL()
-        
-        AsyncImage(url: imageURL) { phase in
+        AsyncImage(url: viewModel.product.images.first?.src.asURL()) { phase in
             switch phase {
-            case .success(let image):
-                image.resizable().scaledToFit()
-            case .failure:
-                Image(systemName: "photo.fill").font(.largeTitle).foregroundColor(AppColors.textMuted)
-            default:
-                ProgressView()
+            case .success(let image): image.resizable().scaledToFit()
+            case .failure: Image(systemName: "photo.fill").font(.largeTitle).foregroundColor(AppColors.textMuted)
+            default: ProgressView()
             }
         }
         .frame(minHeight: 300)
@@ -70,122 +64,99 @@ struct ProductDetailView: View {
     }
     
     @ViewBuilder private var productHeader: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: AppStyles.Spacing.small) {
             HStack(alignment: .top) {
-                Text(viewModel.product.name.strippingHTML()).font(.largeTitle.weight(.bold))
+                Text(viewModel.product.name.strippingHTML())
+                    .font(AppFonts.montserrat(size: AppFonts.Size.title1, weight: .bold))
+                    .foregroundColor(AppColors.textHeadings)
                 Spacer()
                 Button(action: { wishlistState.toggleWishlistStatus(for: viewModel.product) }) {
                     Image(systemName: wishlistState.isProductInWishlist(productId: viewModel.product.id) ? "heart.fill" : "heart")
-                        .symbolRenderingMode(.multicolor)
+                        .foregroundColor(AppColors.wishlistIcon)
                 }
                 .font(.title)
                 .animation(.spring(), value: wishlistState.isProductInWishlist(productId: viewModel.product.id))
             }
             
-            // GEÄNDERT: Der Preis kommt jetzt auch vom optionsViewModel.
-            Text(viewModel.optionsViewModel?.displayPrice ?? viewModel.initialDisplayPrice)
-                .font(.title2.weight(.semibold))
+            Text(viewModel.initialDisplayPrice)
+                .font(AppFonts.roboto(size: AppFonts.Size.title2, weight: .semibold))
                 .foregroundColor(AppColors.price)
-                .animation(.easeInOut, value: viewModel.optionsViewModel?.displayPrice)
         }
         .padding(.horizontal)
     }
     
     @ViewBuilder private var descriptionSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Beschreibung").font(.headline)
-            // GEÄNDERT: Die Beschreibung passt sich der Auswahl an.
-            let description = viewModel.optionsViewModel?.selectedVariation?.description ?? viewModel.product.description
-            ExpandableText(text: description.strippingHTML(), lineLimit: 4)
+        VStack(alignment: .leading, spacing: AppStyles.Spacing.small) {
+            Text("Beschreibung").font(AppFonts.montserrat(size: AppFonts.Size.headline, weight: .semibold))
+                .foregroundColor(AppColors.textHeadings)
+            
+            ExpandableText(text: viewModel.product.description.strippingHTML(), lineLimit: 4)
         }
         .padding(.horizontal)
+    }
+    
+    @ViewBuilder private var bottomActionSection: some View {
+        VStack(spacing: 12) {
+            // KORREKTUR: Verwendet den korrekten String-Vergleich.
+            if viewModel.effectiveProductType == "simple" {
+                if !viewModel.product.soldIndividually {
+                    QuantitySelectorView(quantity: $viewModel.quantity)
+                        .padding(.horizontal)
+                }
+                
+                Button(action: {
+                    Task {
+                        let success = await viewModel.addSimpleProductToCart()
+                        if success {
+                            withAnimation { showAddedToCartConfirmation = true }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                withAnimation { showAddedToCartConfirmation = false }
+                            }
+                        }
+                    }
+                }) {
+                    HStack {
+                        if viewModel.isAddingToCart { ProgressView().tint(.white) }
+                        else { Text("In den Warenkorb") }
+                    }
+                    .font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .bold))
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(AppColors.primary)
+                .controlSize(.large)
+                .disabled(viewModel.isAddingToCart)
+            
+            // KORREKTUR: Verwendet den korrekten String-Vergleich.
+            } else if viewModel.effectiveProductType == "variable" {
+                let isNavigationDisabled = viewModel.variations.isEmpty && viewModel.isLoading
+                
+                NavigationLink(value: ProductVariationData(product: viewModel.product, variations: viewModel.variations)) {
+                    Text("Optionen wählen")
+                        .font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .bold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(AppColors.primary)
+                .controlSize(.large)
+                .disabled(isNavigationDisabled)
+            }
+        }
+        .padding()
+        .background(.thinMaterial)
     }
     
     @ViewBuilder private var addedToCartBanner: some View {
         if showAddedToCartConfirmation {
             Text("Zum Warenkorb hinzugefügt")
-                .fontWeight(.semibold).padding().background(Color.green)
-                .foregroundColor(.white).cornerRadius(12).shadow(radius: 10)
+                .font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .semibold))
+                .padding()
+                .background(AppColors.success)
+                .foregroundColor(AppColors.textOnPrimary)
+                .cornerRadius(AppStyles.BorderRadius.medium)
+                .appShadow(AppStyles.Shadows.medium)
                 .transition(.move(edge: .top).combined(with: .opacity))
                 .frame(maxHeight: .infinity, alignment: .top).padding(.top)
         }
-    }
-}
-
-
-// MARK: - Neue, ausgelagerte Subviews für die Klarheit
-
-private struct OptionsSectionView: View {
-    @ObservedObject var viewModel: ProductOptionsViewModel
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            ForEach(viewModel.displayableAttributes) { attribute in
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(attribute.name).font(.headline)
-                    
-                    let selection = Binding<String?>(
-                        get: { viewModel.selectedAttributes[attribute.slug] },
-                        set: { viewModel.select(attributeSlug: attribute.slug, optionSlug: $0) }
-                    )
-                    
-                    Picker(attribute.name, selection: selection) {
-                        Text("Bitte wählen").tag(nil as String?)
-                        ForEach(attribute.options) { option in
-                            Text(option.name).tag(option.slug as String?)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                }
-            }
-        }
-        .padding(.horizontal)
-    }
-}
-
-private struct AddToCartSectionView: View {
-    @ObservedObject var viewModel: ProductOptionsViewModel
-    @Binding var showConfirmation: Bool
-
-    var body: some View {
-        VStack(spacing: 12) {
-            if !viewModel.product.soldIndividually {
-                QuantitySelectorView(quantity: $viewModel.quantity)
-                    .padding(.horizontal)
-            }
-            
-            Button(action: {
-                Task {
-                    let success = await viewModel.handleAddToCart()
-                    if success {
-                        withAnimation { showConfirmation = true }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                            withAnimation { showConfirmation = false }
-                        }
-                    }
-                }
-            }) {
-                HStack {
-                    if viewModel.isAddingToCart {
-                        ProgressView().tint(.white)
-                    } else {
-                        Text("In den Warenkorb")
-                    }
-                }
-                .fontWeight(.bold)
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(AppColors.primary)
-            .controlSize(.large)
-            .disabled(viewModel.isAddToCartDisabled || viewModel.isAddingToCart)
-            
-            if let error = viewModel.addToCartError {
-                Text(error).font(.caption).foregroundColor(.red)
-            }
-        }
-        .padding()
-        .background(.thinMaterial)
     }
 }

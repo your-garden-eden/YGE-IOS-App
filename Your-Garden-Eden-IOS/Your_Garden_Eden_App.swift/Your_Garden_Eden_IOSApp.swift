@@ -1,26 +1,41 @@
-// Your_Garden_Eden_IOSApp.swift
+//
+//  Your_Garden_Eden_IOSApp.swift
+//  Your-Garden-Eden-IOS
+//
+//  Created by Josef Ewert on ... // Dein Erstellungsdatum
+//
 
 import SwiftUI
-import Firebase
+import FirebaseCore
 
+class AppDelegate: NSObject, UIApplicationDelegate {
+  func application(_ application: UIApplication,
+                   didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+    FirebaseApp.configure()
+    return true
+  }
+}
+
+// HINWEIS: @main wurde hinzugefügt. Das behebt den Linker-Fehler.
 @main
 struct Your_Garden_Eden_IOSApp: App {
-    // Alle globalen Manager werden hier EINMAL erstellt und gehören der App.
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
+
     @StateObject private var authManager = AuthManager.shared
     @StateObject private var cartAPIManager = CartAPIManager.shared
-    @StateObject private var wishlistState = WishlistState(authManager: AuthManager.shared)
+    @StateObject private var wishlistState: WishlistState
 
     init() {
-        FirebaseApp.configure()
+        let authManager = AuthManager.shared
+        _wishlistState = StateObject(wrappedValue: WishlistState(authManager: authManager))
     }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
-                // Hier werden die Manager an die gesamte View-Hierarchie übergeben.
                 .environmentObject(authManager)
                 .environmentObject(cartAPIManager)
-                .environmentObject(wishlistState) // <-- DAS IST DIE FEHLENDE/WICHTIGE ZEILE
+                .environmentObject(wishlistState)
         }
     }
 }

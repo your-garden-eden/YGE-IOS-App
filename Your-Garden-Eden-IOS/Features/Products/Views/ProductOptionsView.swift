@@ -1,4 +1,9 @@
-// Features/Products/Views/ProductOptionsView.swift
+//
+//  ProductOptionsView.swift
+//  Your-Garden-Eden-IOS
+//
+//  Created by Josef Ewert on 28.05.25.
+//
 
 import SwiftUI
 
@@ -21,17 +26,15 @@ struct ProductOptionsView: View {
                     productInfoView
                     Divider()
                     attributesSection
-                    Spacer(minLength: 120) // Platz für den unteren Button
+                    Spacer(minLength: 140)
                 }
             }
+            .background(AppColors.backgroundPage.ignoresSafeArea())
+            
             addToCartSection
         }
-        .background(AppColors.backgroundPage)
         .navigationTitle("Optionen wählen")
         .navigationBarTitleDisplayMode(.inline)
-        .task {
-            viewModel.updateState()
-        }
     }
     
     // MARK: - Subviews
@@ -50,12 +53,12 @@ struct ProductOptionsView: View {
     
     private var productInfoView: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(viewModel.product.name)
-                .font(.title.weight(.bold))
+            Text(viewModel.product.name.strippingHTML())
+                .font(AppFonts.montserrat(size: AppFonts.Size.title1, weight: .bold))
                 .foregroundColor(AppColors.textHeadings)
             
             Text(viewModel.displayPrice)
-                .font(.title2.weight(.bold))
+                .font(AppFonts.roboto(size: AppFonts.Size.title2, weight: .bold))
                 .foregroundColor(AppColors.price)
         }
         .padding(.horizontal)
@@ -63,13 +66,16 @@ struct ProductOptionsView: View {
     
     private var attributesSection: some View {
         VStack(alignment: .leading, spacing: AppStyles.Spacing.medium) {
-            ForEach(viewModel.displayableAttributes, id: \.slug) { attribute in
+            // KORREKTUR: Die ForEach-Schleife verwendet jetzt die ID der Attribut-Struktur.
+            ForEach(viewModel.displayableAttributes) { attribute in
                 AttributeSelectorView(
                     attribute: attribute,
                     availableOptionSlugs: viewModel.availableOptionSlugs(for: attribute),
-                    currentlySelectedOptionSlugForThisAttribute: viewModel.selectedAttributes[attribute.slug],
+                    // KORREKTUR: Greift über den Attribut-NAMEN auf das Dictionary zu.
+                    currentlySelectedOptionSlugForThisAttribute: viewModel.selectedAttributes[attribute.name],
                     onOptionSelect: { selectedOptionSlug in
-                        viewModel.select(attributeSlug: attribute.slug, optionSlug: selectedOptionSlug)
+                        // KORREKTUR: Ruft die `select`-Methode mit den korrekten Parameter-Namen auf.
+                        viewModel.select(attributeName: attribute.name, optionSlug: selectedOptionSlug)
                     }
                 )
             }
@@ -78,10 +84,9 @@ struct ProductOptionsView: View {
     }
 
     private var addToCartSection: some View {
-        VStack(spacing: 16) {
-            if viewModel.product.soldIndividually == false {
-                Stepper("Menge: \(viewModel.quantity)", value: $viewModel.quantity, in: 1...10)
-                    .font(.headline.weight(.semibold))
+        VStack(spacing: 12) {
+            if !viewModel.product.soldIndividually {
+                QuantitySelectorView(quantity: $viewModel.quantity)
                     .padding(.horizontal)
             }
             
@@ -89,30 +94,28 @@ struct ProductOptionsView: View {
                 Task {
                     let success = await viewModel.handleAddToCart()
                     if success {
-                        dismiss() // View bei Erfolg schließen
+                        dismiss()
                     }
                 }
             }) {
-                if viewModel.isAddingToCart {
-                    ProgressView()
-                        .tint(AppColors.textOnPrimary)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                } else {
-                    Text("In den Warenkorb")
-                        .font(.headline.weight(.bold))
-                        .foregroundColor(AppColors.textOnPrimary)
-                        .frame(maxWidth: .infinity)
-                        .padding()
+                HStack {
+                    if viewModel.isAddingToCart {
+                        ProgressView().tint(AppColors.textOnPrimary)
+                    } else {
+                        Text("In den Warenkorb")
+                    }
                 }
+                .font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .bold))
+                .frame(maxWidth: .infinity)
             }
-            .background(viewModel.isAddToCartDisabled ? AppColors.primaryLight : AppColors.primary)
-            .cornerRadius(AppStyles.BorderRadius.large)
+            .buttonStyle(.borderedProminent)
+            .tint(viewModel.isAddToCartDisabled ? AppColors.primaryLight : AppColors.primary)
+            .controlSize(.large)
             .disabled(viewModel.isAddToCartDisabled || viewModel.isAddingToCart)
             
             if let error = viewModel.addToCartError {
                 Text(error)
-                    .font(.caption)
+                    .font(AppFonts.roboto(size: AppFonts.Size.caption))
                     .foregroundColor(AppColors.error)
                     .multilineTextAlignment(.center)
             }
