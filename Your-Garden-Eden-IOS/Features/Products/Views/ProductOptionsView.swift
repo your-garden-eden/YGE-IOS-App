@@ -1,14 +1,12 @@
-//
-//  ProductOptionsView.swift
-//  Your-Garden-Eden-IOS
-//
-//  Created by Josef Ewert on 28.05.25.
-//
+// Dateiname: ProductOptionsView.swift
 
 import SwiftUI
 
 struct ProductOptionsView: View {
     @StateObject private var viewModel: ProductOptionsViewModel
+    
+    // Wir brauchen den CartAPIManager, um den Fehlerzustand zu prüfen.
+    @EnvironmentObject var cartAPIManager: CartAPIManager
     @Environment(\.dismiss) private var dismiss
 
     init(product: WooCommerceProduct, variations: [WooCommerceProductVariation]) {
@@ -26,6 +24,7 @@ struct ProductOptionsView: View {
                     productInfoView
                     Divider()
                     attributesSection
+                    // Platzhalter am Ende, damit die untere Leiste den Inhalt nicht verdeckt
                     Spacer(minLength: 140)
                 }
             }
@@ -66,15 +65,12 @@ struct ProductOptionsView: View {
     
     private var attributesSection: some View {
         VStack(alignment: .leading, spacing: AppStyles.Spacing.medium) {
-            // KORREKTUR: Die ForEach-Schleife verwendet jetzt die ID der Attribut-Struktur.
             ForEach(viewModel.displayableAttributes) { attribute in
                 AttributeSelectorView(
                     attribute: attribute,
                     availableOptionSlugs: viewModel.availableOptionSlugs(for: attribute),
-                    // KORREKTUR: Greift über den Attribut-NAMEN auf das Dictionary zu.
                     currentlySelectedOptionSlugForThisAttribute: viewModel.selectedAttributes[attribute.name],
                     onOptionSelect: { selectedOptionSlug in
-                        // KORREKTUR: Ruft die `select`-Methode mit den korrekten Parameter-Namen auf.
                         viewModel.select(attributeName: attribute.name, optionSlug: selectedOptionSlug)
                     }
                 )
@@ -92,10 +88,16 @@ struct ProductOptionsView: View {
             
             Button(action: {
                 Task {
-                    let success = await viewModel.handleAddToCart()
-                    if success {
+                    // Funktion aufrufen (gibt nichts mehr zurück)
+                    await viewModel.handleAddToCart()
+                    
+                    // KORREKTUR: Prüfe den Zustand des CartAPIManager
+                    if cartAPIManager.errorMessage == nil {
+                        // Erfolg! Schließe die Ansicht.
                         dismiss()
                     }
+                    // Der Fehlerzustand wird bereits vom ViewModel im 'addToCartError' angezeigt,
+                    // also müssen wir hier nichts weiter tun.
                 }
             }) {
                 HStack {

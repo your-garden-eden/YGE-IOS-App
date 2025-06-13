@@ -1,53 +1,73 @@
-// Features/Categories/Views/CategoryDetailView.swift
+// Dateiname: Features/Categories/Views/CategoryDetailView.swift
 
 import SwiftUI
 
 struct CategoryDetailView: View {
-    @StateObject private var viewModel: CategoryDetailViewModel
+    @StateObject private var viewModel: ProductListViewModel
+    private let categoryName: String
 
     init(category: WooCommerceCategory) {
-        _viewModel = StateObject(wrappedValue: CategoryDetailViewModel(category: category))
+        _viewModel = StateObject(wrappedValue: ProductListViewModel(categoryId: category.id))
+        self.categoryName = category.name
     }
 
     var body: some View {
-        List {
-            // Die ForEach-Schleife ist das Herzstück der Ansicht.
-            ForEach(viewModel.products) { product in
-                
-                // Wir verwenden den ZStack, um die gesamte Karte klickbar zu machen.
-                ZStack {
-                    // Die sichtbare Produktkarte.
-                    ProductCardView(product: product)
-                    
-                    // Der unsichtbare Navigations-Trigger.
-                    // Er reagiert auf Klicks und übergibt das `product`-Objekt
-                    // an den zentralen NavigationStack in der ContentView.
-                    NavigationLink(value: product) {
-                        EmptyView()
-                    }
-                    .opacity(0)
-                }
-                .listRowInsets(EdgeInsets())
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear) // Stellt sicher, dass der Hintergrund der Liste durchscheint
+        ZStack {
+            AppColors.backgroundPage.ignoresSafeArea()
+            
+            if viewModel.isLoading && viewModel.products.isEmpty {
+                ProgressView()
+            } else if let errorMessage = viewModel.errorMessage {
+                Text(errorMessage).foregroundColor(AppColors.error).padding()
+            } else if viewModel.products.isEmpty {
+                 emptyView
+            } else {
+                productGrid
             }
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .navigationTitle(viewModel.category.name)
+        .navigationTitle(categoryName)
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            // Lade die Produkte, wenn die Ansicht erscheint.
-            await viewModel.fetchProducts()
+            await viewModel.loadProducts(initialLoad: true)
         }
-        // DER ÜBERFLÜSSIGE .navigationDestination WURDE HIER ENTFERNT
-        .overlay {
-            // Zeige einen Ladeindikator, während die Produkte geladen werden.
+    }
+    
+    private var productGrid: some View {
+        ScrollView {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                ForEach(viewModel.products) { product in
+                    NavigationLink(value: product) {
+                        ProductCardView(product: product)
+                    }
+                    .buttonStyle(.plain)
+                    .task {
+                        if viewModel.isLastProduct(product) && viewModel.canLoadMore {
+                            await viewModel.loadProducts()
+                        }
+                    }
+                }
+            }
+            .padding()
+            
             if viewModel.isLoading {
-                ProgressView()
+                ProgressView().padding()
             }
         }
+    }
+    
+    private var emptyView: some View {
+        VStack(spacing: AppStyles.Spacing.large) {
+            Image(systemName: "bag.fill")
+                .font(.system(size: 60))
+                .foregroundColor(AppColors.primary.opacity(0.5))
+            Text("Keine Produkte")
+                .font(AppFonts.montserrat(size: AppFonts.Size.title2, weight: .bold))
+                .foregroundColor(AppColors.textHeadings)
+            Text("In dieser Kategorie wurden leider keine Produkte gefunden.")
+                .font(AppFonts.roboto(size: AppFonts.Size.body))
+                .foregroundColor(AppColors.textMuted)
+                .multilineTextAlignment(.center)
+        }
+        .padding()
     }
 }

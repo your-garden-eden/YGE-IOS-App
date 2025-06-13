@@ -1,4 +1,4 @@
-// Features/Auth/LoginView.swift
+// Dateiname: Features/Auth/LoginView.swift
 
 import SwiftUI
 
@@ -9,86 +9,82 @@ struct LoginView: View {
     @State private var password = ""
     @State private var validationError: String?
 
-    // Callbacks, um das Sheet zu steuern
-    var onLoginSuccess: () -> Void
+    var onDismiss: () -> Void
     var navigateToSignUp: () -> Void
 
     var body: some View {
-        // Der NavigationStack ist korrekt für eine modale Ansicht,
-        // die ihre eigene Hierarchie und Toolbar hat.
-        NavigationStack {
-            VStack(spacing: 15) {
-                Text("Willkommen zurück!")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .padding(.bottom, 10)
+        VStack(spacing: 20) {
+            Text("Willkommen zurück!")
+                .font(AppFonts.montserrat(size: AppFonts.Size.h2, weight: .bold))
+                .foregroundColor(AppColors.textHeadings)
 
+            VStack(spacing: 0) {
                 TextField("E-Mail", text: $email)
+                    .padding()
                     .keyboardType(.emailAddress)
                     .autocapitalization(.none)
                     .textContentType(.emailAddress)
-                    .padding()
-                    .background(Color(UIColor.systemGray6))
-                    .cornerRadius(8)
-
+                
+                Divider().background(AppColors.borderLight)
+                
                 SecureField("Passwort", text: $password)
-                    .textContentType(.password)
                     .padding()
-                    .background(Color(UIColor.systemGray6))
-                    .cornerRadius(8)
-
-                // Fehleranzeige
-                if let validationError = validationError {
-                    Text(validationError)
-                        .foregroundColor(.red).font(.caption).multilineTextAlignment(.center)
-                } else if let authError = authManager.authError {
-                    Text(authError.localizedDescription)
-                        .foregroundColor(.red).font(.caption).multilineTextAlignment(.center)
-                }
-
-                Button(action: performSignIn) {
-                    if authManager.isLoading {
-                        ProgressView()
-                            .frame(height: 50).frame(maxWidth: .infinity)
-                            .background(Color.accentColor.opacity(0.8))
-                            .foregroundColor(.white).cornerRadius(8)
-                    } else {
-                        Text("Anmelden")
-                            .fontWeight(.semibold).frame(height: 50).frame(maxWidth: .infinity)
-                            .background(Color.accentColor).foregroundColor(.white).cornerRadius(8)
-                    }
-                }
-                .disabled(authManager.isLoading)
-
-                HStack {
-                    Text("Noch kein Konto?")
-                    Button("Registrieren") {
-                        navigateToSignUp()
-                    }
-                }
-                .padding(.top, 15)
-
-                Spacer()
+                    .textContentType(.password)
             }
-            .padding()
-            .navigationTitle("Anmelden")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                 ToolbarItem(placement: .navigationBarTrailing) {
-                     Button("Abbrechen") { onLoginSuccess() }
-                 }
+            .background(AppColors.backgroundComponent)
+            .cornerRadius(AppStyles.BorderRadius.large)
+            .appShadow(AppStyles.Shadows.small)
+
+            if let error = validationError ?? authManager.authError?.localizedDescription {
+                Text(error)
+                    .foregroundColor(AppColors.error)
+                    .font(AppFonts.roboto(size: AppFonts.Size.caption))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
             }
-            // KORREKTUR: Modernisierte onChange-Syntax
-            .onChange(of: authManager.isLoggedIn) {
-                 if authManager.isLoggedIn {
-                     onLoginSuccess()
-                 }
-            }
-            // KORREKTUR: Modernisierte onChange-Syntax
-            .onChange(of: authManager.errorID) {
-                if authManager.authError != nil {
-                    validationError = nil
+
+            Button(action: performSignIn) {
+                if authManager.isLoading {
+                    ProgressView().tint(AppColors.textOnPrimary)
+                } else {
+                    Text("Anmelden")
                 }
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .disabled(authManager.isLoading)
+
+            HStack {
+                Text("Noch kein Konto?")
+                    .foregroundColor(AppColors.textMuted)
+                Button("Registrieren") {
+                    navigateToSignUp()
+                }
+                .tint(AppColors.primary)
+            }
+            .font(AppFonts.roboto(size: AppFonts.Size.body))
+            .padding(.top)
+
+            Spacer()
+        }
+        .padding()
+        .background(AppColors.backgroundPage.ignoresSafeArea())
+        .navigationTitle("Anmelden")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+             ToolbarItem(placement: .navigationBarTrailing) {
+                 Button("Abbrechen") { onDismiss() }
+             }
+        }
+        // KORREKTUR: Umstellung auf die moderne iOS 17+ onChange-Syntax.
+        .onChange(of: authManager.isLoggedIn) { _, isLoggedIn in
+             if isLoggedIn {
+                 onDismiss()
+             }
+        }
+        .onChange(of: authManager.errorID) {
+            // Die neue Syntax ohne Parameter, wenn man sie nicht braucht.
+            if authManager.authError != nil {
+                validationError = nil
             }
         }
     }
@@ -112,5 +108,19 @@ struct LoginView: View {
     private func isValidEmail(_ email: String) -> Bool {
         let emailRegEx = "[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}"
         return NSPredicate(format:"SELF MATCHES %@", emailRegEx).evaluate(with: email)
+    }
+}
+
+// HILFS-STIL FÜR BUTTONS (Kann in eine eigene Datei, z.B. AppStyles.swift)
+struct PrimaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .bold))
+            .frame(height: 50)
+            .frame(maxWidth: .infinity)
+            .background(configuration.isPressed ? AppColors.primaryDark : AppColors.primary)
+            .foregroundColor(AppColors.textOnPrimary)
+            .cornerRadius(AppStyles.BorderRadius.large)
+            .appShadow(AppStyles.Shadows.small)
     }
 }

@@ -1,7 +1,9 @@
+// Dateiname: Features/Auth/AuthContainerView.swift
+
 import SwiftUI
 
 struct AuthContainerView: View {
-    @EnvironmentObject var authManager: FirebaseAuthManager
+    @EnvironmentObject var authManager: AuthManager
     
     @State private var currentAuthView: AuthState = .login
     
@@ -10,34 +12,24 @@ struct AuthContainerView: View {
         case signUp
     }
 
-    var onDismiss: () -> Void // Um das Sheet zu schließen, wenn erfolgreich
+    var onDismiss: () -> Void
 
     var body: some View {
-        NavigationView { // Optional, für einen Titel in den Auth-Views
+        NavigationStack {
             Group {
                 if currentAuthView == .login {
                     LoginView(
-                        onLoginSuccess: {
-                            // authManager.user wird durch Listener aktualisiert
-                            // das onReceive in LoginView sollte onDismiss aufrufen
-                        },
+                        onDismiss: { onDismiss() },
                         navigateToSignUp: { currentAuthView = .signUp }
                     )
                 } else {
                     SignUpView(
-                        onSignUpSuccess: {
-                           // authManager.user wird durch Listener aktualisiert
-                        },
+                        onDismiss: { onDismiss() },
                         navigateToLogin: { currentAuthView = .login }
                     )
                 }
             }
-            // Hier könnten NavigationBarItems für Abbrechen etc. hin
         }
-        .onReceive(authManager.$user) { user in
-            if user != nil {
-                onDismiss() // Schließe das Auth-Sheet, wenn der Nutzer angemeldet ist
-            }
-        }
+        .environmentObject(authManager)
     }
 }

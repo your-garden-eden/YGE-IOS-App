@@ -1,4 +1,4 @@
-// Core/Managers/AuthManager.swift
+// Dateiname: Core/Managers/AuthManager.swift
 
 import Foundation
 import Combine
@@ -16,7 +16,6 @@ struct AuthData: Decodable {
     let user: User
 }
 
-// HINWEIS: User ist jetzt 'Codable', um sowohl das Lesen (Decode) als auch das Speichern (Encode) zu ermöglichen.
 struct User: Codable, Identifiable {
     let id: Int
     let displayName: String
@@ -36,9 +35,7 @@ struct AuthErrorResponse: Decodable, Error {
     let success: Bool
     let data: ErrorData
     
-    // Dies macht die Fehlermeldung direkt für die UI zugänglich.
     var localizedDescription: String {
-        // Hier könnten wir `errorCode` nutzen, um die Meldungen zu übersetzen.
         return data.message
     }
 }
@@ -59,42 +56,37 @@ final class AuthManager: ObservableObject {
     @Published var isLoggedIn: Bool = false
     @Published var isLoading: Bool = false
     @Published var authError: AuthErrorResponse?
-    @Published private(set) var errorID = UUID() // Informiert UI über neue Fehler
+    @Published private(set) var errorID = UUID()
 
     private var cancellables = Set<AnyCancellable>()
     private let keychain = Keychain(service: "de.your-garden-eden.app")
     
     // !! WICHTIG !! HIER DEINEN SCHLÜSSEL EINTRAGEN !!
-    // Du findest ihn im WP-Admin-Dashboard unter "Simple JWT Login" -> "Register".
     private let registrationAuthKey = "DEIN_REGISTRATION_AUTH_KEY"
     
     private let apiBaseURL = "https://your-garden-eden-4ujzpfm5qt.live-website.com/wp-json/simple-jwt-login/v1"
 
     private init() {
-        // Lade Token und Benutzerprofil beim Start, falls vorhanden
         if getAuthToken() != nil {
             self.isLoggedIn = true
             if let userData = try? keychain.getData("userProfile"),
                let savedUser = try? JSONDecoder().decode(User.self, from: userData) {
                 self.user = savedUser
             }
-            // In einer finalen Version könntest du hier eine Token-Validierung gegen den Server machen.
         }
     }
 
     // MARK: - Public API
     
-    /// Meldet einen Benutzer mit E-Mail und Passwort bei WordPress an.
     func signInWithEmail(email: String, password: String) {
         guard let url = URL(string: "\(apiBaseURL)/auth") else { return setError(message: "Ungültige API-URL.") }
         let parameters: [String: Any] = ["email": email, "password": password]
         performAuthRequest(url: url, parameters: parameters)
     }
 
-    /// Registriert einen neuen Benutzer bei WordPress.
     func signUpWithEmail(email: String, password: String, firstName: String, lastName: String) {
         guard !registrationAuthKey.isEmpty, registrationAuthKey != "DEIN_REGISTRATION_AUTH_KEY" else {
-            return setError(message: "Der Registrierungs-Schlüssel ist nicht konfiguriert. Bitte den Entwickler kontaktieren.")
+            return setError(message: "Der Registrierungs-Schlüssel ist nicht konfiguriert.")
         }
         guard let url = URL(string: "\(apiBaseURL)/users") else { return setError(message: "Ungültige API-URL.") }
         let parameters: [String: Any] = [
@@ -105,7 +97,6 @@ final class AuthManager: ObservableObject {
         performAuthRequest(url: url, parameters: parameters)
     }
 
-    /// Meldet den aktuellen Benutzer ab und löscht den lokalen Token.
     func logout() {
         DispatchQueue.main.async {
             self.user = nil
@@ -115,7 +106,6 @@ final class AuthManager: ObservableObject {
         }
     }
     
-    /// Gibt den aktuell gespeicherten JWT aus dem Keychain zurück.
     func getAuthToken() -> String? {
         return try? keychain.getString("authToken")
     }

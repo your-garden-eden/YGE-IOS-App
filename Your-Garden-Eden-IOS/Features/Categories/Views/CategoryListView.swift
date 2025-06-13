@@ -1,20 +1,11 @@
-//
-//  CategoryListView.swift
-//  Your-Garden-Eden-IOS
-//
-//  Created by Josef Ewert on 28.05.25.
-//
+// Dateiname: CategoryListView.swift
+// FINALE, KORRIGIERTE VERSION
 
 import SwiftUI
 
 struct CategoryListView: View {
-    // --- START ÄNDERUNG 1.1 ---
-    // @StateObject wird durch @EnvironmentObject ersetzt.
-    // Die View erstellt den ViewModel nicht mehr selbst, sondern empfängt die zentrale,
-    // in der App-Datei erstellte Instanz. Dies ist der entscheidende Schritt zur
-    // Behebung der UI-Zyklen.
+    // Greift auf den globalen, zentralen ViewModel zu. Das ist korrekt.
     @EnvironmentObject private var viewModel: CategoryViewModel
-    // --- ENDE ÄNDERUNG 1.1 ---
 
     var body: some View {
         ZStack {
@@ -30,22 +21,19 @@ struct CategoryListView: View {
                     .foregroundColor(AppColors.textHeadings)
             }
         }
-        .task {
-            // Dieser Aufruf ist jetzt sicher, da er auf dem stabilen,
-            // zentralen ViewModel ausgeführt wird.
-            if viewModel.categories.isEmpty {
-                 viewModel.fetchMainCategories()
-            }
-        }
+        // DER .task-BLOCK WIRD VOLLSTÄNDIG ENTFERNT.
+        // Das Laden der Daten geschieht jetzt automatisch im ViewModel.
+        // Das macht diesen Code sauberer und robuster.
     }
     
     @ViewBuilder
     private var contentView: some View {
-        if viewModel.isLoading && viewModel.categories.isEmpty {
+        // Die Logik hier prüft jetzt auf 'displayableCategories' statt 'categories'.
+        if viewModel.isLoading && viewModel.displayableCategories.isEmpty {
             loadingView
         } else if let errorMessage = viewModel.errorMessage {
             errorView(message: errorMessage)
-        } else if viewModel.categories.isEmpty && !viewModel.isLoading {
+        } else if viewModel.displayableCategories.isEmpty && !viewModel.isLoading {
             emptyView
         } else {
             categoryList
@@ -54,15 +42,20 @@ struct CategoryListView: View {
     
     private var categoryList: some View {
         List {
-            ForEach(viewModel.categories) { wooCategory in
-                if let navItem = AppNavigationData.findItem(forMainCategorySlug: wooCategory.slug), !wooCategory.slug.isEmpty {
-                    NavigationLink(value: wooCategory) {
-                        ProductCategoryRow(
-                            label: navItem.label,
-                            imageUrl: wooCategory.image?.src.asURL(),
-                            localImageFilename: navItem.imageFilename
-                        )
-                    }
+            // KORREKTUR: Wir iterieren jetzt über 'displayableCategories'.
+            ForEach(viewModel.displayableCategories) { displayableCategory in
+                
+                // Wir erstellen den NavigationLink, dessen 'value' ein
+                // 'DisplayableMainCategory' ist. Die Navigations-Erweiterung in
+                // ContentView kann diesen Typ verarbeiten.
+                NavigationLink(value: displayableCategory) {
+                    ProductCategoryRow(
+                        // Die Daten für die Row kommen jetzt aus dem 'appItem'
+                        // innerhalb der 'displayableCategory'.
+                        label: displayableCategory.appItem.label,
+                        imageUrl: nil, // Note: WooCommerceCategory image ist nicht mehr direkt hier
+                        localImageFilename: displayableCategory.appItem.imageFilename
+                    )
                 }
             }
             .listRowInsets(EdgeInsets(top: AppStyles.Spacing.small, leading: AppStyles.Spacing.large, bottom: AppStyles.Spacing.small, trailing: AppStyles.Spacing.large))
@@ -72,6 +65,8 @@ struct CategoryListView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
     }
+    
+    // Die folgenden Helper-Views bleiben unverändert.
     
     private var loadingView: some View {
         VStack(spacing: AppStyles.Spacing.medium) {

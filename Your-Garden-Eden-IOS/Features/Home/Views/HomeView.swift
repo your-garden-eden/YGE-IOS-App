@@ -1,19 +1,19 @@
-// Features/Home/Views/HomeView.swift
+// Dateiname: HomeView.swift
 
 import SwiftUI
 import AVKit
 
 struct HomeView: View {
-    @StateObject private var viewModel = HomeViewModel()
+    // Greift auf die globalen, zentralen Daten-Manager zu
+    @EnvironmentObject var categoryViewModel: CategoryViewModel
+    @EnvironmentObject var productViewModel: ProductViewModel
 
-    private let heroVideoNameInBundle = "hero_main_banner_yge"
-    private let videoFileExtension = "mp4"
+    // Lokaler Zustand NUR für die View-spezifische Logik (Videoplayer)
     @State private var player: AVPlayer?
     @State private var playerLooper: AVPlayerLooper?
     @State private var queuePlayer: AVQueuePlayer?
 
     var body: some View {
-        // DER NavigationStack WURDE ENTFERNT
         ScrollView {
             VStack(alignment: .leading, spacing: 32) {
                 videoBannerSection
@@ -31,21 +31,26 @@ struct HomeView: View {
                     .resizable().aspectRatio(contentMode: .fit).frame(height: 70)
             }
         }
-        // DIE .navigationDestination Modifier WURDEN ENTFERNT
         .onAppear {
+            // KEIN DATENLADEN MEHR HIER! DER ZYKLUS IST DURCHBROCHEN.
             if player == nil { initializePlayer() }
-            Task { await viewModel.loadAllData() }
         }
     }
 
+    // MARK: - Subviews
+    
     @ViewBuilder
     private var videoBannerSection: some View {
         if let videoPlayer = player {
             VideoPlayer(player: videoPlayer)
-                .frame(height: 200).disabled(true).background(AppColors.backgroundPage)
+                .frame(height: 200)
+                .disabled(true)
+                .background(AppColors.backgroundPage)
                 .onAppear { videoPlayer.play() }
         } else {
-            Rectangle().fill(AppColors.backgroundPage).frame(height: 200)
+            Rectangle()
+                .fill(AppColors.backgroundPage)
+                .frame(height: 200)
         }
     }
 
@@ -56,14 +61,14 @@ struct HomeView: View {
                 .font(AppFonts.montserrat(size: AppFonts.Size.h3, weight: .semibold))
                 .padding(.horizontal)
 
-            if viewModel.isLoadingCategories && viewModel.displayableCategories.isEmpty {
-                ProgressView().frame(height: 120).frame(maxWidth: .infinity)
-            } else if let errorMessage = viewModel.categoryErrorMessage {
+            if categoryViewModel.isLoading {
+                ProgressView().frame(height: 120, alignment: .center)
+            } else if let errorMessage = categoryViewModel.errorMessage {
                 ErrorStateView(message: errorMessage)
-            } else if !viewModel.displayableCategories.isEmpty {
+            } else if !categoryViewModel.displayableCategories.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(alignment: .top, spacing: 16) {
-                        ForEach(viewModel.displayableCategories) { category in
+                        ForEach(categoryViewModel.displayableCategories) { category in
                             NavigationLink(value: category) {
                                 CategoryCarouselItemView(category: category)
                             }
@@ -78,7 +83,11 @@ struct HomeView: View {
 
     @ViewBuilder
     private var bestsellerSection: some View {
-        if !viewModel.bestsellerProducts.isEmpty {
+        if productViewModel.isLoadingBestsellers {
+            ProgressView().frame(height: 200, alignment: .center)
+        } else if let errorMessage = productViewModel.bestsellerErrorMessage {
+            ErrorStateView(message: errorMessage)
+        } else if !productViewModel.bestsellerProducts.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Bestseller")
                     .font(AppFonts.montserrat(size: AppFonts.Size.h3, weight: .semibold))
@@ -86,7 +95,7 @@ struct HomeView: View {
                 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: AppStyles.Spacing.medium) {
-                        ForEach(viewModel.bestsellerProducts) { product in
+                        ForEach(productViewModel.bestsellerProducts) { product in
                             NavigationLink(value: product) {
                                 ProductCardView(product: product)
                                     .frame(width: 160)
@@ -97,18 +106,18 @@ struct HomeView: View {
                     .padding(.horizontal)
                 }
             }
-        } else if viewModel.isLoadingBestsellers {
-            // Ladeindikator
-        } else if let errorMessage = viewModel.bestsellerErrorMessage {
-            ErrorStateView(message: errorMessage)
         }
     }
+    
+    // MARK: - Private Helper Functions
 
     private func initializePlayer() {
-        guard let videoURL = Bundle.main.url(forResource: heroVideoNameInBundle, withExtension: videoFileExtension) else {
+        guard let videoURL = Bundle.main.url(forResource: "hero_main_banner_yge", withExtension: "mp4") else {
+            print("🔴 FEHLER: Videodatei 'hero_main_banner_yge.mp4' nicht im Bundle gefunden.")
             return
         }
         let playerItem = AVPlayerItem(url: videoURL)
+        
         self.queuePlayer = AVQueuePlayer(playerItem: playerItem)
         if let queuePlayer = self.queuePlayer {
             self.playerLooper = AVPlayerLooper(player: queuePlayer, templateItem: playerItem)
@@ -118,47 +127,29 @@ struct HomeView: View {
     }
 }
 
-// Diese privaten Subviews können in der gleichen Datei bleiben
+
+// MARK: - Private Subviews (Gehören zur HomeView)
+
 private struct CategoryCarouselItemView: View {
     let category: DisplayableMainCategory
-    
     var body: some View {
         VStack(spacing: 8) {
             if let imageName = category.appItem.imageFilename {
-                Image(imageName)
-                    .resizable().scaledToFill().frame(width: 80, height: 80).clipShape(Circle())
+                Image(imageName).resizable().scaledToFill().frame(width: 80, height: 80).clipShape(Circle())
             } else {
                 ZStack {
                     Circle().fill(Color.gray.opacity(0.1))
-                    Image(systemName: "photo.fill")
-                        .resizable().scaledToFit().foregroundColor(Color.gray.opacity(0.4)).padding(20)
-                }
-                .frame(width: 80, height: 80)
+                    Image(systemName: "photo.fill").resizable().scaledToFit().foregroundColor(Color.gray.opacity(0.4)).padding(20)
+                }.frame(width: 80, height: 80)
             }
-            
-            Text(category.appItem.label)
-                .font(AppFonts.montserrat(size: AppFonts.Size.caption, weight: .semibold))
-                .foregroundColor(AppColors.textBase)
-                .frame(width: 90)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-        }
-        .overlay(
-            Circle()
-                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                .frame(width: 80, height: 80)
-                .offset(y: -22)
-        )
-        .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: 2)
+            Text(category.appItem.label).font(AppFonts.montserrat(size: AppFonts.Size.caption, weight: .semibold)).foregroundColor(AppColors.textBase).frame(width: 90).multilineTextAlignment(.center).lineLimit(2)
+        }.overlay(Circle().stroke(Color.gray.opacity(0.2), lineWidth: 1).frame(width: 80, height: 80).offset(y: -22)).shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: 2)
     }
 }
-
 
 private struct ErrorStateView: View {
     let message: String
     var body: some View {
-        Text(message)
-            .font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .regular))
-            .foregroundColor(AppColors.error).padding().frame(maxWidth: .infinity, alignment: .center).multilineTextAlignment(.center)
+        Text(message).font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .regular)).foregroundColor(AppColors.error).padding().frame(maxWidth: .infinity, alignment: .center).multilineTextAlignment(.center)
     }
 }

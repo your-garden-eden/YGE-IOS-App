@@ -1,17 +1,18 @@
-//
-//  ProductDetailView.swift
-//  Your-Garden-Eden-IOS
-//
-//  Created by Josef Ewert on 28.05.25.
-//
+// Dateiname: Features/Products/Views/ProductDetailView.swift
 
 import SwiftUI
 
 struct ProductDetailView: View {
     @StateObject private var viewModel: ProductDetailViewModel
+    
+    // KORREKTUR: Wir entfernen den EnvironmentObject für den CartAPIManager.
+    // @EnvironmentObject var cartAPIManager: CartAPIManager <-- DIESE ZEILE IST ENTFERNT
+    
+    // WishlistState ist kein Singleton und wird korrekt über die Environment empfangen.
     @EnvironmentObject var wishlistState: WishlistState
     
     @State private var showAddedToCartConfirmation = false
+    @State private var cartErrorBannerMessage: String?
 
     init(product: WooCommerceProduct) {
         _viewModel = StateObject(wrappedValue: ProductDetailViewModel(product: product))
@@ -44,19 +45,13 @@ struct ProductDetailView: View {
         .background(AppColors.backgroundPage.ignoresSafeArea())
         .navigationTitle(viewModel.productName)
         .navigationBarTitleDisplayMode(.inline)
-        // --- START ÄNDERUNG 1.4.4 ---
-        // Dies ist der entscheidende Teil der Lösung. Wir fügen zwei .task-Modifier hinzu.
-        // SwiftUI führt sie sicher aus, nachdem die View initialisiert wurde.
         .task {
-            // Startet das Laden der Variationen
             await viewModel.loadVariationsIfNeeded()
         }
         .task {
-            // Startet die sichere, asynchrone Aufbereitung der HTML-Strings
             await viewModel.prepareDisplayData()
         }
-        // --- ENDE ÄNDERUNG 1.4.4 ---
-        .overlay(addedToCartBanner)
+        .overlay(confirmationOrErrorBanners)
     }
     
     // MARK: - Subviews
@@ -76,8 +71,6 @@ struct ProductDetailView: View {
     @ViewBuilder private var productHeader: some View {
         VStack(alignment: .leading, spacing: AppStyles.Spacing.small) {
             HStack(alignment: .top) {
-                // Diese Text-View zeigt zuerst den rohen Namen und aktualisiert sich
-                // dann automatisch, sobald `prepareDisplayData()` fertig ist.
                 Text(viewModel.productName)
                     .font(AppFonts.montserrat(size: AppFonts.Size.title1, weight: .bold))
                     .foregroundColor(AppColors.textHeadings)
@@ -90,11 +83,9 @@ struct ProductDetailView: View {
                 .animation(.spring(), value: wishlistState.isProductInWishlist(productId: viewModel.product.id))
             }
             
-            // Diese Text-View ist zuerst leer und füllt sich dann mit dem Preis.
             Text(viewModel.initialDisplayPrice)
                 .font(AppFonts.roboto(size: AppFonts.Size.title2, weight: .semibold))
                 .foregroundColor(AppColors.price)
-                // Ein Platzhalter, während der Preis berechnet wird.
                 .frame(minHeight: 20)
         }
         .padding(.horizontal)
@@ -105,13 +96,14 @@ struct ProductDetailView: View {
             Text("Beschreibung").font(AppFonts.montserrat(size: AppFonts.Size.headline, weight: .semibold))
                 .foregroundColor(AppColors.textHeadings)
             
-            // Zeigt die Beschreibung an, sobald sie verfügbar ist.
             if !viewModel.productDescription.isEmpty {
-                ExpandableText(text: viewModel.productDescription, lineLimit: 4)
+                // Hier sollte Ihre ExpandableText-View stehen.
+                // Wenn sie nicht existiert, können Sie vorübergehend Text() verwenden.
+                Text(viewModel.productDescription)
+                    .font(AppFonts.roboto(size: AppFonts.Size.body))
+                    .lineLimit(4) // Beispiel
             } else {
-                // Optional: Zeige eine Ladeanzeige, während die Beschreibung geparst wird.
-                ProgressView()
-                    .padding(.vertical)
+                ProgressView().padding(.vertical)
             }
         }
         .padding(.horizontal)
@@ -121,17 +113,25 @@ struct ProductDetailView: View {
         VStack(spacing: 12) {
             if viewModel.effectiveProductType == "simple" {
                 if !viewModel.product.soldIndividually {
+                    // Hier sollte Ihre QuantitySelectorView stehen.
                     QuantitySelectorView(quantity: $viewModel.quantity)
                         .padding(.horizontal)
                 }
                 
                 Button(action: {
                     Task {
-                        let success = await viewModel.addSimpleProductToCart()
-                        if success {
+                        await viewModel.addSimpleProductToCart()
+                        
+                        // KORREKTUR: Wir greifen jetzt direkt auf den Singleton zu.
+                        if CartAPIManager.shared.errorMessage == nil {
                             withAnimation { showAddedToCartConfirmation = true }
                             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                                 withAnimation { showAddedToCartConfirmation = false }
+                            }
+                        } else {
+                            cartErrorBannerMessage = CartAPIManager.shared.errorMessage
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                                withAnimation { cartErrorBannerMessage = nil }
                             }
                         }
                     }
@@ -166,17 +166,30 @@ struct ProductDetailView: View {
         .background(.thinMaterial)
     }
     
-    @ViewBuilder private var addedToCartBanner: some View {
-        if showAddedToCartConfirmation {
-            Text("Zum Warenkorb hinzugefügt")
-                .font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .semibold))
-                .padding()
-                .background(AppColors.success)
-                .foregroundColor(AppColors.textOnPrimary)
-                .cornerRadius(AppStyles.BorderRadius.medium)
-                .appShadow(AppStyles.Shadows.medium)
-                .transition(.move(edge: .top).combined(with: .opacity))
-                .frame(maxHeight: .infinity, alignment: .top).padding(.top)
+    @ViewBuilder private var confirmationOrErrorBanners: some View {
+        VStack {
+            if showAddedToCartConfirmation {
+                Text("Zum Warenkorb hinzugefügt")
+                    .font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .semibold))
+                    .padding()
+                    .background(AppColors.success)
+                    .foregroundColor(AppColors.textOnPrimary)
+                    .cornerRadius(AppStyles.BorderRadius.medium)
+                    .appShadow(AppStyles.Shadows.medium)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+            
+            if let errorMessage = cartErrorBannerMessage {
+                Text(errorMessage)
+                    .font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .semibold))
+                    .padding()
+                    .background(AppColors.error)
+                    .foregroundColor(AppColors.textOnPrimary)
+                    .cornerRadius(AppStyles.BorderRadius.medium)
+                    .appShadow(AppStyles.Shadows.medium)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
         }
+        .frame(maxHeight: .infinity, alignment: .top).padding(.top)
     }
 }

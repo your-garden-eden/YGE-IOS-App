@@ -44,9 +44,22 @@
 		0CE04CDA2DCF6EB900F9E972 /* Your-Garden-Eden-IOSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Your-Garden-Eden-IOSUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		0CBB65B72DFC3C7100A2F2E1 /* Exceptions for "Your-Garden-Eden-IOS" folder in "Your-Garden-Eden-IOS" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				PreviewContent/Info.plist,
+			);
+			target = 0CE04CC22DCF6EB600F9E972 /* Your-Garden-Eden-IOS */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		0CE04CC52DCF6EB600F9E972 /* Your-Garden-Eden-IOS */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				0CBB65B72DFC3C7100A2F2E1 /* Exceptions for "Your-Garden-Eden-IOS" folder in "Your-Garden-Eden-IOS" target */,
+			);
 			path = "Your-Garden-Eden-IOS";
 			sourceTree = "<group>";
 		};

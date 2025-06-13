@@ -1,3 +1,5 @@
+// Dateiname: WishlistRowView.swift
+
 import SwiftUI
 
 struct WishlistRowView: View {
@@ -5,34 +7,53 @@ struct WishlistRowView: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: AppStyles.Spacing.medium) {
-            AsyncImage(url: product.images.first?.src.asURL()) { phase in
-                switch phase {
-                case .empty:
-                    ZStack { AppColors.backgroundLightGray; ProgressView().tint(AppColors.primary) }
-                        .frame(width: 70, height: 70).cornerRadius(AppStyles.BorderRadius.medium)
-                case .success(let image):
-                    image.resizable().aspectRatio(contentMode: .fill)
-                        .frame(width: 70, height: 70).cornerRadius(AppStyles.BorderRadius.medium).clipped()
-                case .failure:
-                    ZStack { AppColors.backgroundLightGray; Image(systemName: "photo.fill").resizable().scaledToFit().foregroundColor(AppColors.textMuted.opacity(0.7)).padding(10) }
-                        .frame(width: 70, height: 70).cornerRadius(AppStyles.BorderRadius.medium)
-                @unknown default: EmptyView()
-                }
-            }
-
+            productImage
+            
             VStack(alignment: .leading, spacing: AppStyles.Spacing.xSmall) {
-                Text(product.name)
+                Text(product.name.strippingHTML())
                     .font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .semibold))
                     .foregroundColor(AppColors.textHeadings)
                     .lineLimit(2)
                 
-                let currencySymbol = product.metaData.first(where: { $0.key == "_currency_symbol" })?.value as? String ?? AppConfig.WooCommerce.defaultCurrencySymbol
-                Text("\(currencySymbol)\(product.price)")
-                    .font(AppFonts.roboto(size: AppFonts.Size.body, weight: .regular))
-                    .foregroundColor(AppColors.price) // Preis-spezifische Farbe
+                // Preis-Anzeige mit korrekter Währung
+                Text((product.priceHtml ?? product.price).strippingHTML())
+                    .font(AppFonts.roboto(size: AppFonts.Size.body, weight: .bold))
+                    .foregroundColor(AppColors.price)
             }
+            
             Spacer()
         }
-        .padding(.vertical, AppStyles.Spacing.small)
+        .padding(AppStyles.Spacing.medium) // Innenabstand für die Karte
+        .background(AppColors.backgroundComponent) // Kartenhintergrund
+        .cornerRadius(AppStyles.BorderRadius.large) // Abgerundete Ecken
+        .appShadow(AppStyles.Shadows.small) // Dezenter Schatten
+    }
+    
+    @ViewBuilder
+    private var productImage: some View {
+        AsyncImage(url: product.images.first?.src.asURL()) { phase in
+            switch phase {
+            case .empty:
+                ZStack {
+                    AppColors.backgroundLightGray
+                    ProgressView().tint(AppColors.primary)
+                }
+            case .success(let image):
+                image.resizable().aspectRatio(contentMode: .fill)
+            case .failure:
+                ZStack {
+                    AppColors.backgroundLightGray
+                    Image(systemName: "photo.fill")
+                        .resizable().scaledToFit()
+                        .foregroundColor(AppColors.textMuted.opacity(0.7))
+                        .padding(AppStyles.Spacing.medium)
+                }
+            @unknown default:
+                EmptyView()
+            }
+        }
+        .frame(width: 80, height: 80) // Feste Größe für einheitliches Layout
+        .cornerRadius(AppStyles.BorderRadius.medium)
+        .clipped()
     }
 }
