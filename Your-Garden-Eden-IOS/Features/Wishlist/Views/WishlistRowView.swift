@@ -1,4 +1,4 @@
-// Dateiname: WishlistRowView.swift
+// Path: Your-Garden-Eden-IOS/Features/Wishlist/WishlistRowView.swift
 
 import SwiftUI
 
@@ -15,18 +15,21 @@ struct WishlistRowView: View {
                     .foregroundColor(AppColors.textHeadings)
                     .lineLimit(2)
                 
-                // Preis-Anzeige mit korrekter Währung
-                Text((product.priceHtml ?? product.price).strippingHTML())
+                let priceInfo = PriceFormatter.formatPriceString(from: product.priceHtml, fallbackPrice: product.price, currencySymbol: "€")
+                Text(priceInfo.display)
                     .font(AppFonts.roboto(size: AppFonts.Size.body, weight: .bold))
                     .foregroundColor(AppColors.price)
             }
             
             Spacer()
+            
+            Image(systemName: "chevron.right")
+                .foregroundColor(AppColors.textMuted.opacity(0.5))
         }
-        .padding(AppStyles.Spacing.medium) // Innenabstand für die Karte
-        .background(AppColors.backgroundComponent) // Kartenhintergrund
-        .cornerRadius(AppStyles.BorderRadius.large) // Abgerundete Ecken
-        .appShadow(AppStyles.Shadows.small) // Dezenter Schatten
+        .padding(AppStyles.Spacing.medium)
+        .background(AppColors.backgroundComponent)
+        .cornerRadius(AppStyles.BorderRadius.large)
+        .appShadow(AppStyles.Shadows.small)
     }
     
     @ViewBuilder
@@ -52,7 +55,7 @@ struct WishlistRowView: View {
                 EmptyView()
             }
         }
-        .frame(width: 80, height: 80) // Feste Größe für einheitliches Layout
+        .frame(width: 80, height: 80)
         .cornerRadius(AppStyles.BorderRadius.medium)
         .clipped()
     }

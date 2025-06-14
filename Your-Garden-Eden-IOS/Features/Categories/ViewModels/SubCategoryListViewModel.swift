@@ -1,4 +1,5 @@
-// Dateiname: Features/Categories/ViewModels/SubCategoryListViewModel.swift
+// Path: Your-Garden-Eden-IOS/Features/Categories/ViewModels/SubCategoryListViewModel.swift
+
 import Foundation
 
 @MainActor
@@ -22,7 +23,7 @@ class SubCategoryListViewModel: ObservableObject {
         errorMessage = nil
         
         do {
-            let subCategories = try await apiManager.fetchCategories(parent: parentWooCommerceCategoryID, hideEmpty: false)
+            let subCategories = try await apiManager.fetchCategories(parent: parentWooCommerceCategoryID)
             self.displayableSubCategories = subCategories.map {
                 DisplayableSubCategory(id: $0.id, label: $0.name.strippingHTML(), count: $0.count)
             }

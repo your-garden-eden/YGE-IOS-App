@@ -1,4 +1,4 @@
-// Dateiname: WishlistView.swift
+// Path: Your-Garden-Eden-IOS/Features/Wishlist/WishlistView.swift
 
 import SwiftUI
 
@@ -6,19 +6,22 @@ struct WishlistView: View {
     @EnvironmentObject private var wishlistState: WishlistState
     @EnvironmentObject private var authManager: AuthManager
     
+    @State private var showingAuthSheet = false
+    
     var body: some View {
         ZStack {
-            // Hintergrundfarbe aus Ihrem Design-System
             AppColors.backgroundPage.ignoresSafeArea()
             
-            // Hauptinhalt
             Group {
                 if wishlistState.isLoading && wishlistState.wishlistProducts.isEmpty {
                     loadingView
-                } else if !authManager.isLoggedIn {
-                    loginPromptView
                 } else if wishlistState.wishlistProducts.isEmpty {
-                    emptyWishlistView
+                    // Zeige unterschiedliche Ansichten für Gäste und eingeloggte User
+                    if authManager.isLoggedIn {
+                        emptyWishlistView
+                    } else {
+                        loginPromptView
+                    }
                 } else {
                     productList(products: wishlistState.wishlistProducts)
                 }
@@ -33,14 +36,16 @@ struct WishlistView: View {
                     .foregroundColor(AppColors.textHeadings)
             }
         }
-        // Der .task-Block wird entfernt, da WishlistState sich selbst aktualisiert.
         .refreshable {
-            // Bei Pull-to-Refresh die Daten vom Server neu laden.
             await wishlistState.fetchWishlistFromServer()
+        }
+        .sheet(isPresented: $showingAuthSheet) {
+            AuthContainerView(onDismiss: { self.showingAuthSheet = false })
+                .environmentObject(authManager)
         }
     }
     
-    // MARK: - Gestylte Subviews
+    // MARK: - Subviews
 
     private var loadingView: some View {
         VStack(spacing: AppStyles.Spacing.medium) {
@@ -54,8 +59,7 @@ struct WishlistView: View {
     private var emptyWishlistView: some View {
         VStack(spacing: 20) {
             Image(systemName: "heart.slash.fill")
-                .font(.system(size: 60))
-                .foregroundColor(AppColors.textMuted.opacity(0.7))
+                .font(.system(size: 60)).foregroundColor(AppColors.textMuted.opacity(0.7))
             Text("Deine Wunschliste ist leer")
                 .font(AppFonts.montserrat(size: AppFonts.Size.h5, weight: .semibold))
                 .foregroundColor(AppColors.textHeadings)
@@ -71,19 +75,20 @@ struct WishlistView: View {
     private var loginPromptView: some View {
         VStack(spacing: 20) {
             Image(systemName: "person.crop.circle.badge.questionmark.fill")
-                .font(.system(size: 60))
-                .foregroundColor(AppColors.textMuted.opacity(0.7))
-            Text("Melde dich an")
+                .font(.system(size: 60)).foregroundColor(AppColors.textMuted.opacity(0.7))
+            Text("Anmelden für Wunschliste")
                 .font(AppFonts.montserrat(size: AppFonts.Size.h5, weight: .semibold))
                 .foregroundColor(AppColors.textHeadings)
-            Text("Um deine Wunschliste zu sehen und zu speichern, melde dich bitte an.")
+            Text("Um deine Wunschliste geräteübergreifend zu speichern, melde dich bitte an.")
                 .font(AppFonts.roboto(size: AppFonts.Size.body, weight: .regular))
                 .foregroundColor(AppColors.textMuted)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
-            
-            // Optional: Ein Button, der zur Profil-Seite navigiert
-            // (Benötigt eine Navigation-Logik, die wir später einbauen können)
+            Button("Anmelden oder Registrieren") {
+                self.showingAuthSheet = true
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .padding(.top)
         }
         .padding()
     }
@@ -91,18 +96,18 @@ struct WishlistView: View {
     private func productList(products: [WooCommerceProduct]) -> some View {
         List {
             ForEach(products) { product in
-                // Verwenden der neuen, gestylten WishlistRowView
-                NavigationLink(value: product) {
+                ZStack {
+                    NavigationLink(value: product) { EmptyView() }.opacity(0)
                     WishlistRowView(product: product)
                 }
             }
             .onDelete(perform: deleteItems)
-            .listRowBackground(AppColors.backgroundPage) // Passt den Hintergrund jeder Zelle an
-            .listRowSeparator(.hidden) // Versteckt die Standard-Trennlinien
-            .padding(.vertical, AppStyles.Spacing.xSmall) // Fügt Abstand zwischen den Karten hinzu
+            .listRowBackground(AppColors.backgroundPage)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: AppStyles.Spacing.small, leading: 0, bottom: AppStyles.Spacing.small, trailing: 0))
         }
         .listStyle(.plain)
-        .scrollContentBackground(.hidden) // Lässt den Listenhintergrund transparent werden
+        .scrollContentBackground(.hidden)
         .padding(.horizontal, AppStyles.Spacing.medium)
     }
 

@@ -1,46 +1,43 @@
-// Dateiname: Features/Categories/ViewModels/CategoryViewModel.swift
+// Path: Your-Garden-Eden-IOS/Features/Categories/ViewModels/CategoryViewModel.swift
 
 import Foundation
 
 @MainActor
 class CategoryViewModel: ObservableObject {
     
-    @Published var displayableCategories: [DisplayableMainCategory] = []
-    @Published var isLoading: Bool = false
+    @Published private(set) var displayableCategories: [DisplayableMainCategory] = []
+    @Published private(set) var isLoading: Bool = false
     @Published var errorMessage: String?
     
     private let wooAPIManager = WooCommerceAPIManager.shared
 
     init() {
-        print("✅ CategoryViewModel: Initialized. Automatically fetching categories.")
-        self.isLoading = true
-        
-        Task {
-            await loadCategories()
-        }
+        print("✅ CategoryViewModel initialized.")
     }
     
-    private func loadCategories() async {
-        errorMessage = nil
+    func fetchCategories() async {
+        guard !isLoading else { return }
+        
+        self.isLoading = true
+        self.errorMessage = nil
+        print("▶️ CategoryViewModel: Fetching categories...")
         
         do {
-            let wooCommerceCategories = try await wooAPIManager.fetchCategories(parent: 0)
-            let categoryIdMap = Dictionary(uniqueKeysWithValues: wooCommerceCategories.map { ($0.slug, $0.id) })
+            let topLevelCategories = try await wooAPIManager.fetchCategories(parent: 0)
             
-            let mergedCategories: [DisplayableMainCategory] = AppNavigationData.items.compactMap { appItem in
-                if let categoryID = categoryIdMap[appItem.mainCategorySlug] {
-                    // Verwendet jetzt die globale DisplayableMainCategory-Struktur
-                    return DisplayableMainCategory(id: categoryID, appItem: appItem)
+            self.displayableCategories = AppNavigationData.items.compactMap { appNavItem -> DisplayableMainCategory? in
+                if let matchingWooCategory = topLevelCategories.first(where: { $0.slug == appNavItem.mainCategorySlug }) {
+                    return DisplayableMainCategory(id: matchingWooCategory.id, appItem: appNavItem)
                 } else {
-                    print("⚠️ WARNUNG: Statische Kategorie '\(appItem.mainCategorySlug)' nicht auf dem Server gefunden.")
                     return nil
                 }
             }
-            self.displayableCategories = mergedCategories
-            print("👍 CategoryViewModel: Successfully loaded \(mergedCategories.count) displayable categories.")
+            
+            print("👍 CategoryViewModel: Successfully loaded and mapped \(displayableCategories.count) categories.")
+            
         } catch {
-            print("❌ FEHLER (Kategorien): \(error.localizedDescription)")
-            self.errorMessage = "Die Kategorien konnten nicht geladen werden."
+            self.errorMessage = "Kategorien konnten nicht geladen werden."
+            print("❌ ERROR (Categories): \(error.localizedDescription)")
         }
         
         self.isLoading = false

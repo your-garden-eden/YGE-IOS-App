@@ -1,32 +1,29 @@
-// Features/Products/Views/RelatedProductsView.swift
+// Path: Your-Garden-Eden-IOS/Features/Products/Views/RelatedProductsView.swift
 
 import SwiftUI
 
+// Hilfsstruktur, um die Produkte für ForEach identifizierbar zu machen.
+struct IdentifiableDisplayProduct: Identifiable {
+    let id = UUID()
+    let product: WooCommerceProduct
+}
+
 struct RelatedProductsView: View {
-    // Die View erhält die Liste der Produkte, die sie anzeigen soll.
     let products: [IdentifiableDisplayProduct]
 
     var body: some View {
-        // Horizontale Scroll-Ansicht für die Produktkarten
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 16) {
-                // Iteriert durch die eindeutig identifizierbaren Produkte
+            HStack(spacing: AppStyles.Spacing.medium) {
                 ForEach(products) { identifiableProduct in
-                    
-                    // Jede Karte ist ein Navigationslink zur jeweiligen Detailseite.
-                    // Der 'value' ist das 'WooCommerceProduct', das Hashable ist.
                     NavigationLink(value: identifiableProduct.product) {
-                        
-                        // Die ProductCardView zeigt das eigentliche Produkt an.
                         ProductCardView(product: identifiableProduct.product)
-                            .frame(width: 160) // Eine feste Breite für die Karten im Karussell
-                        
+                            .frame(width: 160)
                     }
-                    .buttonStyle(.plain) // Verhindert, dass der ganze Link blau eingefärbt wird
+                    .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal) // Fügt seitlichen Abstand hinzu
-            .padding(.vertical, 8) // Fügt etwas Abstand oben/unten hinzu
+            .padding(.horizontal)
+            .padding(.vertical, AppStyles.Spacing.xSmall)
         }
     }
 }

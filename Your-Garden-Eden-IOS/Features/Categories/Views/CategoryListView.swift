@@ -1,10 +1,10 @@
-// Dateiname: CategoryListView.swift
-// FINALE, KORRIGIERTE VERSION
+// Path: Your-Garden-Eden-IOS/Features/Categories/CategoryListView.swift
+// FINALE, VOLLSTÄNDIGE VERSION
 
 import SwiftUI
 
 struct CategoryListView: View {
-    // Greift auf den globalen, zentralen ViewModel zu. Das ist korrekt.
+    // Greift auf den globalen, zentralen ViewModel zu.
     @EnvironmentObject private var viewModel: CategoryViewModel
 
     var body: some View {
@@ -21,9 +21,7 @@ struct CategoryListView: View {
                     .foregroundColor(AppColors.textHeadings)
             }
         }
-        // DER .task-BLOCK WIRD VOLLSTÄNDIG ENTFERNT.
-        // Das Laden der Daten geschieht jetzt automatisch im ViewModel.
-        // Das macht diesen Code sauberer und robuster.
+        // Das Laden der Daten geschieht jetzt zentral in der ContentView und wird nicht mehr hier ausgelöst.
     }
     
     @ViewBuilder
@@ -32,7 +30,8 @@ struct CategoryListView: View {
         if viewModel.isLoading && viewModel.displayableCategories.isEmpty {
             loadingView
         } else if let errorMessage = viewModel.errorMessage {
-            errorView(message: errorMessage)
+            // Wir verwenden hier die neue, wiederverwendbare ErrorStateView
+            ErrorStateView(message: errorMessage)
         } else if viewModel.displayableCategories.isEmpty && !viewModel.isLoading {
             emptyView
         } else {
@@ -42,23 +41,23 @@ struct CategoryListView: View {
     
     private var categoryList: some View {
         List {
-            // KORREKTUR: Wir iterieren jetzt über 'displayableCategories'.
+            // Wir iterieren jetzt über die aufbereiteten 'displayableCategories'.
             ForEach(viewModel.displayableCategories) { displayableCategory in
                 
                 // Wir erstellen den NavigationLink, dessen 'value' ein
-                // 'DisplayableMainCategory' ist. Die Navigations-Erweiterung in
-                // ContentView kann diesen Typ verarbeiten.
+                // 'DisplayableMainCategory' ist, das unser NavigationStack verarbeiten kann.
                 NavigationLink(value: displayableCategory) {
+                    // KORREKTER AUFRUF: Wir übergeben jetzt alle benötigten Parameter.
+                    // 'imageUrl' ist hier `nil`, da unsere Hauptkategorien ihre Bilder
+                    // aus den lokalen App-Assets beziehen, die im `appItem` definiert sind.
                     ProductCategoryRow(
-                        // Die Daten für die Row kommen jetzt aus dem 'appItem'
-                        // innerhalb der 'displayableCategory'.
                         label: displayableCategory.appItem.label,
-                        imageUrl: nil, // Note: WooCommerceCategory image ist nicht mehr direkt hier
+                        imageUrl: nil,
                         localImageFilename: displayableCategory.appItem.imageFilename
                     )
                 }
             }
-            .listRowInsets(EdgeInsets(top: AppStyles.Spacing.small, leading: AppStyles.Spacing.large, bottom: AppStyles.Spacing.small, trailing: AppStyles.Spacing.large))
+            .listRowInsets(EdgeInsets(top: AppStyles.Spacing.small, leading: AppStyles.Spacing.medium, bottom: AppStyles.Spacing.small, trailing: AppStyles.Spacing.medium))
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)
         }
@@ -75,13 +74,6 @@ struct CategoryListView: View {
                 .font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .regular))
                 .foregroundColor(AppColors.textMuted)
         }
-    }
-    
-    private func errorView(message: String) -> some View {
-        Text(message)
-            .foregroundColor(AppColors.error)
-            .multilineTextAlignment(.center)
-            .padding()
     }
     
     private var emptyView: some View {

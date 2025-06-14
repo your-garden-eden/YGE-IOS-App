@@ -1,5 +1,4 @@
-// Datei: QuantitySelectorView.swift
-// Pfad: Your-Garden-Eden-IOS/Features/Products/Views/QuantitySelectorView.swift
+// Path: Your-Garden-Eden-IOS/Features/Products/Views/QuantitySelectorView.swift
 
 import SwiftUI
 
@@ -7,9 +6,9 @@ struct QuantitySelectorView: View {
     @Binding var quantity: Int
 
     var body: some View {
-        HStack(spacing: AppStyles.Spacing.medium) { // Etwas mehr Abstand zwischen Elementen
+        HStack(spacing: AppStyles.Spacing.medium) {
             Text("Menge:")
-                .font(AppFonts.roboto(size: AppFonts.Size.headline, weight: .medium)) // AppFonts verwenden
+                .font(AppFonts.roboto(size: AppFonts.Size.headline, weight: .medium))
                 .foregroundColor(AppColors.textHeadings)
 
             Spacer()
@@ -18,26 +17,25 @@ struct QuantitySelectorView: View {
                 if quantity > 1 { quantity -= 1 }
             } label: {
                 Image(systemName: "minus.circle.fill")
-                    .font(.title2) // Etwas größere Icons
+                    .font(.title2)
                     .foregroundColor(quantity > 1 ? AppColors.primaryDark : AppColors.textMuted.opacity(0.5))
             }
             .disabled(quantity <= 1)
 
             Text("\(quantity)")
-                .font(AppFonts.roboto(size: AppFonts.Size.title2, weight: .semibold)) // AppFonts verwenden
+                .font(AppFonts.roboto(size: AppFonts.Size.title2, weight: .semibold))
                 .foregroundColor(AppColors.textBase)
-                .frame(minWidth: 40, alignment: .center) // Mindestbreite für die Zahl
+                .frame(minWidth: 40, alignment: .center)
 
             Button {
                 quantity += 1
             } label: {
                 Image(systemName: "plus.circle.fill")
-                    .font(.title2) // Etwas größere Icons
-                    .foregroundColor(AppColors.primaryDark) // AppColors verwenden
+                    .font(.title2)
+                    .foregroundColor(AppColors.primaryDark)
             }
         }
-        .padding(.vertical, AppStyles.Spacing.small) // Vertikales Padding für die ganze HStack
-        .buttonStyle(.plain) // Verhindert Standard-Button-Styling, das mit den Icons kollidieren könnte
+        .padding(.vertical, AppStyles.Spacing.small)
+        .buttonStyle(.plain)
     }
 }
-

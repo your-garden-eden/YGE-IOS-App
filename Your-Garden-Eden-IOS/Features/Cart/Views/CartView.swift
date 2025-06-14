@@ -1,79 +1,52 @@
-// Dateiname: Features/Cart/CartView.swift
+// Path: Your-Garden-Eden-IOS/Features/Cart/CartView.swift
 
 import SwiftUI
 
 struct CartView: View {
-    
     @EnvironmentObject private var cartManager: CartAPIManager
-    @EnvironmentObject private var authManager: AuthManager
-    
-    @State private var isShowingAuthSheet = false
-    
-    // KORREKTUR: Wir definieren den Environment-Key hier explizit.
-    // Dies macht den Code robuster, falls Sie die Definitionsdatei mal ändern.
     @Environment(\.selectedTab) private var selectedTab
+    @State private var isShowingAuthSheet = false
 
     var body: some View {
         NavigationStack {
             ZStack {
                 AppColors.backgroundPage.ignoresSafeArea()
 
-                if cartManager.items.isEmpty && !cartManager.isLoading {
+                if cartManager.state.isLoading && cartManager.state.items.isEmpty {
+                    initialLoadingView
+                } else if cartManager.state.items.isEmpty {
                     emptyCartView
                 } else {
                     cartContentView
-                }
-            }
-            .overlay {
-                if cartManager.isLoading && cartManager.items.isEmpty {
-                    VStack {
-                        ProgressView().tint(AppColors.primary)
-                        Text("Lade Warenkorb...").font(AppFonts.roboto(size: AppFonts.Size.body)).foregroundColor(AppColors.textMuted).padding(.top)
-                    }
                 }
             }
             .navigationTitle("Warenkorb")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                  ToolbarItem(placement: .principal) {
-                     Text("Warenkorb").font(AppFonts.montserrat(size: AppFonts.Size.headline, weight: .bold)).foregroundColor(AppColors.textHeadings)
-                 }
+                    Text("Warenkorb")
+                        .font(AppFonts.montserrat(size: AppFonts.Size.headline, weight: .bold))
+                        .foregroundColor(AppColors.textHeadings)
+                }
             }
-            .refreshable { await cartManager.getCart() }
-            .sheet(isPresented: $isShowingAuthSheet) {
-                AuthContainerView(onDismiss: { isShowingAuthSheet = false }).environmentObject(authManager)
-            }
-            .navigationDestination(for: CheckoutView.self) { checkoutView in
-                checkoutView
+            .refreshable {
+                await cartManager.getCart()
             }
         }
     }
     
     @ViewBuilder
     private var cartContentView: some View {
-        VStack(spacing: 0) {
-            List {
-                ForEach(cartManager.items) { item in
-                    CartRowView(item: item) { newQuantity in
-                        updateItemQuantity(for: item, to: newQuantity)
-                    }
-                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                        Button(role: .destructive) {
-                            withAnimation {
-                                deleteItem(item)
-                            }
-                        } label: { Label("Löschen", systemImage: "trash.fill") }
-                    }
+        ScrollView {
+            LazyVStack(spacing: AppStyles.Spacing.medium) {
+                ForEach(cartManager.state.items) { item in
+                    CartRowView(item: item)
                 }
-                .listRowBackground(AppColors.backgroundPage)
-                .listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets(top: AppStyles.Spacing.small, leading: 0, bottom: AppStyles.Spacing.small, trailing: 0))
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .padding(.horizontal)
-
-            if let totals = cartManager.totals {
+            .padding()
+        }
+        .safeAreaInset(edge: .bottom) {
+            if let totals = cartManager.state.totals {
                 cartTotalsView(totals: totals)
             }
         }
@@ -81,78 +54,47 @@ struct CartView: View {
     
     private func cartTotalsView(totals: Totals) -> some View {
         VStack(spacing: AppStyles.Spacing.medium) {
-            HStack {
-                Text("Zwischensumme").font(AppFonts.roboto(size: AppFonts.Size.body))
-                Spacer()
-                Text(totals.totalItemsPriceFormatted).font(AppFonts.roboto(size: AppFonts.Size.body, weight: .medium))
-            }
-            HStack {
-                Text("Versand").font(AppFonts.roboto(size: AppFonts.Size.body))
-                Spacer()
-                Text(totals.totalShippingFormatted).font(AppFonts.roboto(size: AppFonts.Size.body, weight: .medium))
+            if let error = cartManager.state.errorMessage {
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(AppColors.error)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .multilineTextAlignment(.center)
             }
             
-            Divider().padding(.vertical, AppStyles.Spacing.xSmall)
-            
             HStack {
-                Text("Gesamt").font(AppFonts.montserrat(size: AppFonts.Size.title3, weight: .bold))
+                Text("Gesamt")
+                    .font(AppFonts.montserrat(size: AppFonts.Size.headline, weight: .bold))
                 Spacer()
-                Text(totals.totalPriceFormatted).font(AppFonts.montserrat(size: AppFonts.Size.title3, weight: .bold))
+                Text(totals.totalPriceFormatted)
+                    .font(AppFonts.roboto(size: AppFonts.Size.headline, weight: .bold))
             }
             
-            checkoutButton.padding(.top, AppStyles.Spacing.small)
+            NavigationLink(value: CheckoutView()) {
+                 Text("Zur Kasse")
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .disabled(cartManager.state.items.isEmpty)
         }
         .padding()
-        .background(AppColors.backgroundComponent)
+        .background(.regularMaterial)
     }
-    
-    @ViewBuilder
-    private var checkoutButton: some View {
-        if authManager.isLoggedIn {
-            NavigationLink(value: CheckoutView()) { Text("Zur Kasse") }.buttonStyle(PrimaryButtonStyle())
-        } else {
-            Button("Anmelden & zur Kasse") { isShowingAuthSheet = true }.buttonStyle(PrimaryButtonStyle())
+
+    private var initialLoadingView: some View {
+        VStack(spacing: AppStyles.Spacing.medium) {
+            ProgressView().tint(AppColors.primary)
+            Text("Lade Warenkorb...").foregroundColor(AppColors.textMuted)
         }
     }
     
-    @ViewBuilder
     private var emptyCartView: some View {
         VStack(spacing: AppStyles.Spacing.large) {
-            Image(systemName: "cart.fill").font(.system(size: 60)).foregroundColor(AppColors.primary.opacity(0.5))
-            Text("Dein Warenkorb ist leer").font(AppFonts.montserrat(size: AppFonts.Size.title2, weight: .bold)).foregroundColor(AppColors.textHeadings)
-            Text("Füge Produkte hinzu, um sie hier zu sehen.").font(AppFonts.roboto(size: AppFonts.Size.body)).foregroundColor(AppColors.textMuted).multilineTextAlignment(.center)
-            Button("Weiter einkaufen") {
-                // KORREKTUR: Wir greifen direkt auf das 'wrappedValue' des Bindings zu,
-                // um den Tab-Index zu ändern. Keine 'if let'-Prüfung nötig.
-                self.selectedTab.wrappedValue = 0 // Gehe zum ersten Tab (Home/Shop)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(AppColors.primary)
-            .controlSize(.large)
-            .padding(.top)
+            Image(systemName: "cart").font(.system(size: 60, weight: .light)).foregroundColor(AppColors.textMuted)
+            Text("Dein Warenkorb ist leer").font(AppFonts.montserrat(size: AppFonts.Size.title2, weight: .bold))
+            Button("Weiter einkaufen") { self.selectedTab.wrappedValue = 1 } // Navigiert zum Shop-Tab
+                .buttonStyle(PrimaryButtonStyle())
+                .padding(.top)
         }
         .padding()
     }
-    
-    // MARK: - Private Helper Functions
-    
-    private func updateItemQuantity(for item: Item, to newQuantity: Int) {
-        Task {
-            await cartManager.updateQuantity(for: item, newQuantity: newQuantity)
-        }
-    }
-    
-    private func deleteItem(_ item: Item) {
-        Task {
-            await cartManager.removeItem(item)
-        }
-    }
 }
-
-// Definition des Environment-Keys. Diese sollte in einer eigenen Datei liegen.
-// Wenn sie nicht existiert, fügen Sie diesen Code in eine neue Datei ein, z.B. "EnvironmentValues+Extensions.swift".
-private struct SelectedTabKey: EnvironmentKey {
-    static let defaultValue: Binding<Int> = .constant(0)
-}
-
-

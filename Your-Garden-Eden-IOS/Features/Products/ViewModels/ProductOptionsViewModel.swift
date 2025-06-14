@@ -1,126 +1,143 @@
-// Dateiname: ProductOptionsViewModel.swift
+// Path: Your-Garden-Eden-IOS/Features/Products/ProductOptionsViewModel.swift
 
 import SwiftUI
 import Combine
 
 @MainActor
-class ProductOptionsViewModel: ObservableObject {
+final class ProductOptionsViewModel: ObservableObject {
     
     let product: WooCommerceProduct
-    let variations: [WooCommerceProductVariation]
-    
+    private let variations: [WooCommerceProductVariation]
+    private let cartManager = CartAPIManager.shared
+
     @Published var selectedAttributes: [String: String] = [:] {
         didSet { updateState() }
     }
-    @Published private(set) var availability: [String: Set<String>] = [:]
+    
     @Published private(set) var selectedVariation: WooCommerceProductVariation?
+    @Published private(set) var availability: [String: Set<String>] = [:]
+    @Published var addToCartError: String?
     @Published var quantity: Int = 1
-    @Published private(set) var isAddingToCart: Bool = false
-    @Published private(set) var addToCartError: String?
 
-    var displayableAttributes: [DisplayableAttribute] {
-        product.attributes.compactMap { productAttribute in
-            guard productAttribute.variation else { return nil }
-            let options = productAttribute.options.map { optionName in
-                let optionSlug = optionName.lowercased().replacingOccurrences(of: " ", with: "-")
-                return DisplayableAttribute.Option(name: optionName, slug: optionSlug)
-            }
-            return DisplayableAttribute(name: productAttribute.name, options: options)
+    var currentImage: WooCommerceImage? {
+        selectedVariation?.image ?? product.images.first
+    }
+
+    var displayPrice: PriceFormatter.FormattedPrice {
+        if let variation = selectedVariation {
+            return PriceFormatter.formatPriceString(from: variation.priceHtml, fallbackPrice: variation.price, currencySymbol: "€")
         }
+        return PriceFormatter.formatPriceString(from: product.priceHtml, fallbackPrice: product.price, currencySymbol: "€")
     }
     
-    var currentImage: WooCommerceImage? { selectedVariation?.image ?? product.images.first }
-    var displayPrice: String { (selectedVariation?.priceHtml ?? product.priceHtml ?? product.price).strippingHTML() }
-    var isAddToCartDisabled: Bool { product.type == .variable && (selectedAttributes.count != displayableAttributes.count || selectedVariation == nil) }
+    var stockStatusMessage: (text: String, color: Color) {
+        let isSelectionComplete = selectedAttributes.count == displayableAttributes.count
+        
+        if !isSelectionComplete {
+            return ("Bitte alle Optionen wählen", AppColors.textMuted)
+        }
+        
+        if let variation = selectedVariation {
+            return variation.isInStock ? ("Auf Lager", AppColors.success) : ("Nicht auf Lager", AppColors.error)
+        }
+        
+        return ("Diese Kombination ist nicht verfügbar", AppColors.error)
+    }
+
+    var isAddToCartDisabled: Bool {
+        selectedVariation == nil || selectedVariation?.isInStock == false
+    }
+    
+    let displayableAttributes: [DisplayableAttribute]
 
     init(product: WooCommerceProduct, variations: [WooCommerceProductVariation]) {
         self.product = product
         self.variations = variations
-        print("📦 ProductOptionsViewModel initialized for product '\(product.name)' with \(variations.count) variations.")
+        
+        self.displayableAttributes = product.attributes.compactMap { attr in
+            guard attr.variation else { return nil }
+            let options = attr.options.map { DisplayableAttribute.Option(name: $0, slug: $0.slugify()) }
+            return DisplayableAttribute(name: attr.name, slug: attr.name.slugify(), options: options)
+        }
+        
+        print("📦 ProductOptionsViewModel initialized for '\(product.name)'")
         updateState()
     }
     
-    func availableOptionSlugs(for attribute: DisplayableAttribute) -> Set<String> {
-        return availability[attribute.name] ?? []
-    }
-    
-    func select(attributeName: String, optionSlug: String?) {
+    func select(attributeSlug: String, optionSlug: String) {
         addToCartError = nil
-        if selectedAttributes[attributeName] == optionSlug {
-            selectedAttributes.removeValue(forKey: attributeName)
-        } else if let optionSlug = optionSlug {
-            selectedAttributes[attributeName] = optionSlug
+        if selectedAttributes[attributeSlug] == optionSlug {
+            selectedAttributes.removeValue(forKey: attributeSlug)
+        } else {
+            selectedAttributes[attributeSlug] = optionSlug
         }
     }
     
     func handleAddToCart() async {
-        guard !isAddingToCart, let variation = selectedVariation else { return }
-        
-        isAddingToCart = true
-        addToCartError = nil
-        
-        // KORREKTUR: Kein do-try-catch mehr nötig. Die Funktion wirft keine Fehler.
-        await CartAPIManager.shared.addItem(
-            productId: product.id,
-            quantity: quantity,
-            variationId: variation.id
-        )
-        
-        // Wir können hier direkt auf die errorMessage Eigenschaft des Singletons schauen,
-        // um zu wissen, ob ein Fehler aufgetreten ist.
-        if let cartError = CartAPIManager.shared.errorMessage {
-            self.addToCartError = cartError
-            print("🔴 ProductOptionsViewModel: Failed to add item to cart: \(cartError)")
+        guard let variation = selectedVariation else {
+            self.addToCartError = "Bitte wähle eine gültige Produktkombination."
+            return
         }
         
-        isAddingToCart = false
+        addToCartError = nil
+        await cartManager.addItem(productId: product.id, quantity: quantity, variationId: variation.id)
     }
 
-    func updateState() {
+    private func updateState() {
+        updateSelectedVariation()
+        updateAvailability()
+    }
+    
+    private func updateAvailability() {
         var newAvailability: [String: Set<String>] = [:]
+        
         for attribute in displayableAttributes {
             var availableOptions = Set<String>()
-            let otherSelections = selectedAttributes.filter { $0.key != attribute.name }
+            let otherSelections = selectedAttributes.filter { $0.key != attribute.slug }
+            
             let possibleVariations = variations.filter { variation in
-                otherSelections.allSatisfy { (selectedName, selectedOptionSlug) in
-                    variation.attributes.contains { $0.name == selectedName && $0.optionAsSlug() == selectedOptionSlug }
+                otherSelections.allSatisfy { (selectedSlug, selectedOptionSlug) in
+                    variation.attributes.contains { $0.name.slugify() == selectedSlug && $0.option.slugify() == selectedOptionSlug }
                 }
             }
+            
             for variation in possibleVariations {
-                if let optionForCurrentAttribute = variation.attributes.first(where: { $0.name == attribute.name }) {
-                    availableOptions.insert(optionForCurrentAttribute.optionAsSlug())
+                if let optionForCurrentAttr = variation.attributes.first(where: { $0.name.slugify() == attribute.slug }) {
+                    availableOptions.insert(optionForCurrentAttr.option.slugify())
                 }
             }
-            newAvailability[attribute.name] = availableOptions
+            newAvailability[attribute.slug] = availableOptions
         }
         self.availability = newAvailability
-        updateSelectedVariation()
     }
     
     private func updateSelectedVariation() {
-        guard product.type == .variable else {
-            self.selectedVariation = nil
+        guard selectedAttributes.count == self.displayableAttributes.count else {
+            if self.selectedVariation != nil { self.selectedVariation = nil }
             return
         }
+
         let matchingVariation = variations.first { variation in
-            guard variation.attributes.count == selectedAttributes.count else { return false }
-            return selectedAttributes.allSatisfy { (selectedName, selectedOptionSlug) in
-                variation.attributes.contains { $0.name == selectedName && $0.optionAsSlug() == selectedOptionSlug }
+            selectedAttributes.allSatisfy { (selectedSlug, selectedOptionSlug) in
+                variation.attributes.contains { $0.name.slugify() == selectedSlug && $0.option.slugify() == selectedOptionSlug }
             }
         }
+        
         if self.selectedVariation?.id != matchingVariation?.id {
             self.selectedVariation = matchingVariation
-            print("🔄 Selected variation updated to: \(matchingVariation?.id ?? -1)")
+            print("🔄 Selected variation updated to: ID \(matchingVariation?.id ?? -1)")
         }
     }
 }
 
+// MARK: - Helper Structs
 extension ProductOptionsViewModel {
-    struct DisplayableAttribute: Identifiable, Hashable {
-        var id: String { name }
+    struct DisplayableAttribute: Identifiable {
+        var id: String { slug }
         let name: String
+        let slug: String
         let options: [Option]
-        struct Option: Identifiable, Hashable {
+        struct Option: Identifiable {
             var id: String { slug }
             let name: String
             let slug: String

@@ -1,76 +1,52 @@
-//
-//  AttributeSelectorView.swift
-//  Your-Garden-Eden-IOS
-//
-//  Created by Josef Ewert on 28.05.25.
-//
+// Path: Your-Garden-Eden-IOS/Features/Products/Views/AttributeSelectorView.swift
 
 import SwiftUI
 
 struct AttributeSelectorView: View {
-    // KORREKTUR: Verwendet jetzt die im ViewModel definierte Struktur.
     let attribute: ProductOptionsViewModel.DisplayableAttribute
-    
     let availableOptionSlugs: Set<String>
-    let currentlySelectedOptionSlugForThisAttribute: String?
-    let onOptionSelect: (String) -> Void
+    let selectedOptionSlug: String?
+    let onSelect: (String) -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: AppStyles.Spacing.small) {
-            if !attribute.options.isEmpty {
-                attributeTitle
-                optionsScrollView
-            }
-        }
-        .padding(.vertical, AppStyles.Spacing.small)
-    }
-    
-    private var attributeTitle: some View {
-        Text("\(attribute.name):")
-            .font(AppFonts.montserrat(size: AppFonts.Size.headline, weight: .semibold))
-            .foregroundColor(AppColors.textHeadings)
-            .padding(.leading, 4)
-    }
-
-    private var optionsScrollView: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: AppStyles.Spacing.small) {
-                // KORREKTUR: Iteriert jetzt über die korrekten `Option`-Objekte.
-                ForEach(attribute.options) { option in
-                    let isSelected = currentlySelectedOptionSlugForThisAttribute == option.slug
-                    let isDisabled = !availableOptionSlugs.contains(option.slug)
-                    
-                    Button(action: {
-                        onOptionSelect(option.slug)
-                    }) {
-                        optionButtonLabel(optionName: option.name, isSelected: isSelected)
+            Text(attribute.name)
+                .font(AppFonts.montserrat(size: AppFonts.Size.headline, weight: .semibold))
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack {
+                    ForEach(attribute.options) { option in
+                        let isSelected = (selectedOptionSlug == option.slug)
+                        let isAvailable = availableOptionSlugs.contains(option.slug) || selectedOptionSlug != nil
+                        
+                        Button(action: {
+                            onSelect(option.slug)
+                        }) {
+                            Text(option.name)
+                                .font(AppFonts.roboto(size: AppFonts.Size.body, weight: .bold))
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(isSelected ? AppColors.primary : AppColors.backgroundLightGray)
+                                .foregroundColor(isSelected ? .white : AppColors.primary)
+                                .cornerRadius(AppStyles.BorderRadius.large)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: AppStyles.BorderRadius.large)
+                                        .stroke(AppColors.primary, lineWidth: isSelected ? 0 : 1)
+                                )
+                                .overlay(
+                                    Rectangle()
+                                        .frame(width: nil, height: 1.5, alignment: .center)
+                                        .foregroundColor(AppColors.error)
+                                        .rotationEffect(Angle(degrees: -10))
+                                        .padding(.horizontal, -4)
+                                        .opacity(isAvailable ? 0 : 1)
+                                )
+                        }
+                        .disabled(!isAvailable)
+                        .opacity(isAvailable ? 1.0 : 0.4)
                     }
-                    .disabled(isDisabled)
-                    .opacity(isDisabled ? 0.4 : 1.0)
-                    .animation(.easeInOut(duration: 0.2), value: isDisabled)
-                    .animation(.easeInOut(duration: 0.2), value: isSelected)
                 }
             }
-            .padding(.horizontal, 4)
         }
-    }
-
-    private func optionButtonLabel(optionName: String, isSelected: Bool) -> some View {
-        Text(optionName)
-            .font(AppFonts.roboto(size: AppFonts.Size.smallBody, weight: isSelected ? .bold : .regular))
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(
-                ZStack {
-                    if isSelected {
-                        RoundedRectangle(cornerRadius: AppStyles.BorderRadius.medium).fill(AppColors.primary)
-                    } else {
-                        RoundedRectangle(cornerRadius: AppStyles.BorderRadius.medium).fill(AppColors.backgroundComponent)
-                    }
-                    RoundedRectangle(cornerRadius: AppStyles.BorderRadius.medium)
-                        .stroke(isSelected ? AppColors.primaryDark : AppColors.borderLight, lineWidth: 1.5)
-                }
-            )
-            .foregroundColor(isSelected ? AppColors.textOnPrimary : AppColors.textBase)
     }
 }

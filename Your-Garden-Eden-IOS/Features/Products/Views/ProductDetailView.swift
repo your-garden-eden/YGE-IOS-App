@@ -1,195 +1,262 @@
-// Dateiname: Features/Products/Views/ProductDetailView.swift
+// Path: Your-Garden-Eden-IOS/Features/Products/ProductDetailView.swift
 
 import SwiftUI
 
 struct ProductDetailView: View {
-    @StateObject private var viewModel: ProductDetailViewModel
+    let product: WooCommerceProduct
     
-    // KORREKTUR: Wir entfernen den EnvironmentObject für den CartAPIManager.
-    // @EnvironmentObject var cartAPIManager: CartAPIManager <-- DIESE ZEILE IST ENTFERNT
-    
-    // WishlistState ist kein Singleton und wird korrekt über die Environment empfangen.
+    @StateObject private var viewModel = ProductDetailViewModel()
     @EnvironmentObject var wishlistState: WishlistState
+    @EnvironmentObject var cartManager: CartAPIManager
     
     @State private var showAddedToCartConfirmation = false
-    @State private var cartErrorBannerMessage: String?
 
-    init(product: WooCommerceProduct) {
-        _viewModel = StateObject(wrappedValue: ProductDetailViewModel(product: product))
-    }
-    
     var body: some View {
         ZStack(alignment: .bottom) {
             ScrollView {
-                VStack(alignment: .leading, spacing: AppStyles.Spacing.xLarge) {
+                VStack(alignment: .leading, spacing: AppStyles.Spacing.large) {
                     productGallery
                     productHeader
                     
-                    if viewModel.effectiveProductType == "variable" {
-                        if viewModel.isLoading {
-                            ProgressView().frame(height: 50)
-                        } else if let error = viewModel.loadingError {
-                            Text(error).foregroundColor(AppColors.error).padding()
-                        }
+                    if product.type == .variable && viewModel.isLoadingVariations {
+                        ProgressView().frame(maxWidth: .infinity, minHeight: 50)
+                    } else if let error = viewModel.variationError {
+                        ErrorStateView(message: error)
                     }
                     
                     Divider()
                     descriptionSection
+                    crossSellSection
                     
-                    Spacer(minLength: 150)
+                    Spacer(minLength: 150) // Placeholder for bottom bar
                 }
             }
-            
-            bottomActionSection
+            .safeAreaInset(edge: .bottom) {
+                 bottomActionSection
+            }
         }
         .background(AppColors.backgroundPage.ignoresSafeArea())
-        .navigationTitle(viewModel.productName)
+        .navigationTitle(product.name.strippingHTML())
         .navigationBarTitleDisplayMode(.inline)
-        .task {
-            await viewModel.loadVariationsIfNeeded()
+        .task(id: product.id) {
+            await viewModel.loadData(for: product)
         }
-        .task {
-            await viewModel.prepareDisplayData()
+        .overlay(confirmationBanner)
+        .onChange(of: cartManager.state.errorMessage) { _, newValue in
+             if newValue != nil {
+                 DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                     // Error message will be cleared by the manager itself
+                 }
+             }
         }
-        .overlay(confirmationOrErrorBanners)
+        .onChange(of: cartManager.state.items) { _, _ in
+             if cartManager.state.errorMessage == nil {
+                 withAnimation { showAddedToCartConfirmation = true }
+                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                     withAnimation { showAddedToCartConfirmation = false }
+                 }
+             }
+        }
     }
     
     // MARK: - Subviews
     
     @ViewBuilder private var productGallery: some View {
-        AsyncImage(url: viewModel.product.images.first?.src.asURL()) { phase in
+        AsyncImage(url: product.images.first?.src.asURL()) { phase in
             switch phase {
             case .success(let image): image.resizable().scaledToFit()
             case .failure: Image(systemName: "photo.fill").font(.largeTitle).foregroundColor(AppColors.textMuted)
-            default: ProgressView()
+            default: ProgressView().tint(AppColors.primary)
             }
         }
-        .frame(minHeight: 300)
-        .background(AppColors.backgroundComponent)
+        .frame(maxWidth: .infinity, minHeight: 300)
+        .background(AppColors.backgroundLightGray)
     }
     
     @ViewBuilder private var productHeader: some View {
         VStack(alignment: .leading, spacing: AppStyles.Spacing.small) {
             HStack(alignment: .top) {
-                Text(viewModel.productName)
-                    .font(AppFonts.montserrat(size: AppFonts.Size.title1, weight: .bold))
-                    .foregroundColor(AppColors.textHeadings)
+                Text(product.name.strippingHTML())
+                    .font(AppFonts.montserrat(size: AppFonts.Size.h4, weight: .bold))
                 Spacer()
-                Button(action: { wishlistState.toggleWishlistStatus(for: viewModel.product) }) {
-                    Image(systemName: wishlistState.isProductInWishlist(productId: viewModel.product.id) ? "heart.fill" : "heart")
-                        .foregroundColor(AppColors.wishlistIcon)
+                Button(action: { wishlistState.toggleWishlistStatus(for: product) }) {
+                    Image(systemName: wishlistState.isProductInWishlist(productId: product.id) ? "heart.fill" : "heart")
+                        .foregroundColor(wishlistState.isProductInWishlist(productId: product.id) ? .red : .secondary)
                 }
                 .font(.title)
-                .animation(.spring(), value: wishlistState.isProductInWishlist(productId: viewModel.product.id))
+                .animation(.spring(), value: wishlistState.isProductInWishlist(productId: product.id))
             }
             
-            Text(viewModel.initialDisplayPrice)
-                .font(AppFonts.roboto(size: AppFonts.Size.title2, weight: .semibold))
-                .foregroundColor(AppColors.price)
-                .frame(minHeight: 20)
+            let priceInfo = PriceFormatter.formatPriceString(from: product.priceHtml, fallbackPrice: product.price, currencySymbol: "€")
+            HStack(alignment: .bottom, spacing: AppStyles.Spacing.small) {
+                Text(priceInfo.display)
+                    .font(AppFonts.roboto(size: AppFonts.Size.h5, weight: .bold))
+                    .foregroundColor(AppColors.price)
+                if let strikethrough = priceInfo.strikethrough {
+                    Text(strikethrough)
+                        .font(AppFonts.roboto(size: AppFonts.Size.body, weight: .regular))
+                        .strikethrough(true, color: AppColors.textMuted)
+                        .foregroundColor(AppColors.textMuted)
+                }
+            }
         }
         .padding(.horizontal)
     }
     
     @ViewBuilder private var descriptionSection: some View {
         VStack(alignment: .leading, spacing: AppStyles.Spacing.small) {
-            Text("Beschreibung").font(AppFonts.montserrat(size: AppFonts.Size.headline, weight: .semibold))
-                .foregroundColor(AppColors.textHeadings)
-            
-            if !viewModel.productDescription.isEmpty {
-                // Hier sollte Ihre ExpandableText-View stehen.
-                // Wenn sie nicht existiert, können Sie vorübergehend Text() verwenden.
-                Text(viewModel.productDescription)
-                    .font(AppFonts.roboto(size: AppFonts.Size.body))
-                    .lineLimit(4) // Beispiel
-            } else {
-                ProgressView().padding(.vertical)
-            }
+            Text("Beschreibung").font(AppFonts.montserrat(size: AppFonts.Size.h6, weight: .semibold))
+            ExpandableTextView(text: product.description, lineLimit: 5)
         }
         .padding(.horizontal)
     }
     
+    @ViewBuilder
+    private var crossSellSection: some View {
+        if viewModel.isLoadingCrossSells || !viewModel.crossSellProducts.isEmpty {
+            VStack(alignment: .leading, spacing: AppStyles.Spacing.medium) {
+                Divider().padding(.horizontal)
+                Text("Kunden kauften auch")
+                    .font(AppFonts.montserrat(size: AppFonts.Size.h6, weight: .semibold))
+                    .padding(.horizontal)
+
+                if viewModel.isLoadingCrossSells {
+                    ProgressView().frame(maxWidth: .infinity)
+                } else {
+                    RelatedProductsView(products: viewModel.crossSellProducts.map { IdentifiableDisplayProduct(product: $0) })
+                }
+            }
+        }
+    }
+    
     @ViewBuilder private var bottomActionSection: some View {
-        VStack(spacing: 12) {
-            if viewModel.effectiveProductType == "simple" {
-                if !viewModel.product.soldIndividually {
-                    // Hier sollte Ihre QuantitySelectorView stehen.
+        VStack(spacing: AppStyles.Spacing.medium) {
+            if product.type == .simple {
+                if !product.soldIndividually {
                     QuantitySelectorView(quantity: $viewModel.quantity)
                         .padding(.horizontal)
                 }
                 
                 Button(action: {
-                    Task {
-                        await viewModel.addSimpleProductToCart()
-                        
-                        // KORREKTUR: Wir greifen jetzt direkt auf den Singleton zu.
-                        if CartAPIManager.shared.errorMessage == nil {
-                            withAnimation { showAddedToCartConfirmation = true }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                withAnimation { showAddedToCartConfirmation = false }
-                            }
-                        } else {
-                            cartErrorBannerMessage = CartAPIManager.shared.errorMessage
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                                withAnimation { cartErrorBannerMessage = nil }
-                            }
-                        }
-                    }
+                    Task { await viewModel.addSimpleProductToCart(productID: product.id) }
                 }) {
                     HStack {
-                        if viewModel.isAddingToCart { ProgressView().tint(.white) }
+                        if cartManager.state.isLoading { ProgressView().tint(.white) }
                         else { Text("In den Warenkorb") }
                     }
-                    .font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .bold))
-                    .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(AppColors.primary)
-                .controlSize(.large)
-                .disabled(viewModel.isAddingToCart)
+                .buttonStyle(PrimaryButtonStyle())
+                .disabled(cartManager.state.isLoading || !product.purchasable)
             
-            } else if viewModel.effectiveProductType == "variable" {
-                let isNavigationDisabled = viewModel.variations.isEmpty && viewModel.isLoading
+            } else if product.type == .variable {
+                let isNavigationDisabled = (viewModel.variations.isEmpty && viewModel.variationError == nil) || !product.purchasable
                 
-                NavigationLink(value: ProductVariationData(product: viewModel.product, variations: viewModel.variations)) {
-                    Text("Optionen wählen")
-                        .font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .bold))
-                        .frame(maxWidth: .infinity)
+                NavigationLink(value: ProductVariationData(product: product, variations: viewModel.variations)) {
+                    Text("Optionen auswählen")
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(AppColors.primary)
-                .controlSize(.large)
+                .buttonStyle(PrimaryButtonStyle())
                 .disabled(isNavigationDisabled)
             }
         }
         .padding()
-        .background(.thinMaterial)
+        .background(.regularMaterial)
     }
     
-    @ViewBuilder private var confirmationOrErrorBanners: some View {
+    @ViewBuilder private var confirmationBanner: some View {
         VStack {
             if showAddedToCartConfirmation {
-                Text("Zum Warenkorb hinzugefügt")
-                    .font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .semibold))
-                    .padding()
-                    .background(AppColors.success)
-                    .foregroundColor(AppColors.textOnPrimary)
-                    .cornerRadius(AppStyles.BorderRadius.medium)
-                    .appShadow(AppStyles.Shadows.medium)
+                SuccessBanner(message: "Zum Warenkorb hinzugefügt")
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
-            
-            if let errorMessage = cartErrorBannerMessage {
-                Text(errorMessage)
-                    .font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .semibold))
-                    .padding()
-                    .background(AppColors.error)
-                    .foregroundColor(AppColors.textOnPrimary)
-                    .cornerRadius(AppStyles.BorderRadius.medium)
-                    .appShadow(AppStyles.Shadows.medium)
+            if let errorMessage = cartManager.state.errorMessage {
+                ErrorBanner(message: errorMessage)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
         .frame(maxHeight: .infinity, alignment: .top).padding(.top)
+    }
+}
+
+// Banner Helper Views
+struct SuccessBanner: View {
+    let message: String
+    var body: some View {
+        Text(message)
+            .padding()
+            .frame(maxWidth: .infinity)
+            .background(AppColors.success)
+            .foregroundColor(.white)
+            .cornerRadius(10)
+            .shadow(radius: 5)
+            .padding(.horizontal)
+    }
+}
+
+struct ErrorBanner: View {
+    let message: String
+    var body: some View {
+        Text(message)
+            .padding()
+            .frame(maxWidth: .infinity)
+            .background(AppColors.error)
+            .foregroundColor(.white)
+            .cornerRadius(10)
+            .shadow(radius: 5)
+            .padding(.horizontal)
+    }
+}
+
+@MainActor
+class ProductDetailViewModel: ObservableObject {
+    @Published private(set) var variations: [WooCommerceProductVariation] = []
+    @Published private(set) var isLoadingVariations: Bool = false
+    @Published private(set) var variationError: String?
+    
+    @Published private(set) var crossSellProducts: [WooCommerceProduct] = []
+    @Published private(set) var isLoadingCrossSells: Bool = false
+    
+    @Published var quantity: Int = 1
+    
+    private let api = WooCommerceAPIManager.shared
+    private let cartManager = CartAPIManager.shared
+
+    func loadData(for product: WooCommerceProduct) async {
+        await withTaskGroup(of: Void.self) { group in
+            if product.type == .variable {
+                group.addTask { await self.loadVariations(for: product) }
+            }
+            if !product.crossSellIds.isEmpty {
+                group.addTask { await self.loadCrossSells(for: product) }
+            }
+        }
+    }
+    
+    private func loadVariations(for product: WooCommerceProduct) async {
+        guard variations.isEmpty, !isLoadingVariations else { return }
+        self.isLoadingVariations = true
+        self.variationError = nil
+        do {
+            self.variations = try await api.fetchProductVariations(productId: product.id)
+        } catch {
+            self.variationError = "Die Produktvarianten konnten nicht geladen werden."
+        }
+        self.isLoadingVariations = false
+    }
+    
+    private func loadCrossSells(for product: WooCommerceProduct) async {
+        guard !isLoadingCrossSells else { return }
+        self.isLoadingCrossSells = true
+        do {
+            let response = try await api.fetchProducts(include: product.crossSellIds)
+            self.crossSellProducts = response.products
+        } catch {
+            print("🔴 ProductDetailVM: Failed to load cross-sells: \(error.localizedDescription)")
+            self.crossSellProducts = []
+        }
+        self.isLoadingCrossSells = false
+    }
+
+    func addSimpleProductToCart(productID: Int) async {
+        await cartManager.addItem(productId: productID, quantity: self.quantity)
     }
 }

@@ -1,9 +1,4 @@
-//
-//  ProductRowView.swift
-//  Your-Garden-Eden-IOS
-//
-//  Created by Josef Ewert on 28.05.25.
-//
+// Path: Your-Garden-Eden-IOS/Features/Common/Views/ProductRowView.swift
 
 import SwiftUI
 
@@ -11,14 +6,14 @@ struct ProductRowView: View {
     let product: WooCommerceProduct
 
     var body: some View {
-        HStack(alignment: .top, spacing: 16) {
+        HStack(alignment: .top, spacing: AppStyles.Spacing.medium) {
             productImage
                 .frame(width: 90, height: 90)
                 .background(AppColors.backgroundLightGray)
                 .cornerRadius(AppStyles.BorderRadius.medium)
                 .clipped()
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: AppStyles.Spacing.xSmall) {
                 Text(product.name.strippingHTML())
                     .font(AppFonts.montserrat(size: AppFonts.Size.headline, weight: .semibold))
                     .foregroundColor(AppColors.textHeadings)
@@ -26,9 +21,7 @@ struct ProductRowView: View {
                 
                 Spacer()
                 
-                Text((product.priceHtml ?? product.price).strippingHTML())
-                    .font(AppFonts.roboto(size: AppFonts.Size.subheadline, weight: .bold))
-                    .foregroundColor(AppColors.price)
+                priceView
                 
                 stockStatusView
             }
@@ -37,6 +30,7 @@ struct ProductRowView: View {
         .padding(AppStyles.Spacing.medium)
         .background(AppColors.backgroundComponent)
         .cornerRadius(AppStyles.BorderRadius.large)
+        .appShadow(AppStyles.Shadows.small)
     }
     
     @ViewBuilder
@@ -45,14 +39,28 @@ struct ProductRowView: View {
             switch phase {
             case .success(let image):
                 image.resizable().aspectRatio(contentMode: .fill)
-            case .failure, .empty:
-                Image(systemName: "photo.fill")
+            case .failure:
+                 Image(systemName: "photo.fill")
                     .font(.largeTitle)
                     .foregroundColor(AppColors.textMuted.opacity(0.5))
+            case .empty:
+                ShimmerView() // Verwendung der neuen ShimmerView für den Ladezustand
             @unknown default:
-                ProgressView().tint(AppColors.primary)
+                EmptyView()
             }
         }
+    }
+    
+    @ViewBuilder
+    private var priceView: some View {
+        let priceInfo = PriceFormatter.formatPriceString(
+            from: product.priceHtml,
+            fallbackPrice: product.price,
+            currencySymbol: "€"
+        )
+        Text(priceInfo.display)
+            .font(AppFonts.roboto(size: AppFonts.Size.subheadline, weight: .bold))
+            .foregroundColor(AppColors.price)
     }
     
     @ViewBuilder

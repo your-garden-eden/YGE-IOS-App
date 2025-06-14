@@ -45,10 +45,10 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		0CBB65B72DFC3C7100A2F2E1 /* Exceptions for "Your-Garden-Eden-IOS" folder in "Your-Garden-Eden-IOS" target */ = {
+		0CB30E3F2DFDE55A006615F9 /* Exceptions for "Your-Garden-Eden-IOS" folder in "Your-Garden-Eden-IOS" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				PreviewContent/Info.plist,
+				Info/Info.plist,
 			);
 			target = 0CE04CC22DCF6EB600F9E972 /* Your-Garden-Eden-IOS */;
 		};
@@ -58,7 +58,7 @@
 		0CE04CC52DCF6EB600F9E972 /* Your-Garden-Eden-IOS */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				0CBB65B72DFC3C7100A2F2E1 /* Exceptions for "Your-Garden-Eden-IOS" folder in "Your-Garden-Eden-IOS" target */,
+				0CB30E3F2DFDE55A006615F9 /* Exceptions for "Your-Garden-Eden-IOS" folder in "Your-Garden-Eden-IOS" target */,
 			);
 			path = "Your-Garden-Eden-IOS";
 			sourceTree = "<group>";

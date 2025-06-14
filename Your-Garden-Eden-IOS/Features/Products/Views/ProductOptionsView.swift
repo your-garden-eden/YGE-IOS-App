@@ -1,13 +1,12 @@
-// Dateiname: ProductOptionsView.swift
+// Path: Your-Garden-Eden-IOS/Features/Products/ProductOptionsView.swift
 
 import SwiftUI
 
 struct ProductOptionsView: View {
     @StateObject private var viewModel: ProductOptionsViewModel
     
-    // Wir brauchen den CartAPIManager, um den Fehlerzustand zu prüfen.
-    @EnvironmentObject var cartAPIManager: CartAPIManager
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var cartManager: CartAPIManager
 
     init(product: WooCommerceProduct, variations: [WooCommerceProductVariation]) {
         _viewModel = StateObject(wrappedValue: ProductOptionsViewModel(
@@ -19,110 +18,102 @@ struct ProductOptionsView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    productImageView
-                    productInfoView
+                VStack(alignment: .leading, spacing: AppStyles.Spacing.large) {
+                    gallery
+                    header
                     Divider()
-                    attributesSection
-                    // Platzhalter am Ende, damit die untere Leiste den Inhalt nicht verdeckt
-                    Spacer(minLength: 140)
+                    attributeSelectors
                 }
+                .padding(.bottom, 150) // Space for bottom bar
             }
-            .background(AppColors.backgroundPage.ignoresSafeArea())
-            
-            addToCartSection
+            .safeAreaInset(edge: .bottom) {
+                addToCartSection
+            }
         }
+        .background(AppColors.backgroundPage.ignoresSafeArea())
         .navigationTitle("Optionen wählen")
         .navigationBarTitleDisplayMode(.inline)
-    }
-    
-    // MARK: - Subviews
-    
-    private var productImageView: some View {
-        AsyncImage(url: viewModel.currentImage?.src.asURL()) { phase in
-            switch phase {
-            case .success(let img): img.resizable().scaledToFit()
-            case .failure, .empty: Image(systemName: "photo.fill").font(.largeTitle).foregroundColor(AppColors.textMuted).frame(maxWidth: .infinity, minHeight: 300)
-            @unknown default: EmptyView()
+        .onChange(of: cartManager.state.errorMessage) { _, error in
+            viewModel.addToCartError = error
+        }
+        .onChange(of: cartManager.state.items) { _, _ in
+            if cartManager.state.errorMessage == nil {
+                dismiss() // Success!
             }
         }
-        .frame(minHeight: 300)
-        .background(AppColors.backgroundComponent)
     }
     
-    private var productInfoView: some View {
-        VStack(alignment: .leading, spacing: 8) {
+    private var gallery: some View {
+        AsyncImage(url: viewModel.currentImage?.src.asURL()) { phase in
+            switch phase {
+            case .success(let image): image.resizable().scaledToFit()
+            default: ProgressView().frame(height: 300)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .background(AppColors.backgroundLightGray)
+    }
+    
+    private var header: some View {
+        VStack(alignment: .leading, spacing: AppStyles.Spacing.small) {
             Text(viewModel.product.name.strippingHTML())
-                .font(AppFonts.montserrat(size: AppFonts.Size.title1, weight: .bold))
-                .foregroundColor(AppColors.textHeadings)
+                .font(AppFonts.montserrat(size: AppFonts.Size.h5, weight: .bold))
             
-            Text(viewModel.displayPrice)
-                .font(AppFonts.roboto(size: AppFonts.Size.title2, weight: .bold))
-                .foregroundColor(AppColors.price)
+            HStack(spacing: AppStyles.Spacing.medium) {
+                Text(viewModel.displayPrice.display)
+                    .font(AppFonts.roboto(size: AppFonts.Size.h5, weight: .bold))
+                    .foregroundColor(AppColors.price)
+                if let strikethrough = viewModel.displayPrice.strikethrough {
+                    Text(strikethrough)
+                        .font(AppFonts.roboto(size: AppFonts.Size.body))
+                        .strikethrough()
+                        .foregroundColor(AppColors.textMuted)
+                }
+            }
+
+            Text(viewModel.stockStatusMessage.text)
+                .font(AppFonts.roboto(size: AppFonts.Size.body, weight: .bold))
+                .foregroundColor(viewModel.stockStatusMessage.color)
         }
         .padding(.horizontal)
     }
     
-    private var attributesSection: some View {
-        VStack(alignment: .leading, spacing: AppStyles.Spacing.medium) {
+    private var attributeSelectors: some View {
+        VStack(alignment: .leading, spacing: AppStyles.Spacing.large) {
             ForEach(viewModel.displayableAttributes) { attribute in
                 AttributeSelectorView(
                     attribute: attribute,
-                    availableOptionSlugs: viewModel.availableOptionSlugs(for: attribute),
-                    currentlySelectedOptionSlugForThisAttribute: viewModel.selectedAttributes[attribute.name],
-                    onOptionSelect: { selectedOptionSlug in
-                        viewModel.select(attributeName: attribute.name, optionSlug: selectedOptionSlug)
+                    availableOptionSlugs: viewModel.availability[attribute.slug] ?? [],
+                    selectedOptionSlug: viewModel.selectedAttributes[attribute.slug],
+                    onSelect: { optionSlug in
+                        viewModel.select(attributeSlug: attribute.slug, optionSlug: optionSlug)
                     }
                 )
             }
         }
         .padding(.horizontal)
     }
-
+    
     private var addToCartSection: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: AppStyles.Spacing.medium) {
             if !viewModel.product.soldIndividually {
                 QuantitySelectorView(quantity: $viewModel.quantity)
                     .padding(.horizontal)
             }
             
-            Button(action: {
-                Task {
-                    // Funktion aufrufen (gibt nichts mehr zurück)
-                    await viewModel.handleAddToCart()
-                    
-                    // KORREKTUR: Prüfe den Zustand des CartAPIManager
-                    if cartAPIManager.errorMessage == nil {
-                        // Erfolg! Schließe die Ansicht.
-                        dismiss()
-                    }
-                    // Der Fehlerzustand wird bereits vom ViewModel im 'addToCartError' angezeigt,
-                    // also müssen wir hier nichts weiter tun.
-                }
-            }) {
-                HStack {
-                    if viewModel.isAddingToCart {
-                        ProgressView().tint(AppColors.textOnPrimary)
-                    } else {
-                        Text("In den Warenkorb")
-                    }
-                }
-                .font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .bold))
-                .frame(maxWidth: .infinity)
+            Button(action: { Task { await viewModel.handleAddToCart() } }) {
+                if cartManager.state.isLoading { ProgressView().tint(.white) }
+                else { Text("In den Warenkorb") }
             }
-            .buttonStyle(.borderedProminent)
-            .tint(viewModel.isAddToCartDisabled ? AppColors.primaryLight : AppColors.primary)
-            .controlSize(.large)
-            .disabled(viewModel.isAddToCartDisabled || viewModel.isAddingToCart)
+            .buttonStyle(PrimaryButtonStyle())
+            .disabled(viewModel.isAddToCartDisabled || cartManager.state.isLoading)
             
             if let error = viewModel.addToCartError {
                 Text(error)
-                    .font(AppFonts.roboto(size: AppFonts.Size.caption))
-                    .foregroundColor(AppColors.error)
-                    .multilineTextAlignment(.center)
+                    .font(.caption).foregroundColor(.red).multilineTextAlignment(.center)
             }
         }
         .padding()
-        .background(.thinMaterial)
+        .background(.regularMaterial)
     }
 }
