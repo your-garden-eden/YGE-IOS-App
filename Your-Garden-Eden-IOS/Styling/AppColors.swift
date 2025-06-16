@@ -1,5 +1,3 @@
-// Path: Your-Garden-Eden-IOS/Resources/Styling/AppColors.swift
-
 import SwiftUI
 
 struct AppColors {

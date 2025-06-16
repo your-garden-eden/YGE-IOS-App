@@ -1,5 +1,3 @@
-// Path: Your-Garden-Eden-IOS/Features/Auth/LoginView.swift
-
 import SwiftUI
 
 struct LoginView: View {

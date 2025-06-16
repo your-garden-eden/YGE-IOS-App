@@ -1,105 +1,95 @@
 // Path: Your-Garden-Eden-IOS/App/ContentView.swift
+// VERSION 5.0 (FINAL - Correct Modifier Placement)
 
 import SwiftUI
 
+// ===================================================================
+// HAUPT-VIEW DER APP
+// ===================================================================
 struct ContentView: View {
-    
-    // MARK: - Globale App-Zustände (Single Source of Truth)
+    // Globale Zustands-Manager, die an die gesamte App weitergegeben werden.
     @StateObject private var authManager = AuthManager.shared
     @StateObject private var cartManager = CartAPIManager.shared
     @StateObject private var wishlistState = WishlistState()
-    
-    // ViewModels, die Daten für mehrere Screens bereitstellen
     @StateObject private var categoryViewModel = CategoryViewModel()
     @StateObject private var productViewModel = ProductViewModel()
 
     var body: some View {
+        // Die MainTabView ist die Wurzel der Benutzeroberfläche.
         MainTabView()
-            // Alle globalen Objekte werden hier als EnvironmentObjects bereitgestellt.
             .environmentObject(authManager)
             .environmentObject(cartManager)
             .environmentObject(wishlistState)
             .environmentObject(categoryViewModel)
             .environmentObject(productViewModel)
-            // Der Lademeister. Dieser Task wird EINMAL ausgeführt, wenn die App startet.
             .task {
                 await loadInitialData()
             }
     }
 
     private func loadInitialData() async {
-        // Wir verwenden eine Task-Gruppe, um die initialen Daten parallel zu laden.
         print("▶️ ContentView: Starting initial data load...")
         await withTaskGroup(of: Void.self) { group in
-            group.addTask { await categoryViewModel.fetchCategories() }
+            group.addTask { await categoryViewModel.fetchTopLevelCategories() }
             group.addTask { await productViewModel.fetchBestsellers() }
             group.addTask { await cartManager.initializeAndFetchCart() }
-            // Der WishlistState lädt seine Daten selbst, basierend auf dem Auth-Status.
         }
         print("✅ ContentView: Initial data loading complete.")
     }
 }
 
-
-// MARK: - Haupt-Tab-Navigation
+// ===================================================================
+// HAUPT-TAB-NAVIGATION (FINAL KORRIGIERT)
+// ===================================================================
 struct MainTabView: View {
-    // Dieser State steuert, welcher Tab aktiv ist.
     @State private var selectedTab: Int = 0
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            NavigationStack { HomeView().applyNavDestinations() }
-                .tabItem { Label("Home", systemImage: "house.fill") }.tag(0)
             
-            NavigationStack { CategoryListView().applyNavDestinations() }
-                .tabItem { Label("Shop", systemImage: "bag.fill") }.tag(1)
+            // --- TAB 1: HOME ---
+            NavigationStack {
+                HomeView()
+                    .withAppNavigation() // KORREKT: Modifier an der View INNERHALB des Stacks.
+            }
+            .tabItem { Label("Home", systemImage: "house.fill") }.tag(0)
             
-            NavigationStack { CartView().applyNavDestinations() }
-                .tabItem { Label("Warenkorb", systemImage: "cart.fill") }.tag(2)
+            // --- TAB 2: SHOP ---
+            NavigationStack {
+                ShopView()
+                    .withAppNavigation() // KORREKT: Modifier an der View INNERHALB des Stacks.
+            }
+            .tabItem { Label("Shop", systemImage: "bag.fill") }.tag(1)
             
-            NavigationStack { WishlistView().applyNavDestinations() }
-                .tabItem { Label("Wunschliste", systemImage: "heart.fill") }.tag(3)
+            // --- TAB 3: WARENKORB ---
+            NavigationStack {
+                CartView()
+                    .withAppNavigation() // KORREKT: Modifier an der View INNERHALB des Stacks.
+            }
+            .tabItem { Label("Warenkorb", systemImage: "cart.fill") }.tag(2)
             
-            NavigationStack { ProfilView().applyNavDestinations() }
-                .tabItem { Label("Profil", systemImage: "person.fill") }.tag(4)
+            // --- TAB 4: WUNSCHLISTE ---
+            NavigationStack {
+                WishlistView()
+                    .withAppNavigation() // KORREKT: Modifier an der View INNERHALB des Stacks.
+            }
+            .tabItem { Label("Wunschliste", systemImage: "heart.fill") }.tag(3)
+            
+            // --- TAB 5: PROFIL ---
+            NavigationStack {
+                ProfilView()
+                    // Hier ist der Modifier nicht zwingend nötig, aber schadet auch nicht.
+                    .withAppNavigation()
+            }
+            .tabItem { Label("Profil", systemImage: "person.fill") }.tag(4)
         }
-        // Übergibt den selectedTab an die Child-Views, damit diese den Tab wechseln können.
         .environment(\.selectedTab, $selectedTab)
     }
 }
 
-// MARK: - Navigation und Hilfsstrukturen
-
-// Diese Erweiterung zentralisiert die Navigationslogik für die gesamte App.
-private extension View {
-    func applyNavDestinations() -> some View {
-        self
-        .navigationDestination(for: WooCommerceProduct.self) { product in
-            ProductDetailView(product: product)
-        }
-        .navigationDestination(for: DisplayableMainCategory.self) { category in
-             SubCategoryListView(
-                 selectedMainCategoryAppItem: category.appItem,
-                 parentWooCommerceCategoryID: category.id
-             )
-        }
-        .navigationDestination(for: DisplayableSubCategory.self) { subCategory in
-            let tempCategory = WooCommerceCategory(
-                id: subCategory.id, name: subCategory.label, slug: "", parent: 0,
-                description: "", display: "", image: nil, menuOrder: 0, count: subCategory.count
-            )
-            CategoryDetailView(category: tempCategory)
-        }
-        .navigationDestination(for: ProductVariationData.self) { data in
-            ProductOptionsView(product: data.product, variations: data.variations)
-        }
-        .navigationDestination(for: CheckoutView.self) { checkoutView in
-             checkoutView
-        }
-    }
-}
-
-// EnvironmentKey, um den Tab-Index in der View-Hierarchie nach unten zu reichen.
+// ===================================================================
+// HILFSSTRUKTUREN FÜR TAB-AUSWAHL (UNVERÄNDERT)
+// ===================================================================
 private struct SelectedTabKey: EnvironmentKey {
     static let defaultValue: Binding<Int> = .constant(0)
 }

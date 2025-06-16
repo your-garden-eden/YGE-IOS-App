@@ -1,72 +1,76 @@
-// Path: Your-Garden-Eden-IOS/Core/Helpers/PriceFormatter.swift
+// Path: Your-Garden-Eden-IOS/Helper/PriceFormatter.swift
+// VERSION 2.1 (FINAL - Mit Preisspannen-Berechnung)
 
 import Foundation
+import RegexBuilder
 
 struct PriceFormatter {
-
+    
+    /// Hält einen formatierten Preis und einen optionalen, durchgestrichenen alten Preis.
     struct FormattedPrice {
         let display: String
         let strikethrough: String?
     }
-
-    static func formatPrice(_ priceString: String?, currencySymbol: String) -> String {
-        guard let validPriceString = priceString?.trimmingCharacters(in: .whitespacesAndNewlines), !validPriceString.isEmpty else { return "" }
-        
-        let numberString = validPriceString.replacingOccurrences(of: ",", with: ".")
-        guard let priceNumber = Double(numberString) else {
-            return "\(validPriceString)\(currencySymbol)"
+    
+    /// Eine einfache Fallback-Formatierung, falls keine HTML-Daten vorhanden sind.
+    static func formatPrice(_ price: String, currencySymbol: String = "€") -> String {
+        if price.contains(currencySymbol) {
+            return price
         }
-        
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.minimumFractionDigits = 2
-        formatter.maximumFractionDigits = 2
-        formatter.decimalSeparator = ","
-        formatter.groupingSeparator = "."
-        
-        if let formattedNumber = formatter.string(from: NSNumber(value: priceNumber)) {
-            return "\(formattedNumber) \(currencySymbol)"
-        } else {
-            return "\(validPriceString) \(currencySymbol)"
-        }
-    }
-
-    static func formatPriceString(from htmlString: String?, fallbackPrice: String, currencySymbol: String) -> FormattedPrice {
-        guard let validString = htmlString, !validString.isEmpty else {
-            let formattedFallback = formatPrice(fallbackPrice, currencySymbol: currencySymbol)
-            return FormattedPrice(display: formattedFallback, strikethrough: nil)
-        }
-
-        if let salePrice = extractPricesWithRegex(from: validString, currencySymbol: currencySymbol) {
-            return salePrice
-        }
-        
-        let plainString = validString.strippingHTML()
-        if plainString.contains("–") {
-            let components = plainString.components(separatedBy: "–").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            if let firstPrice = components.first, !firstPrice.isEmpty {
-                return FormattedPrice(display: "Ab \(firstPrice)", strikethrough: nil)
-            }
-        }
-        
-        return FormattedPrice(display: plainString, strikethrough: nil)
+        return "\(price)\(currencySymbol)"
     }
     
-    private static func extractPricesWithRegex(from html: String, currencySymbol: String) -> FormattedPrice? {
-        let regex = try! NSRegularExpression(pattern: "[0-9.,]+")
-        let results = regex.matches(in: html, range: NSRange(html.startIndex..., in: html))
-        let prices = results.map { String(html[Range($0.range, in: html)!]) }
+    /// Parst die `price_html` von WooCommerce.
+    static func formatPriceString(from htmlString: String?, fallbackPrice: String, currencySymbol: String = "€") -> FormattedPrice {
+        guard let html = htmlString, !html.isEmpty else {
+            return FormattedPrice(display: formatPrice(fallbackPrice, currencySymbol: currencySymbol), strikethrough: nil)
+        }
 
-        switch prices.count {
-        case 2:
-            let strikethroughPrice = formatPrice(prices[0], currencySymbol: currencySymbol)
-            let displayPrice = formatPrice(prices[1], currencySymbol: currencySymbol)
-            return FormattedPrice(display: displayPrice, strikethrough: strikethroughPrice)
-        case 1:
-            let displayPrice = formatPrice(prices[0], currencySymbol: currencySymbol)
-            return FormattedPrice(display: displayPrice, strikethrough: nil)
-        default:
+        let delRegex = Regex {
+            "<del>"
+            Capture { OneOrMore(.any, .reluctant) }
+            "</del>"
+        }
+        
+        let insRegex = Regex {
+            "<ins>"
+            Capture { OneOrMore(.any, .reluctant) }
+            "</ins>"
+        }
+        
+        var salePrice: String?
+        var regularPrice: String?
+
+        if let saleMatch = html.firstMatch(of: insRegex)?.1, let delMatch = html.firstMatch(of: delRegex)?.1 {
+            salePrice = String(saleMatch).strippingHTML()
+            regularPrice = String(delMatch).strippingHTML()
+        } else {
+            let cleanPrice = html.strippingHTML()
+            salePrice = cleanPrice
+        }
+        
+        let finalDisplayPrice = formatPrice(salePrice ?? fallbackPrice, currencySymbol: currencySymbol)
+        let finalStrikethroughPrice = regularPrice != nil ? formatPrice(regularPrice!, currencySymbol: currencySymbol) : nil
+
+        return FormattedPrice(display: finalDisplayPrice, strikethrough: finalStrikethroughPrice)
+    }
+    
+    /// **DIESE FUNKTION HAT GEFEHLT:**
+    /// Berechnet eine Preisspanne aus einer Liste von Variationen.
+    static func calculatePriceRange(from variations: [WooCommerceProductVariation], currencySymbol: String = "€") -> String? {
+        let prices = variations.compactMap { Double($0.price) }
+        
+        guard let minPrice = prices.min(), let maxPrice = prices.max() else {
             return nil
         }
+        
+        guard minPrice != maxPrice else {
+            return nil
+        }
+        
+        let minFormatted = String(format: "%.2f", minPrice)
+        let maxFormatted = String(format: "%.2f", maxPrice)
+        
+        return "\(minFormatted)\(currencySymbol) - \(maxFormatted)\(currencySymbol)"
     }
 }

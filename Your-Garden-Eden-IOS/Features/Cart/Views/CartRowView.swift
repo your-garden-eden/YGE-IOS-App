@@ -1,4 +1,5 @@
-// Path: Your-Garden-Eden-IOS/Features/Cart/CartRowView.swift
+// Path: Your-Garden-Eden-IOS/Features/Cart/Views/CartRowView.swift
+// VERSION 1.0 (FINAL)
 
 import SwiftUI
 
@@ -7,7 +8,6 @@ struct CartRowView: View {
     
     let item: Item
     
-    // Lokaler State für sofortiges UI-Feedback, wird mit dem Manager synchronisiert.
     @State private var quantity: Int
 
     init(item: Item) {

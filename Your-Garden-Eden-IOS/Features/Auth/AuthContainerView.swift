@@ -1,5 +1,3 @@
-// Path: Your-Garden-Eden-IOS/Features/Auth/AuthContainerView.swift
-
 import SwiftUI
 
 struct AuthContainerView: View {
@@ -14,7 +12,7 @@ struct AuthContainerView: View {
     var onDismiss: () -> Void
 
     var body: some View {
-        // Kein NavigationStack hier, da die untergeordneten Views ihn bereitstellen
+        // Die untergeordneten Views (LoginView, SignUpView) bringen ihre eigene NavigationStack mit.
         Group {
             if currentAuthView == .login {
                 LoginView(

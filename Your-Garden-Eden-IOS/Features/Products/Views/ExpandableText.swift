@@ -1,8 +1,15 @@
-// Path: Your-Garden-Eden-IOS/Features/Common/Views/ExpandableText.swift
+//
+//  ExpandableText.swift
+//  Your-Garden-Eden-IOS
+//
+//  Created by Josef Ewert on 15.06.25.
+//
+
 
 import SwiftUI
+import UIKit
 
-struct ExpandableText: View {
+struct ExpandableTextView: View {
     let text: String
     let lineLimit: Int
     
@@ -63,6 +70,8 @@ struct ExpandableText: View {
             context: nil
         )
         
+        // Wenn die Höhe des gesamten Textes größer ist als die Höhe der angezeigten (begrenzten) Box,
+        // dann wissen wir, dass der Text abgeschnitten wurde.
         if total.size.height > geometry.size.height {
             self.isTruncated = true
         }

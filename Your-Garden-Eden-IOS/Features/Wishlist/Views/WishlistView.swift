@@ -1,5 +1,3 @@
-// Path: Your-Garden-Eden-IOS/Features/Wishlist/WishlistView.swift
-
 import SwiftUI
 
 struct WishlistView: View {
@@ -16,7 +14,6 @@ struct WishlistView: View {
                 if wishlistState.isLoading && wishlistState.wishlistProducts.isEmpty {
                     loadingView
                 } else if wishlistState.wishlistProducts.isEmpty {
-                    // Zeige unterschiedliche Ansichten für Gäste und eingeloggte User
                     if authManager.isLoggedIn {
                         emptyWishlistView
                     } else {
@@ -44,58 +41,36 @@ struct WishlistView: View {
                 .environmentObject(authManager)
         }
     }
-    
-    // MARK: - Subviews
 
     private var loadingView: some View {
         VStack(spacing: AppStyles.Spacing.medium) {
             ProgressView().tint(AppColors.primary)
-            Text("Lade Wunschliste...")
-                .font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .regular))
-                .foregroundColor(AppColors.textMuted)
+            Text("Lade Wunschliste...").font(AppFonts.montserrat(size: AppFonts.Size.body)).foregroundColor(AppColors.textMuted)
         }
     }
 
     private var emptyWishlistView: some View {
         VStack(spacing: 20) {
-            Image(systemName: "heart.slash.fill")
-                .font(.system(size: 60)).foregroundColor(AppColors.textMuted.opacity(0.7))
-            Text("Deine Wunschliste ist leer")
-                .font(AppFonts.montserrat(size: AppFonts.Size.h5, weight: .semibold))
-                .foregroundColor(AppColors.textHeadings)
-            Text("Füge Produkte hinzu, indem du auf das Herz-Symbol tippst.")
-                .font(AppFonts.roboto(size: AppFonts.Size.body, weight: .regular))
-                .foregroundColor(AppColors.textMuted)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-        }
-        .padding()
+            Image(systemName: "heart.slash.fill").font(.system(size: 60)).foregroundColor(AppColors.textMuted.opacity(0.7))
+            Text("Deine Wunschliste ist leer").font(AppFonts.montserrat(size: AppFonts.Size.h5)).foregroundColor(AppColors.textHeadings)
+            Text("Füge Produkte hinzu, indem du auf das Herz-Symbol tippst.").font(AppFonts.roboto(size: AppFonts.Size.body)).foregroundColor(AppColors.textMuted).multilineTextAlignment(.center).padding(.horizontal)
+        }.padding()
     }
 
     private var loginPromptView: some View {
         VStack(spacing: 20) {
-            Image(systemName: "person.crop.circle.badge.questionmark.fill")
-                .font(.system(size: 60)).foregroundColor(AppColors.textMuted.opacity(0.7))
-            Text("Anmelden für Wunschliste")
-                .font(AppFonts.montserrat(size: AppFonts.Size.h5, weight: .semibold))
-                .foregroundColor(AppColors.textHeadings)
-            Text("Um deine Wunschliste geräteübergreifend zu speichern, melde dich bitte an.")
-                .font(AppFonts.roboto(size: AppFonts.Size.body, weight: .regular))
-                .foregroundColor(AppColors.textMuted)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-            Button("Anmelden oder Registrieren") {
-                self.showingAuthSheet = true
-            }
-            .buttonStyle(PrimaryButtonStyle())
-            .padding(.top)
-        }
-        .padding()
+            Image(systemName: "person.crop.circle.badge.questionmark.fill").font(.system(size: 60)).foregroundColor(AppColors.textMuted.opacity(0.7))
+            Text("Anmelden für Wunschliste").font(AppFonts.montserrat(size: AppFonts.Size.h5)).foregroundColor(AppColors.textHeadings)
+            Text("Um deine Wunschliste geräteübergreifend zu speichern, melde dich bitte an.").font(AppFonts.roboto(size: AppFonts.Size.body)).foregroundColor(AppColors.textMuted).multilineTextAlignment(.center).padding(.horizontal)
+            Button("Anmelden oder Registrieren") { self.showingAuthSheet = true }.buttonStyle(PrimaryButtonStyle()).padding(.top)
+        }.padding()
     }
 
     private func productList(products: [WooCommerceProduct]) -> some View {
         List {
             ForEach(products) { product in
+                // MODERNISIERT: `NavigationLink(value:)` wird für die Navigation verwendet.
+                // ZStack wird genutzt, um den Link über die gesamte Zeile klickbar zu machen.
                 ZStack {
                     NavigationLink(value: product) { EmptyView() }.opacity(0)
                     WishlistRowView(product: product)

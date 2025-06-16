@@ -1,5 +1,3 @@
-// Path: Your-Garden-Eden-IOS/Features/Common/Views/ProductRowView.swift
-
 import SwiftUI
 
 struct ProductRowView: View {
@@ -35,7 +33,7 @@ struct ProductRowView: View {
     
     @ViewBuilder
     private var productImage: some View {
-        AsyncImage(url: product.images.first?.src.asURL()) { phase in
+        AsyncImage(url: product.safeImages.first?.src.asURL()) { phase in
             switch phase {
             case .success(let image):
                 image.resizable().aspectRatio(contentMode: .fill)
@@ -44,7 +42,7 @@ struct ProductRowView: View {
                     .font(.largeTitle)
                     .foregroundColor(AppColors.textMuted.opacity(0.5))
             case .empty:
-                ShimmerView() // Verwendung der neuen ShimmerView für den Ladezustand
+                ShimmerView()
             @unknown default:
                 EmptyView()
             }
@@ -54,7 +52,7 @@ struct ProductRowView: View {
     @ViewBuilder
     private var priceView: some View {
         let priceInfo = PriceFormatter.formatPriceString(
-            from: product.priceHtml,
+            from: product.price_html,
             fallbackPrice: product.price,
             currencySymbol: "€"
         )
@@ -65,7 +63,7 @@ struct ProductRowView: View {
     
     @ViewBuilder
     private var stockStatusView: some View {
-        let isInStock = product.stockStatus == .instock
+        let isInStock = product.stock_status == .instock
         
         Text(isInStock ? "Auf Lager" : "Nicht verfügbar")
             .font(AppFonts.roboto(size: AppFonts.Size.caption, weight: .bold))

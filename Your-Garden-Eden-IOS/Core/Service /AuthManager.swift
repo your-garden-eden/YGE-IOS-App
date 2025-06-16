@@ -1,10 +1,6 @@
-// Path: Your-Garden-Eden-IOS/Core/Service/AuthManager.swift
-// FINAL KORRIGIERT
-
 import Foundation
 import KeychainAccess
 
-// MARK: - Data Models for Auth
 struct AuthResponse: Decodable {
     let success: Bool
     let data: AuthData
@@ -23,8 +19,6 @@ struct AuthErrorResponse: Decodable, Error {
         return data.message.strippingHTML()
     }
     
-    // KORREKTUR: Die Funktion wird direkt hier als statische Methode deklariert.
-    // So ist sie untrennbar mit der Struktur verbunden.
     static func genericError(_ message: String) -> AuthErrorResponse {
         return AuthErrorResponse(success: false, data: ErrorData(message: message, errorCode: -1))
     }
@@ -35,11 +29,9 @@ struct ErrorData: Decodable {
     let errorCode: Int
 }
 
-// MARK: - AuthManager
 @MainActor
 final class AuthManager: ObservableObject {
     static let shared = AuthManager()
-
     @Published private(set) var user: UserModel?
     @Published var isLoggedIn: Bool = false
     @Published var isLoading: Bool = false
@@ -49,16 +41,13 @@ final class AuthManager: ObservableObject {
     private let registrationAuthKey = "YGE-app-register-user"
 
     private init() {
-        if getAuthToken() != nil {
-            if let userData = try? keychain.getData("userProfile"),
-               let savedUser = try? JSONDecoder().decode(UserModel.self, from: userData) {
-                self.user = savedUser
-                self.isLoggedIn = true
-                print("✅ AuthManager: User loaded from Keychain.")
-            } else {
-                logout()
-                print("⚠️ AuthManager: Found auth token but no user profile. Logging out.")
-            }
+        if getAuthToken() != nil, let data = try? keychain.getData("userProfile"), let savedUser = try? JSONDecoder().decode(UserModel.self, from: data) {
+            self.user = savedUser
+            self.isLoggedIn = true
+            print("✅ AuthManager: User loaded from Keychain.")
+        } else if getAuthToken() != nil {
+            logout()
+            print("⚠️ AuthManager: Found auth token but no user profile. Logging out.")
         }
     }
 
@@ -68,7 +57,6 @@ final class AuthManager: ObservableObject {
         
         guard let url = URL(string: "\(apiBaseURL)/auth") else { throw AuthErrorResponse.genericError("Ungültige API-URL.") }
         let parameters: [String: Any] = ["email": email, "password": password]
-        
         let response = try await performAuthRequest(url: url, parameters: parameters)
         handleSuccess(response)
     }
@@ -77,27 +65,20 @@ final class AuthManager: ObservableObject {
         self.isLoading = true
         defer { self.isLoading = false }
         
-        guard !registrationAuthKey.isEmpty else {
-            throw AuthErrorResponse.genericError("Der Registrierungs-Schlüssel ist serverseitig nicht konfiguriert.")
-        }
+        guard !registrationAuthKey.isEmpty else { throw AuthErrorResponse.genericError("Reg-Schlüssel nicht konfiguriert.") }
         guard let url = URL(string: "\(apiBaseURL)/users") else { throw AuthErrorResponse.genericError("Ungültige API-URL.") }
-        let parameters: [String: Any] = [
-            "email": email, "password": password,
-            "first_name": firstName, "last_name": lastName,
-            "auth_key": registrationAuthKey
-        ]
-        
+        let parameters: [String: Any] = ["email": email, "password": password, "first_name": firstName, "last_name": lastName, "auth_key": registrationAuthKey]
         let response = try await performAuthRequest(url: url, parameters: parameters)
         handleSuccess(response)
     }
-
+    
     func logout() {
-        self.user = nil
-        self.isLoggedIn = false
-        try? self.keychain.remove("authToken")
-        try? self.keychain.remove("userProfile")
+        user = nil
+        isLoggedIn = false
+        try? keychain.remove("authToken")
+        try? keychain.remove("userProfile")
         Task { try? KeychainHelper.deleteCartToken() }
-        print("🔐 AuthManager: User logged out and session cleared.")
+        print("🔐 AuthManager: User logged out.")
     }
     
     func getAuthToken() -> String? {
@@ -112,13 +93,10 @@ final class AuthManager: ObservableObject {
 
         let (data, response) = try await URLSession.shared.data(for: request)
         
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw AuthErrorResponse.genericError("Ungültige Server-Antwort.")
-        }
+        guard let httpResponse = response as? HTTPURLResponse else { throw AuthErrorResponse.genericError("Ungültige Server-Antwort.") }
         
         guard (200...299).contains(httpResponse.statusCode) else {
             if let authError = try? JSONDecoder().decode(AuthErrorResponse.self, from: data) {
-                print("🔴 AuthManager Error: \(authError.localizedDescription)")
                 throw authError
             }
             throw AuthErrorResponse.genericError("Unbekannter Serverfehler. Status: \(httpResponse.statusCode)")
@@ -128,11 +106,11 @@ final class AuthManager: ObservableObject {
     }
     
     private func handleSuccess(_ response: AuthResponse) {
-        self.user = response.data.user
-        self.isLoggedIn = true
-        try? self.keychain.set(response.data.token, key: "authToken")
+        user = response.data.user
+        isLoggedIn = true
+        try? keychain.set(response.data.token, key: "authToken")
         if let userData = try? JSONEncoder().encode(response.data.user) {
-           try? self.keychain.set(userData, key: "userProfile")
+            try? keychain.set(userData, key: "userProfile")
         }
         print("✅ AuthManager: Auth success for user \(response.data.user.displayName).")
     }

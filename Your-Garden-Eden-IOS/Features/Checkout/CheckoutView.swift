@@ -1,13 +1,12 @@
-// Path: Your-Garden-Eden-IOS/Features/Checkout/CheckoutView.swift
-
 import SwiftUI
 
 struct CheckoutView: View, Hashable {
     
-    // Hashable Konformität
+    // Hashable Konformität für `NavigationLink(value:)`
     func hash(into hasher: inout Hasher) {
         hasher.combine("CheckoutViewIdentifier")
     }
+    
     static func == (lhs: CheckoutView, rhs: CheckoutView) -> Bool {
         return true
     }

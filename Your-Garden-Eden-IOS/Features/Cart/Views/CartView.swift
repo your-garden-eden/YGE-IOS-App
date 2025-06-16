@@ -1,4 +1,5 @@
-// Path: Your-Garden-Eden-IOS/Features/Cart/CartView.swift
+// Path: Your-Garden-Eden-IOS/Features/Cart/Views/CartView.swift
+// VERSION 2.0 (FINAL)
 
 import SwiftUI
 
@@ -8,30 +9,28 @@ struct CartView: View {
     @State private var isShowingAuthSheet = false
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                AppColors.backgroundPage.ignoresSafeArea()
+        ZStack {
+            AppColors.backgroundPage.ignoresSafeArea()
 
-                if cartManager.state.isLoading && cartManager.state.items.isEmpty {
-                    initialLoadingView
-                } else if cartManager.state.items.isEmpty {
-                    emptyCartView
-                } else {
-                    cartContentView
-                }
+            if cartManager.state.isLoading && cartManager.state.items.isEmpty {
+                initialLoadingView
+            } else if cartManager.state.items.isEmpty {
+                emptyCartView
+            } else {
+                cartContentView
             }
-            .navigationTitle("Warenkorb")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                 ToolbarItem(placement: .principal) {
-                    Text("Warenkorb")
-                        .font(AppFonts.montserrat(size: AppFonts.Size.headline, weight: .bold))
-                        .foregroundColor(AppColors.textHeadings)
-                }
+        }
+        .navigationTitle("Warenkorb")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+             ToolbarItem(placement: .principal) {
+                Text("Warenkorb")
+                    .font(AppFonts.montserrat(size: AppFonts.Size.headline, weight: .bold))
+                    .foregroundColor(AppColors.textHeadings)
             }
-            .refreshable {
-                await cartManager.getCart()
-            }
+        }
+        .refreshable {
+            await cartManager.getCart()
         }
     }
     
@@ -91,7 +90,7 @@ struct CartView: View {
         VStack(spacing: AppStyles.Spacing.large) {
             Image(systemName: "cart").font(.system(size: 60, weight: .light)).foregroundColor(AppColors.textMuted)
             Text("Dein Warenkorb ist leer").font(AppFonts.montserrat(size: AppFonts.Size.title2, weight: .bold))
-            Button("Weiter einkaufen") { self.selectedTab.wrappedValue = 1 } // Navigiert zum Shop-Tab
+            Button("Weiter einkaufen") { self.selectedTab.wrappedValue = 1 }
                 .buttonStyle(PrimaryButtonStyle())
                 .padding(.top)
         }

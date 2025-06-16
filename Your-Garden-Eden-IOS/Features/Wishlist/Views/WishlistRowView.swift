@@ -1,5 +1,3 @@
-// Path: Your-Garden-Eden-IOS/Features/Wishlist/WishlistRowView.swift
-
 import SwiftUI
 
 struct WishlistRowView: View {
@@ -15,7 +13,7 @@ struct WishlistRowView: View {
                     .foregroundColor(AppColors.textHeadings)
                     .lineLimit(2)
                 
-                let priceInfo = PriceFormatter.formatPriceString(from: product.priceHtml, fallbackPrice: product.price, currencySymbol: "€")
+                let priceInfo = PriceFormatter.formatPriceString(from: product.price_html, fallbackPrice: product.price, currencySymbol: "€")
                 Text(priceInfo.display)
                     .font(AppFonts.roboto(size: AppFonts.Size.body, weight: .bold))
                     .foregroundColor(AppColors.price)
@@ -34,7 +32,7 @@ struct WishlistRowView: View {
     
     @ViewBuilder
     private var productImage: some View {
-        AsyncImage(url: product.images.first?.src.asURL()) { phase in
+        AsyncImage(url: product.safeImages.first?.src.asURL()) { phase in
             switch phase {
             case .empty:
                 ZStack {

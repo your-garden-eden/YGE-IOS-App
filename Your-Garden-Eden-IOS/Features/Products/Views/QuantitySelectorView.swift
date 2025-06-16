@@ -1,5 +1,3 @@
-// Path: Your-Garden-Eden-IOS/Features/Products/Views/QuantitySelectorView.swift
-
 import SwiftUI
 
 struct QuantitySelectorView: View {

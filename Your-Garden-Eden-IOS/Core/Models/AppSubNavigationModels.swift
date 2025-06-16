@@ -1,8 +1,4 @@
-// Path: Your-Garden-Eden-IOS/Core/Models/AppNavigationModels.swift
-
 import Foundation
-
-// Modelle, die sich rein auf die statische Navigation der App beziehen.
 
 struct AppNavigationItem: Identifiable, Hashable {
     let id = UUID()
@@ -18,4 +14,5 @@ struct AppSubNavigationItem: Identifiable, Hashable {
     let label: String
     let i18nId: String
     let linkSlug: String
+    // Die imageFilename-Eigenschaft wurde hier entfernt.
 }

@@ -1,145 +1,113 @@
-// Path: Your-Garden-Eden-IOS/Features/Home/HomeView.swift
-
 import SwiftUI
 import AVKit
 
 struct HomeView: View {
-    @EnvironmentObject var categoryViewModel: CategoryViewModel
-    @EnvironmentObject var productViewModel: ProductViewModel
-
+    @EnvironmentObject private var productViewModel: ProductViewModel
+    @EnvironmentObject private var categoryViewModel: CategoryViewModel
+    
     @State private var player: AVPlayer?
-    @State private var playerLooper: AVPlayerLooper?
-    @State private var queuePlayer: AVQueuePlayer?
+    @State private var playerObserver: Any?
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: AppStyles.Spacing.xxLarge) {
-                videoBannerSection
-                categoryCarouselSection
-                bestsellerSection
-                FooterView().padding(.top, AppStyles.Spacing.large)
+            // Der VStack hat keinen Top-Padding mehr, damit das Banner bündig abschließt.
+            // Der Abstand zum nächsten Element wird durch 'spacing' geregelt.
+            VStack(alignment: .leading, spacing: AppStyles.Spacing.xLarge) {
+                heroBannerVideo
+                    // --- ÄNDERUNG START ---
+                    // 1. Höhe für mehr visuelle Präsenz erhöht.
+                    // 2. Explizit auf maximale Breite gesetzt, um die volle Ausdehnung sicherzustellen.
+                    .frame(height: 220)
+                    .frame(maxWidth: .infinity)
+                    // --- ÄNDERUNG ENDE ---
+                
+                // 2. Kategorien Sektion
+                Section {
+                    Text("Kategorien entdecken")
+                        .font(AppFonts.montserrat(size: AppFonts.Size.h3, weight: .bold))
+                        .padding(.horizontal)
+                    
+                    if categoryViewModel.isLoading {
+                        ProgressView().frame(maxWidth: .infinity, minHeight: 150)
+                    } else if let errorMessage = categoryViewModel.errorMessage {
+                         ErrorStateView(message: errorMessage).padding()
+                    } else {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: AppStyles.Spacing.medium) {
+                                ForEach(categoryViewModel.topLevelCategories) { category in
+                                    NavigationLink(value: category) {
+                                        CategoryCarouselItemView(
+                                            category: category,
+                                            displayName: findLabelFor(category: category)
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding()
+                        }
+                    }
+                }
+                
+                // 3. Bestseller Sektion
+                Section {
+                    Text("Bestseller")
+                        .font(AppFonts.montserrat(size: AppFonts.Size.h3, weight: .bold))
+                        .padding(.horizontal)
+                    
+                    if productViewModel.isLoadingBestsellers {
+                        ProgressView().frame(maxWidth: .infinity, minHeight: 150)
+                    } else if let errorMessage = productViewModel.bestsellerErrorMessage {
+                        ErrorStateView(message: errorMessage).padding()
+                    } else {
+                        RelatedProductsView(products: productViewModel.bestsellerProducts.map { IdentifiableDisplayProduct(product: $0) })
+                    }
+                }
+                
+                // 4. Footer
+                FooterView()
             }
+            // --- ÄNDERUNG: Das Padding wurde von hier entfernt. ---
+            // .padding(.top, AppStyles.Spacing.large)
         }
         .background(AppColors.backgroundPage.ignoresSafeArea())
-        .navigationTitle("")
-        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Image("logo_your_garden_eden_transparent")
-                    .resizable().aspectRatio(contentMode: .fit).frame(height: 70)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 150)
             }
         }
-        .onAppear {
-            if player == nil { initializePlayer() }
-        }
-    }
-
-    // MARK: - Subviews
-    
-    @ViewBuilder
-    private var videoBannerSection: some View {
-        if let videoPlayer = player {
-            VideoPlayer(player: videoPlayer)
-                .frame(height: 200)
-                .disabled(true)
-                .background(AppColors.backgroundLightGray)
-                .onAppear { videoPlayer.play() }
-                .onDisappear { videoPlayer.pause() }
-        } else {
-            Rectangle()
-                .fill(AppColors.backgroundLightGray)
-                .frame(height: 200)
-                .overlay(ProgressView())
-        }
-    }
-
-    @ViewBuilder
-    private var categoryCarouselSection: some View {
-        VStack(alignment: .leading, spacing: AppStyles.Spacing.medium) {
-            Text("Unsere Kategorien")
-                .font(AppFonts.montserrat(size: AppFonts.Size.h3, weight: .semibold))
-                .padding(.horizontal)
-
-            if categoryViewModel.isLoading && categoryViewModel.displayableCategories.isEmpty {
-                ProgressView().frame(maxWidth: .infinity, minHeight: 120)
-            } else if let errorMessage = categoryViewModel.errorMessage {
-                ErrorStateView(message: errorMessage)
-            } else if !categoryViewModel.displayableCategories.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(alignment: .top, spacing: AppStyles.Spacing.large) {
-                        ForEach(categoryViewModel.displayableCategories) { category in
-                            NavigationLink(value: category) {
-                                CategoryCarouselItemView(category: category)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.horizontal)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var bestsellerSection: some View {
-        if productViewModel.isLoadingBestsellers && productViewModel.bestsellerProducts.isEmpty {
-            ProgressView().frame(maxWidth: .infinity, minHeight: 200)
-        } else if let errorMessage = productViewModel.bestsellerErrorMessage {
-            ErrorStateView(message: errorMessage)
-        } else if !productViewModel.bestsellerProducts.isEmpty {
-            VStack(alignment: .leading, spacing: AppStyles.Spacing.medium) {
-                Text("Bestseller")
-                    .font(AppFonts.montserrat(size: AppFonts.Size.h3, weight: .semibold))
-                    .padding(.horizontal)
-                
-                RelatedProductsView(products: productViewModel.bestsellerProducts.map { IdentifiableDisplayProduct(product: $0) })
-            }
-        }
+        .onAppear(perform: setupPlayer)
+        .onDisappear(perform: cleanupPlayer)
     }
     
-    // MARK: - Private Helper Functions
+    // MARK: - Subviews & Helper
+    
+    @ViewBuilder
+    private var heroBannerVideo: some View {
+        if let player = player { VideoPlayer(player: player).disabled(true) }
+        else { ZStack { AppColors.backgroundLightGray; Image(systemName: "photo.fill").font(.largeTitle).foregroundColor(AppColors.textMuted.opacity(0.3)) } }
+    }
+    
+    private func findLabelFor(category: WooCommerceCategory) -> String {
+        return AppNavigationData.items.first { $0.mainCategorySlug == category.slug }?.label ?? category.name.strippingHTML()
+    }
 
-    private func initializePlayer() {
-        guard let videoURL = Bundle.main.url(forResource: "hero_main_banner_yge", withExtension: "mp4") else {
-            print("🔴 ERROR: Video file 'hero_main_banner_yge.mp4' not found in Bundle.")
-            return
-        }
-        let playerItem = AVPlayerItem(url: videoURL)
-        
-        self.queuePlayer = AVQueuePlayer(playerItem: playerItem)
-        if let queuePlayer = self.queuePlayer {
-            self.playerLooper = AVPlayerLooper(player: queuePlayer, templateItem: playerItem)
-            queuePlayer.isMuted = true
-            self.player = queuePlayer
-        }
+    private func setupPlayer() {
+        guard player == nil else { return }
+        guard let fileURL = Bundle.main.url(forResource: "hero_main_banner_yge", withExtension: "mp4") else { print("🔴 Video Error: hero_main_banner_yge.mp4 not found in bundle."); return }
+        let playerItem = AVPlayerItem(url: fileURL)
+        let avPlayer = AVPlayer(playerItem: playerItem)
+        avPlayer.isMuted = true
+        self.playerObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: playerItem, queue: .main) { _ in avPlayer.seek(to: .zero); avPlayer.play() }
+        self.player = avPlayer; avPlayer.play()
+    }
+    
+    private func cleanupPlayer() {
+        player?.pause();
+        if let observer = playerObserver { NotificationCenter.default.removeObserver(observer); playerObserver = nil }
+        player = nil
     }
 }
-
-
-// MARK: - Private Subviews for HomeView
-private struct CategoryCarouselItemView: View {
-    let category: DisplayableMainCategory
-    
-    var body: some View {
-        VStack(spacing: AppStyles.Spacing.small) {
-            if let imageName = category.appItem.imageFilename {
-                Image(imageName)
-                    .resizable().scaledToFill().frame(width: 80, height: 80).clipShape(Circle())
-            } else {
-                ZStack {
-                    Circle().fill(AppColors.backgroundLightGray)
-                    Image(systemName: "photo.fill").resizable().scaledToFit().foregroundColor(AppColors.textMuted.opacity(0.4)).padding(20)
-                }.frame(width: 80, height: 80)
-            }
-            Text(category.appItem.label)
-                .font(AppFonts.montserrat(size: AppFonts.Size.caption, weight: .semibold))
-                .foregroundColor(AppColors.textBase)
-                .frame(width: 90)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-        }
-        .overlay(Circle().stroke(Color.gray.opacity(0.2), lineWidth: 1).frame(width: 80, height: 80).offset(y: -22))
-        .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: 2)
-    }
-}
-

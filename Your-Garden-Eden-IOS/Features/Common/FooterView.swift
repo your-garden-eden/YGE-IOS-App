@@ -1,14 +1,5 @@
-//
-//  FooterView.swift
-//  Your-Garden-Eden-IOS
-//
-//  Created by Josef Ewert on 14.06.25.
-//
-
-
-// Path: Your-Garden-Eden-IOS/Features/Common/FooterView.swift
-
 import SwiftUI
+import UIKit
 
 struct FooterView: View {
 
@@ -19,7 +10,7 @@ struct FooterView: View {
     }
 
     private func openURL(urlString: String) {
-        guard let url = URL(string: urlString) else { return }
+        guard let url = URL(string: urlString), UIApplication.shared.canOpenURL(url) else { return }
         UIApplication.shared.open(url)
     }
 

@@ -1,5 +1,3 @@
-// Path: Your-Garden-Eden-IOS/Features/Auth/SignUpView.swift
-
 import SwiftUI
 
 struct SignUpView: View {

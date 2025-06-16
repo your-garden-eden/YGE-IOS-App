@@ -1,5 +1,3 @@
-// Path: Your-Garden-Eden-IOS/Core/Service/WishlistState.swift
-
 import Foundation
 import Combine
 
@@ -35,12 +33,13 @@ final class WishlistState: ObservableObject {
     }
     
     func toggleWishlistStatus(for product: WooCommerceProduct) {
-        let parentProductId = product.parentId == 0 ? product.id : product.parentId
+        // MODERNISIERT: Sichere Behandlung der optionalen parent_id
+        let parentId = (product.parent_id ?? 0) == 0 ? product.id : (product.parent_id ?? product.id)
         
-        if isProductInWishlist(productId: parentProductId) {
-             removeProduct(productId: parentProductId)
+        if isProductInWishlist(productId: parentId) {
+            removeProduct(productId: parentId)
         } else {
-             addProduct(product: product)
+            addProduct(product: product)
         }
     }
     
@@ -106,20 +105,27 @@ final class WishlistState: ObservableObject {
     }
 
     private func addProduct(product: WooCommerceProduct) {
-        let parentId = product.parentId == 0 ? product.id : product.parentId
+        // MODERNISIERT: Sichere Behandlung der optionalen parent_id
+        let parentId = (product.parent_id ?? 0) == 0 ? product.id : (product.parent_id ?? product.id)
         guard !wishlistProductIds.contains(parentId) else { return }
         
         wishlistProductIds.insert(parentId)
-        if !wishlistProducts.contains(where: { ($0.id) == parentId }) {
+        if !wishlistProducts.contains(where: { ($0.parent_id ?? 0 == 0 ? $0.id : ($0.parent_id ?? $0.id)) == parentId }) {
             wishlistProducts.insert(product, at: 0)
         }
         
         Task(priority: .background) {
             if authManager.isLoggedIn {
-                let variationId = product.parentId != 0 ? product.id : nil
-                do { try await wcApiService.addToUserWishlist(productId: parentId, variationId: variationId) }
-                catch { await MainActor.run { removeProductFromLocalState(productId: parentId) } }
-            } else { saveGuestWishlist() }
+                // MODERNISIERT: Sichere Behandlung der optionalen parent_id
+                let variationId = (product.parent_id ?? 0) != 0 ? product.id : nil
+                do {
+                    try await wcApiService.addToUserWishlist(productId: parentId, variationId: variationId)
+                } catch {
+                    await MainActor.run { removeProductFromLocalState(productId: parentId) }
+                }
+            } else {
+                saveGuestWishlist()
+            }
         }
     }
     
@@ -129,14 +135,17 @@ final class WishlistState: ObservableObject {
         
         Task(priority: .background) {
             if authManager.isLoggedIn {
-                do { try await wcApiService.removeFromUserWishlist(productId: productId, variationId: nil) }
-                catch {
+                do {
+                    try await wcApiService.removeFromUserWishlist(productId: productId, variationId: nil)
+                } catch {
                     await MainActor.run {
                         self.wishlistProductIds.insert(productId)
                         self.wishlistProducts = originalProducts
                     }
                 }
-            } else { saveGuestWishlist() }
+            } else {
+                saveGuestWishlist()
+            }
         }
     }
     
@@ -162,7 +171,8 @@ final class WishlistState: ObservableObject {
 
     private func removeProductFromLocalState(productId: Int) {
         wishlistProductIds.remove(productId)
-        wishlistProducts.removeAll { ($0.parentId == 0 ? $0.id : $0.parentId) == productId }
+        // MODERNISIERT: Sichere Behandlung der optionalen parent_id
+        wishlistProducts.removeAll { ($0.parent_id ?? 0 == 0 ? $0.id : ($0.parent_id ?? $0.id)) == productId }
     }
     
     private func loadGuestWishlist() {

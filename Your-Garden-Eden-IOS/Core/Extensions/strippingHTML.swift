@@ -1,34 +1,41 @@
-// Path: Your-Garden-Eden-IOS/Core/Extensions/String+Extensions.swift
-
 import Foundation
+import RegexBuilder // Import für die moderne Regex-Syntax
 
 extension String {
     
-    /// Wandelt einen HTML-String sicher in einen reinen Text-String um.
+    /// Entfernt HTML-Tags aus einem String mithilfe einer modernen Swift-Regex.
+    /// Diese Methode ist oft performanter und direkter als die Verwendung von NSAttributedString für diese spezifische Aufgabe.
     func strippingHTML() -> String {
-        guard !self.isEmpty,
-              let data = self.data(using: .utf8) else { return self }
-        
-        let options: [NSAttributedString.DocumentReadingOptionKey: Any] = [
-            .documentType: NSAttributedString.DocumentType.html,
-            .characterEncoding: String.Encoding.utf8.rawValue
-        ]
-        
-        if let attributedString = try? NSAttributedString(data: data, options: options, documentAttributes: nil) {
-            return attributedString.string
-        }
-        
-        return self.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression, range: nil)
+        // MODERNISIERT: Die neue, deklarative Regex-Syntax von Swift.
+        // Sie sucht nach einem '<', gefolgt von beliebigen Zeichen (nicht-gierig), die kein '>' sind, und dann einem '>'.
+        let htmlTagRegex = /<.*?>/
+        return self.replacing(htmlTagRegex, with: "")
     }
     
+    /// Konvertiert den String in eine URL. An dieser Funktion gibt es nichts zu modernisieren,
+    /// sie ist bereits optimal und sicher.
     func asURL() -> URL? {
         return URL(string: self)
     }
     
+    /// Erstellt eine URL-freundliche "Slug"-Version des Strings.
+    /// Diese modernisierte Version verwendet Regex für eine robustere und klarere Umwandlung.
     func slugify() -> String {
-        return self.lowercased()
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: " ", with: "-")
-            .folding(options: .diacriticInsensitive, locale: .current)
+        // Schritt 1: Konvertiert Umlaute und Akzente in ihre Basis-Buchstaben (z.B. "für" -> "fur").
+        let baseString = self.folding(options: .diacriticInsensitive, locale: .current)
+            .lowercased()
+
+        // MODERNISIERT: Deklarative Regex-Definitionen für bessere Lesbarkeit.
+        // Regex, um alle ungültigen Zeichen zu finden (erlaubt sind nur a-z, 0-9 und Bindestriche).
+        let invalidCharsRegex = /[^a-z0-9-]+/
+        // Regex, um eine oder mehrere Folgen von Leerzeichen zu finden.
+        let spacesToDashRegex = /\s+/
+        
+        // Führe die Ersetzungen aus.
+        let processedString = baseString
+            .replacing(spacesToDashRegex, with: "-")  // Ersetzt Leerzeichenfolgen durch einen Bindestrich
+            .replacing(invalidCharsRegex, with: "")   // Entfernt alle verbleibenden ungültigen Zeichen
+            
+        return processedString
     }
 }

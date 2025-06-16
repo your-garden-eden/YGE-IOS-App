@@ -1,5 +1,3 @@
-// Path: Your-Garden-Eden-IOS/Resources/Styling/AppFonts.swift
-
 import SwiftUI
 
 struct AppFonts {
@@ -37,3 +35,4 @@ struct AppFonts {
         return .custom(Family.roboto, size: size).weight(weight)
     }
 }
+

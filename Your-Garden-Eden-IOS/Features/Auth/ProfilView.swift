@@ -1,5 +1,3 @@
-// Path: Your-Garden-Eden-IOS/Features/Auth/ProfilView.swift
-
 import SwiftUI
 
 struct ProfilView: View {
@@ -8,21 +6,20 @@ struct ProfilView: View {
     @State private var showingAuthSheet = false
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                AppColors.backgroundPage.ignoresSafeArea()
-                
-                Group {
-                    if let user = authManager.user {
-                        loggedInView(user: user)
-                    } else {
-                        loggedOutView
-                    }
+        // MODERNISIERT: Die View ist der Root einer NavigationStack, die in der TabView bereitgestellt wird.
+        ZStack {
+            AppColors.backgroundPage.ignoresSafeArea()
+            
+            Group {
+                if let user = authManager.user {
+                    loggedInView(user: user)
+                } else {
+                    loggedOutView
                 }
             }
-            .navigationTitle("Mein Profil")
-            .navigationBarTitleDisplayMode(.large)
         }
+        .navigationTitle("Mein Profil")
+        .navigationBarTitleDisplayMode(.large)
         .sheet(isPresented: $showingAuthSheet) {
             AuthContainerView(onDismiss: { self.showingAuthSheet = false })
                 .environmentObject(authManager)

@@ -1,4 +1,5 @@
-// Path: Your-Garden-Eden-IOS/Features/Products/ProductOptionsViewModel.swift
+// Path: Your-Garden-Eden-IOS/Features/Products/ViewModels/ProductOptionsViewModel.swift
+// VERSION 4.2 (FINAL - Connects to Cart)
 
 import SwiftUI
 import Combine
@@ -6,63 +7,84 @@ import Combine
 @MainActor
 final class ProductOptionsViewModel: ObservableObject {
     
+    // MARK: - Input Properties
     let product: WooCommerceProduct
-    private let variations: [WooCommerceProductVariation]
+    private let purchasableVariations: [WooCommerceProductVariation]
     private let cartManager = CartAPIManager.shared
 
-    @Published var selectedAttributes: [String: String] = [:] {
-        didSet { updateState() }
-    }
-    
-    @Published private(set) var selectedVariation: WooCommerceProductVariation?
+    // MARK: - Published State for the View
+    @Published var selectedAttributes: [String: String] = [:]
     @Published private(set) var availability: [String: Set<String>] = [:]
     @Published var addToCartError: String?
     @Published var quantity: Int = 1
 
+    private var cancellables = Set<AnyCancellable>()
+
+    // MARK: - Computed Properties
+    
+    var selectedVariation: WooCommerceProductVariation? {
+        guard selectedAttributes.count == self.displayableAttributes.count else { return nil }
+        return purchasableVariations.first { variation in
+            selectedAttributes.allSatisfy { (attrSlug, optionSlug) in
+                variation.safeAttributes.contains { $0.name?.slugify() == attrSlug && $0.option?.slugify() == optionSlug }
+            }
+        }
+    }
+    
     var currentImage: WooCommerceImage? {
-        selectedVariation?.image ?? product.images.first
+        selectedVariation?.image ?? product.safeImages.first
     }
 
     var displayPrice: PriceFormatter.FormattedPrice {
         if let variation = selectedVariation {
-            return PriceFormatter.formatPriceString(from: variation.priceHtml, fallbackPrice: variation.price, currencySymbol: "€")
+            return PriceFormatter.formatPriceString(from: variation.price_html, fallbackPrice: variation.price)
         }
-        return PriceFormatter.formatPriceString(from: product.priceHtml, fallbackPrice: product.price, currencySymbol: "€")
+        if let range = PriceFormatter.calculatePriceRange(from: self.purchasableVariations) {
+            return PriceFormatter.FormattedPrice(display: range, strikethrough: nil)
+        }
+        return PriceFormatter.formatPriceString(from: product.price_html, fallbackPrice: product.price)
     }
     
     var stockStatusMessage: (text: String, color: Color) {
-        let isSelectionComplete = selectedAttributes.count == displayableAttributes.count
-        
-        if !isSelectionComplete {
+        if selectedAttributes.count != displayableAttributes.count {
             return ("Bitte alle Optionen wählen", AppColors.textMuted)
         }
-        
-        if let variation = selectedVariation {
-            return variation.isInStock ? ("Auf Lager", AppColors.success) : ("Nicht auf Lager", AppColors.error)
+        if selectedVariation != nil {
+             return ("Auf Lager", AppColors.success)
+        } else {
+             return ("Diese Kombination ist nicht verfügbar", AppColors.error)
         }
-        
-        return ("Diese Kombination ist nicht verfügbar", AppColors.error)
     }
 
     var isAddToCartDisabled: Bool {
-        selectedVariation == nil || selectedVariation?.isInStock == false
+        cartManager.state.isLoading || selectedVariation == nil
     }
     
     let displayableAttributes: [DisplayableAttribute]
 
+    // MARK: - Initializer & Setup
+    
     init(product: WooCommerceProduct, variations: [WooCommerceProductVariation]) {
         self.product = product
-        self.variations = variations
+        self.purchasableVariations = variations.filter { $0.isPurchasable && $0.isInStock }
         
-        self.displayableAttributes = product.attributes.compactMap { attr in
+        self.displayableAttributes = product.safeAttributes.compactMap { attr in
             guard attr.variation else { return nil }
             let options = attr.options.map { DisplayableAttribute.Option(name: $0, slug: $0.slugify()) }
             return DisplayableAttribute(name: attr.name, slug: attr.name.slugify(), options: options)
         }
         
-        print("📦 ProductOptionsViewModel initialized for '\(product.name)'")
+        $selectedAttributes
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.updateState() }
+            .store(in: &cancellables)
+        
+        print("📦 ProductOptionsViewModel initialized for '\(product.name)' with \(self.purchasableVariations.count) purchasable variations.")
         updateState()
     }
+    
+    // MARK: - User Actions
     
     func select(attributeSlug: String, optionSlug: String) {
         addToCartError = nil
@@ -73,64 +95,48 @@ final class ProductOptionsViewModel: ObservableObject {
         }
     }
     
+    // **DIESE FUNKTION IST DER SCHLÜSSEL**
     func handleAddToCart() async {
         guard let variation = selectedVariation else {
             self.addToCartError = "Bitte wähle eine gültige Produktkombination."
             return
         }
-        
         addToCartError = nil
+        // Ruft den zentralen Manager auf, um das Produkt hinzuzufügen.
         await cartManager.addItem(productId: product.id, quantity: quantity, variationId: variation.id)
     }
 
+    // MARK: - Private Logic
+    
     private func updateState() {
-        updateSelectedVariation()
         updateAvailability()
     }
     
     private func updateAvailability() {
         var newAvailability: [String: Set<String>] = [:]
-        
-        for attribute in displayableAttributes {
-            var availableOptions = Set<String>()
-            let otherSelections = selectedAttributes.filter { $0.key != attribute.slug }
+        for currentAttribute in displayableAttributes {
+            var availableOptionSlugs = Set<String>()
+            let otherSelections = selectedAttributes.filter { $0.key != currentAttribute.slug }
             
-            let possibleVariations = variations.filter { variation in
-                otherSelections.allSatisfy { (selectedSlug, selectedOptionSlug) in
-                    variation.attributes.contains { $0.name.slugify() == selectedSlug && $0.option.slugify() == selectedOptionSlug }
+            let possibleVariations = self.purchasableVariations.filter { variation in
+                otherSelections.allSatisfy { (selectedAttrSlug, selectedOptionSlug) in
+                    variation.safeAttributes.contains { $0.name?.slugify() == selectedAttrSlug && $0.option?.slugify() == selectedOptionSlug }
                 }
             }
             
             for variation in possibleVariations {
-                if let optionForCurrentAttr = variation.attributes.first(where: { $0.name.slugify() == attribute.slug }) {
-                    availableOptions.insert(optionForCurrentAttr.option.slugify())
+                if let attrForThisVariation = variation.safeAttributes.first(where: { ($0.name ?? "").slugify() == currentAttribute.slug }) {
+                    if let optionValue = attrForThisVariation.option {
+                        availableOptionSlugs.insert(optionValue.slugify())
+                    }
                 }
             }
-            newAvailability[attribute.slug] = availableOptions
+            newAvailability[currentAttribute.slug] = availableOptionSlugs
         }
         self.availability = newAvailability
     }
-    
-    private func updateSelectedVariation() {
-        guard selectedAttributes.count == self.displayableAttributes.count else {
-            if self.selectedVariation != nil { self.selectedVariation = nil }
-            return
-        }
-
-        let matchingVariation = variations.first { variation in
-            selectedAttributes.allSatisfy { (selectedSlug, selectedOptionSlug) in
-                variation.attributes.contains { $0.name.slugify() == selectedSlug && $0.option.slugify() == selectedOptionSlug }
-            }
-        }
-        
-        if self.selectedVariation?.id != matchingVariation?.id {
-            self.selectedVariation = matchingVariation
-            print("🔄 Selected variation updated to: ID \(matchingVariation?.id ?? -1)")
-        }
-    }
 }
 
-// MARK: - Helper Structs
 extension ProductOptionsViewModel {
     struct DisplayableAttribute: Identifiable {
         var id: String { slug }

@@ -1,5 +1,3 @@
-// Path: Your-Garden-Eden-IOS/Resources/Styling/AppStyles.swift
-
 import SwiftUI
 
 struct AppStyles {
@@ -37,7 +35,6 @@ extension View {
     }
 }
 
-// Hilfs-Stil für Buttons, der im ganzen Projekt wiederverwendet wird
 struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
