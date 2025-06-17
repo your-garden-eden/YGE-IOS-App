@@ -1,5 +1,5 @@
 // Path: Your-Garden-Eden-IOS/Features/Cart/Views/CartRowView.swift
-// VERSION 1.0 (FINAL)
+// VERSION 1.1 (FINAL - Synchronized with AppModels v2.9)
 
 import SwiftUI
 
@@ -29,7 +29,12 @@ struct CartRowView: View {
                     .font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .semibold))
                     .lineLimit(2)
                 
-                Text(PriceFormatter.formatPrice(item.totals.lineTotal, currencySymbol: AppConfig.WooCommerce.defaultCurrencySymbol))
+                // ===================================================================
+                // **KORREKTUR 1:**
+                // Greift auf den korrekten Eigenschaftsnamen `line_total` zu und
+                // bietet einen Fallback-Wert, da die Eigenschaft optional ist.
+                // ===================================================================
+                Text(PriceFormatter.formatPrice(item.totals.line_total ?? "0.00", currencySymbol: item.prices?.currency_symbol ?? AppConfig.WooCommerce.defaultCurrencySymbol))
                     .font(AppFonts.roboto(size: AppFonts.Size.body, weight: .bold))
                     .foregroundColor(AppColors.primary)
                 
@@ -63,17 +68,31 @@ struct CartRowView: View {
     
     @ViewBuilder
     private var productImage: some View {
-        AsyncImage(url: item.images.first?.thumbnail.asURL()) { phase in
-            if let image = phase.image {
-                image.resizable().aspectRatio(contentMode: .fill)
-            } else if phase.error != nil {
-                 Rectangle().fill(AppColors.backgroundLightGray)
-                    .overlay(Image(systemName: "photo.fill").font(.title).foregroundColor(AppColors.borderLight))
-            } else {
-                ProgressView().tint(AppColors.primary)
+        // ===================================================================
+        // **KORREKTUR 2:**
+        // Wir entpacken die optionale URL sicher mit `if let`. Nur wenn
+        // sowohl `thumbnail` als auch die `URL`-Konvertierung erfolgreich sind,
+        // wird das AsyncImage initialisiert.
+        // ===================================================================
+        if let thumbnailURLString = item.images.first?.thumbnail, let url = thumbnailURLString.asURL() {
+            AsyncImage(url: url) { phase in
+                if let image = phase.image {
+                    image.resizable().aspectRatio(contentMode: .fill)
+                } else if phase.error != nil {
+                     Rectangle().fill(AppColors.backgroundLightGray)
+                        .overlay(Image(systemName: "photo.fill").font(.title).foregroundColor(AppColors.borderLight))
+                } else {
+                    ProgressView().tint(AppColors.primary)
+                }
             }
+        } else {
+            // Zeigt ein Placeholder an, wenn die URL ungültig ist oder fehlt.
+            Rectangle().fill(AppColors.backgroundLightGray)
+               .overlay(Image(systemName: "photo.fill").font(.title).foregroundColor(AppColors.borderLight))
         }
-        .frame(width: 80, height: 80)
+
+        // --- Die folgenden Zeilen bleiben unverändert ---
+        frame(width: 80, height: 80)
         .background(AppColors.backgroundLightGray)
         .cornerRadius(AppStyles.BorderRadius.medium)
         .clipped()

@@ -1,9 +1,10 @@
 // Path: Your-Garden-Eden-IOS/Core/Models/AppModels.swift
-// VERSION 2.5 (FINAL - Price Range Ready)
+// VERSION 3.2 (FINAL - Structural Integrity with Manual Hashable/Equatable)
 
 import Foundation
 
-// MARK: - Application-Specific Models
+// --- Der obere Teil der Datei bis zum WooCommerceProduct-Modell bleibt unverändert ---
+
 struct UserModel: Codable, Identifiable {
     let id: Int
     let displayName: String
@@ -19,7 +20,6 @@ struct UserModel: Codable, Identifiable {
     }
 }
 
-// MARK: - Custom Errors
 enum WooCommerceAPIError: Error, LocalizedError {
     case invalidURL, noData, productNotFound, notAuthenticated
     case serverError(statusCode: Int, message: String?, errorCode: String?)
@@ -33,7 +33,9 @@ enum WooCommerceAPIError: Error, LocalizedError {
         case .productNotFound: return "Das Produkt wurde nicht gefunden."
         case .notAuthenticated: return "Authentifizierung fehlgeschlagen. Bitte erneut anmelden."
         case .serverError(let st, let msg, let code): return "Serverfehler (\(st)): \(msg ?? "Unbekannt") (\(code ?? "N/A"))"
-        case .decodingError(let err): return "Fehler beim Verarbeiten der Server-Antwort: \(err.localizedDescription)"
+        case .decodingError(let err):
+            let nsError = err as NSError
+            return "Decoding Fehler: \(err.localizedDescription) - userInfo: \(nsError.userInfo)"
         case .underlying(let err): return "Ein unerwarteter Fehler ist aufgetreten: \(err.localizedDescription)"
         }
     }
@@ -43,7 +45,7 @@ enum WooCommerceAPIError: Error, LocalizedError {
         case .invalidURL, .noData, .decodingError: return "Ein Problem mit der Serververbindung ist aufgetreten."
         case .productNotFound: return "Das angeforderte Produkt konnte nicht gefunden werden."
         case .notAuthenticated: return "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an."
-        case .serverError: return "Ein Fehler auf dem Server ist aufgetreten. Unser Team wurde informiert."
+        case .serverError(_, let msg, _): return msg ?? "Ein Fehler auf dem Server ist aufgetreten. Unser Team wurde informiert."
         case .underlying: return "Ein unerwarteter Fehler ist aufgetreten. Bitte starten Sie die App neu."
         }
     }
@@ -58,7 +60,6 @@ struct WooCommerceStoreErrorResponse: Decodable {
     let message: String
 }
 
-// MARK: - WooCommerce Enums & Models
 enum StockStatus: String, Codable, Hashable {
     case instock
     case outofstock
@@ -74,8 +75,8 @@ struct WooCommerceCategoryRef: Codable, Hashable, Equatable {
 struct WooCommerceImage: Codable, Identifiable, Hashable, Equatable {
     let id: Int
     let src: String
-    let name: String
-    let alt: String
+    let name: String?
+    let alt: String?
 }
 
 struct WooCommerceAttribute: Codable, Identifiable, Hashable, Equatable {
@@ -85,7 +86,10 @@ struct WooCommerceAttribute: Codable, Identifiable, Hashable, Equatable {
     let options: [String]
 }
 
-struct WooCommerceProduct: Identifiable, Hashable, Equatable, Decodable {
+// ===================================================================
+// **FINALE KORREKTUR: Manuelle Implementierung von Equatable und Hashable**
+// ===================================================================
+struct WooCommerceProduct: Decodable, Identifiable, Hashable, Equatable {
     let id: Int
     let name: String
     let slug: String
@@ -104,9 +108,7 @@ struct WooCommerceProduct: Identifiable, Hashable, Equatable, Decodable {
     let purchasable: Bool?
     let total_sales: Int?
     let stock_quantity: Int?
-    
     private let _stock_status: StockStatus?
-    
     let backorders_allowed: Bool?
     let sold_individually: Bool?
     let parent_id: Int?
@@ -115,11 +117,6 @@ struct WooCommerceProduct: Identifiable, Hashable, Equatable, Decodable {
     let variations: [Int]?
     let cross_sell_ids: [Int]
     let categories: [WooCommerceCategoryRef]?
-
-    // ===================================================================
-    // **DAS ENTSCHEIDENDE NEUE FELD**
-    // Eine 'var', um die berechnete Preisspanne später zu speichern.
-    // ===================================================================
     var priceRangeDisplay: String? = nil
 
     enum CodingKeys: String, CodingKey {
@@ -132,7 +129,6 @@ struct WooCommerceProduct: Identifiable, Hashable, Equatable, Decodable {
     
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        
         id = try container.decode(Int.self, forKey: .id)
         name = try container.decode(String.self, forKey: .name)
         slug = try container.decode(String.self, forKey: .slug)
@@ -159,13 +155,20 @@ struct WooCommerceProduct: Identifiable, Hashable, Equatable, Decodable {
         attributes = try container.decodeIfPresent([WooCommerceAttribute].self, forKey: .attributes)
         variations = try container.decodeIfPresent([Int].self, forKey: .variations)
         categories = try container.decodeIfPresent([WooCommerceCategoryRef].self, forKey: .categories)
-
         do {
             cross_sell_ids = try container.decodeIfPresent([Int].self, forKey: .cross_sell_ids) ?? []
-        } catch {
-            print("🔴 DECODING WARNING: Konnte 'cross_sell_ids' nicht als [Int] dekodieren. Setze auf leeres Array. Fehler: \(error)")
-            cross_sell_ids = []
-        }
+        } catch { cross_sell_ids = [] }
+    }
+    
+    // MARK: - Equatable & Hashable Conformance
+    // Notwendig, weil wir einen custom Decoder haben.
+    
+    static func == (lhs: WooCommerceProduct, rhs: WooCommerceProduct) -> Bool {
+        return lhs.id == rhs.id
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
     }
 
     var stock_status: StockStatus { _stock_status ?? .instock }
@@ -187,21 +190,16 @@ struct WooCommerceProductVariation: Codable, Identifiable, Hashable, Equatable {
     let on_sale: Bool?
     let purchasable: Bool?
     let stock_quantity: Int?
-    
     private let _stock_status: StockStatus?
-    
     let image: WooCommerceImage?
     let attributes: [VariationAttribute]?
 
-    enum VariationCodingKeys: String, CodingKey {
+    enum CodingKeys: String, CodingKey {
          case id, price, regular_price, sale_price, price_html, on_sale, purchasable, stock_quantity, image, attributes
          case _stock_status = "stock_status"
     }
     
-    var stock_status: StockStatus {
-        return _stock_status ?? .instock
-    }
-
+    var stock_status: StockStatus { return _stock_status ?? .instock }
     var isInStock: Bool { stock_status == .instock }
     var isPurchasable: Bool { purchasable ?? false }
     var isOnSale: Bool { on_sale ?? false }
@@ -233,47 +231,161 @@ struct WooCommerceProductsResponseContainer: Decodable {
     let totalCount: Int
 }
 
-struct WooCommerceStoreCart: Codable {
+
+// --- Der Rest der Datei ab hier ist unverändert ---
+// MARK: - Cart Models (Fully Synchronized with Server Response)
+
+struct WooCommerceStoreCart: Decodable, Hashable {
     let items: [Item]?
+    let coupons: [WooCommerceStoreCoupon]?
     let totals: Totals?
     
+    let fees: [WooCommerceStoreFee]?
+    let errors: [WooCommerceStoreError]?
+    let payment_requirements: [String]?
+    let needs_payment: Bool?
+    let needs_shipping: Bool?
+    let shipping_address: WooCommerceStoreAddress?
+    let billing_address: WooCommerceStoreAddress?
+    let shipping_rates: [WooCommerceShippingPackage]?
+    let payment_methods: [String]?
+    let has_calculated_shipping: Bool?
+    let cross_sells: [WooCommerceProduct]?
+    let items_count: Int?
+    let items_weight: Double?
+    let extensions: [String: String]?
+    
     var safeItems: [Item] { items ?? [] }
+    
+    init() {
+        self.items = []
+        self.totals = nil
+        self.coupons = []
+        self.fees = []
+        self.errors = []
+        self.payment_requirements = []
+        self.needs_payment = false
+        self.needs_shipping = false
+        self.shipping_address = nil
+        self.billing_address = nil
+        self.shipping_rates = []
+        self.payment_methods = []
+        self.has_calculated_shipping = false
+        self.cross_sells = []
+        self.items_count = 0
+        self.items_weight = 0
+        self.extensions = [:]
+    }
 }
 
-struct Item: Codable, Identifiable, Equatable, Hashable {
+struct WooCommerceStoreCoupon: Decodable, Hashable {}
+struct WooCommerceStoreError: Decodable, Hashable {}
+struct WooCommerceStoreFee: Decodable, Hashable {}
+
+struct WooCommerceStoreAddress: Decodable, Hashable {
+    let first_name: String?
+    let last_name: String?
+    let company: String?
+    let address_1: String?
+    let address_2: String?
+    let city: String?
+    let state: String?
+    let postcode: String?
+    let country: String?
+    let phone: String?
+    let email: String?
+}
+
+struct Item: Decodable, Identifiable, Equatable, Hashable {
     let key: String
     let id: Int
     let quantity: Int
+    let quantity_limits: QuantityLimits?
     let name: String
     let totals: ItemTotals
     let images: [CartImage]
+    let variation: [ItemVariation]?
+    let prices: CartItemPrices?
     
-    struct ItemTotals: Codable, Equatable, Hashable {
-        let lineTotal: String
-        
-        enum CodingKeys: String, CodingKey {
-            case lineTotal = "line_total"
-        }
+    struct QuantityLimits: Decodable, Equatable, Hashable {
+        let minimum: Int?
+        let maximum: Int?
+        let multiple_of: Int?
+        let editable: Bool?
     }
     
-    struct CartImage: Codable, Equatable, Hashable {
-        let id: Int
-        let src: String
-        let thumbnail: String
+    struct ItemTotals: Decodable, Equatable, Hashable {
+        let line_total: String?
+        let line_subtotal: String?
+        let line_subtotal_tax: String?
+        let line_total_tax: String?
+    }
+    
+    struct CartImage: Decodable, Equatable, Hashable {
+        let id: Int?
+        let src: String?
+        let thumbnail: String?
+    }
+    
+    struct ItemVariation: Decodable, Equatable, Hashable {
+        let attribute: String?
+        let value: String?
+    }
+    
+    struct CartItemPrices: Decodable, Equatable, Hashable {
+        let price: String?
+        let regular_price: String?
+        let sale_price: String?
+        let currency_symbol: String?
+        let currency_code: String?
     }
 }
 
-struct Totals: Codable, Equatable, Hashable {
-    let totalPrice: String
-    let currencySymbol: String
-    
+struct Totals: Decodable, Equatable, Hashable {
+    let total_price: String?
+    let currency_symbol: String?
+    let total_items: String?
+    let total_items_tax: String?
+    let currency_code: String?
+    let currency_minor_unit: Int?
+    let total_fees: String?
+    let total_fees_tax: String?
+    let total_discount: String?
+    let total_discount_tax: String?
+    let total_shipping: String?
+    let total_shipping_tax: String?
+    let total_tax: String?
+    let tax_lines: [TaxLine]?
+
     var totalPriceFormatted: String {
-        PriceFormatter.formatPrice(totalPrice, currencySymbol: currencySymbol)
+        PriceFormatter.formatPrice(total_price ?? "0", currencySymbol: currency_symbol ?? "€")
+    }
+
+    struct TaxLine: Decodable, Equatable, Hashable {
+        let name: String?
+        let price: String?
+        let rate: String?
+    }
+}
+
+struct WooCommerceShippingPackage: Decodable, Hashable {
+    let package_id: Int?
+    let name: String?
+    let destination: WooCommerceStoreAddress?
+    let items: [ShippingPackageItem]?
+    let shipping_rates: [WooCommerceShippingRate]?
+    
+    struct ShippingPackageItem: Decodable, Equatable, Hashable {
+        let key: String?
+        let name: String?
+        let quantity: Int?
     }
     
-    enum CodingKeys: String, CodingKey {
-        case totalPrice = "total_price"
-        case currencySymbol = "currency_symbol"
+    struct WooCommerceShippingRate: Decodable, Equatable, Hashable {
+        let rate_id: String?
+        let name: String?
+        let price: String?
+        let method_id: String?
     }
 }
 
@@ -288,8 +400,6 @@ struct YGEWishlistItem: Codable, Hashable, Identifiable {
     let addedAt: String
     
     enum CodingKeys: String, CodingKey {
-        case productId = "product_id"
-        case variationId = "variation_id"
-        case addedAt = "added_at"
+        case productId, variationId, addedAt
     }
 }

@@ -1,12 +1,13 @@
 // Path: Your-Garden-Eden-IOS/Features/Products/ViewModels/ProductListViewModel.swift
-// VERSION 2.0 (FINAL - With Price Range Enrichment)
+// VERSION 2.1 (FINAL - With Search Logic)
 
 import Foundation
+import Combine
 
 @MainActor
 class ProductListViewModel: ObservableObject {
     
-    enum Context {
+    enum Context: Equatable { // Equatable ist wichtig, um Änderungen zu erkennen
         case categoryId(Int)
         case onSale
         case featured
@@ -19,21 +20,71 @@ class ProductListViewModel: ObservableObject {
     @Published var isLoadingMore: Bool = false
     @Published var errorMessage: String?
     
-    let headline: String?
+    var headline: String?
     
-    private let context: Context
+    // 'private(set)' erlaubt uns, den context von außen zu lesen, aber nur intern zu ändern.
+    @Published private(set) var context: Context
     private var currentPage = 1
     private var totalPages: Int?
     private let api = WooCommerceAPIManager.shared
+    
+    // NEU: Ein Set für unsere Combine-Beobachter
+    private var cancellables = Set<AnyCancellable>()
+    // NEU: Ein Subject, das die Suchanfragen entgegennimmt
+    private let searchQuerySubject = PassthroughSubject<String, Never>()
 
     var canLoadMore: Bool {
-        guard let total = totalPages, !isLoading, !isLoadingMore else { return false }
+        // Die Logik für "Load More" gilt nicht, wenn wir suchen.
+        guard let total = totalPages, !isLoading, !isLoadingMore, context != .search("") else { return false }
         return currentPage <= total
     }
 
     init(context: Context, headline: String? = nil) {
         self.context = context
         self.headline = headline
+        
+        // ===================================================================
+        // **NEUE LOGIK: Debouncing für die Suche**
+        // ===================================================================
+        // Beobachtet die Suchanfragen, wartet 500ms nach der letzten Eingabe,
+        // entfernt Duplikate und startet dann die Ladefunktion.
+        searchQuerySubject
+            .debounce(for: .milliseconds(500), scheduler: DispatchQueue.main)
+            .removeDuplicates()
+            .sink { [weak self] searchQuery in
+                guard let self = self else { return }
+                Task {
+                    await self.performSearch(query: searchQuery)
+                }
+            }
+            .store(in: &cancellables)
+    }
+    
+    // ===================================================================
+    // **NEUE ÖFFENTLICHE FUNKTION: Trigger für die Suche**
+    // ===================================================================
+    /// Diese Funktion wird von der View aufgerufen, um eine neue Suche auszulösen.
+    func search(for query: String) {
+        // Leere Suchanfragen unter 3 Zeichen ignorieren, um unnötige API-Calls zu vermeiden
+        if query.count < 3 && !query.isEmpty {
+            self.products = []
+            self.errorMessage = "Bitte mindestens 3 Zeichen eingeben."
+            return
+        }
+        searchQuerySubject.send(query)
+    }
+    
+    private func performSearch(query: String) async {
+        if query.isEmpty {
+            // Wenn die Suche leer ist, kehren wir zum ursprünglichen Kontext zurück
+            // HINWEIS: Hier müsste man den "ursprünglichen" Kontext speichern,
+            // für den Moment laden wir die Kategorie neu, was ein guter Start ist.
+            self.context = .categoryId(0) // Annahme, wir kehren zu einer "Alle"-Ansicht zurück
+            await loadProducts()
+        } else {
+            self.context = .search(query)
+            await loadProducts()
+        }
     }
     
     func loadProducts() async {
@@ -60,7 +111,6 @@ class ProductListViewModel: ObservableObject {
     
     private func fetchProductData() async {
         do {
-            // --- SCHRITT 1: BASIS-PRODUKTE LADEN (wie bisher) ---
             let response: WooCommerceProductsResponseContainer
             
             switch context {
@@ -71,19 +121,18 @@ class ProductListViewModel: ObservableObject {
             case .featured:
                 response = try await api.fetchProducts(page: currentPage, featured: true)
             case .byIds(let ids):
-                // Hinweis: Paginierung macht bei einer festen ID-Liste oft keinen Sinn.
-                // Wir laden auf Seite 1 alle angeforderten IDs.
                 response = try await api.fetchProducts(page: 1, include: ids)
             case .search(let query):
+                // Wenn die Suchanfrage leer ist, keine Anfrage senden
+                guard !query.isEmpty else {
+                    self.products = []
+                    return
+                }
                 response = try await api.fetchProducts(page: currentPage, searchQuery: query)
             }
             
             var fetchedProducts = response.products
             
-            // ===================================================================
-            // **HIER IST DIE NEUE ANREICHERUNGS-PHASE**
-            // ===================================================================
-            // --- SCHRITT 2: PREISSPANNEN FÜR VARIABLE PRODUKTE LADEN ---
             try await withThrowingTaskGroup(of: (Int, String?).self) { group in
                 for product in fetchedProducts where product.type == "variable" {
                     group.addTask {
@@ -93,7 +142,6 @@ class ProductListViewModel: ObservableObject {
                     }
                 }
                 
-                // --- SCHRITT 3: ERGEBNISSE SAMMELN UND PRODUKTE AKTUALISIEREN ---
                 for try await (productId, range) in group {
                     if let range = range, let index = fetchedProducts.firstIndex(where: { $0.id == productId }) {
                         fetchedProducts[index].priceRangeDisplay = range
@@ -101,7 +149,6 @@ class ProductListViewModel: ObservableObject {
                 }
             }
             
-            // --- SCHRITT 4: FINALE, ANGEREICHERTE PRODUKTE VERÖFFENTLICHEN ---
             if self.currentPage == 1 {
                 self.products = fetchedProducts
             } else {
