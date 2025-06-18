@@ -1,42 +1,37 @@
-// Path: Your-Garden-Eden-IOS/Features/Cart/Views/CartRowView.swift
-// VERSION 1.1 (FINAL - Synchronized with AppModels v2.9)
+// DATEI: CartRowView.swift
+// PFAD: Features/Cart/Views/Components/CartRowView.swift
+// ZWECK: Stellt einen einzelnen Artikel (eine Zeile) im Warenkorb dar.
 
 import SwiftUI
 
 struct CartRowView: View {
     @EnvironmentObject private var cartManager: CartAPIManager
-    
     let item: Item
     
-    @State private var quantity: Int
-
-    init(item: Item) {
-        self.item = item
-        _quantity = State(initialValue: item.quantity)
-    }
-
-    private var isUpdating: Bool {
+    // KORREKTUR: Kein lokaler @State mehr für die Menge.
+    // Die View zeigt immer die Menge an, die vom Manager kommt.
+    private var quantity: Int { item.quantity }
+    
+    private var isUpdatingThisItem: Bool {
         cartManager.state.updatingItemKey == item.key
     }
 
     var body: some View {
-        HStack(spacing: AppStyles.Spacing.medium) {
+        HStack(spacing: AppTheme.Layout.Spacing.medium) {
             productImage
                 .frame(width: 80, height: 80)
 
-            VStack(alignment: .leading, spacing: AppStyles.Spacing.xSmall) {
+            VStack(alignment: .leading, spacing: AppTheme.Layout.Spacing.xSmall) {
                 Text(item.name.strippingHTML())
-                    .font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .semibold))
+                    .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.body, weight: .semibold))
                     .lineLimit(2)
                 
-                // ===================================================================
-                // **KORREKTUR 1:**
-                // Greift auf den korrekten Eigenschaftsnamen `line_total` zu und
-                // bietet einen Fallback-Wert, da die Eigenschaft optional ist.
-                // ===================================================================
-                Text(PriceFormatter.formatPrice(item.totals.line_total ?? "0.00", currencySymbol: item.prices?.currency_symbol ?? AppConfig.WooCommerce.defaultCurrencySymbol))
-                    .font(AppFonts.roboto(size: AppFonts.Size.body, weight: .bold))
-                    .foregroundColor(AppColors.primary)
+                Text(PriceFormatter.formatPrice(
+                    item.totals.line_total ?? "0.00",
+                    currencySymbol: item.prices?.currency_symbol ?? AppConfig.WooCommerce.defaultCurrencySymbol
+                ))
+                    .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body, weight: .bold))
+                    .foregroundColor(AppTheme.Colors.primary)
                 
                 Spacer(minLength: 4)
                 
@@ -45,105 +40,72 @@ struct CartRowView: View {
             
             Spacer()
         }
-        .padding(AppStyles.Spacing.small)
-        .background(AppColors.backgroundComponent)
-        .cornerRadius(AppStyles.BorderRadius.large)
-        .appShadow(AppStyles.Shadows.small)
-        .opacity(isUpdating ? 0.5 : 1.0)
-        .animation(.easeOut(duration: 0.2), value: isUpdating)
-        .onChange(of: item.quantity) { _, newServerQuantity in
-            if self.quantity != newServerQuantity {
-                self.quantity = newServerQuantity
-            }
-        }
+        .padding(AppTheme.Layout.Spacing.small)
+        .background(AppTheme.Colors.backgroundComponent)
+        .cornerRadius(AppTheme.Layout.BorderRadius.large)
+        .appShadow(AppTheme.Shadows.small)
+        .opacity(isUpdatingThisItem ? 0.5 : 1.0)
+        .animation(.easeOut(duration: 0.2), value: isUpdatingThisItem)
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             Button(role: .destructive) {
-                Task { await cartManager.removeItem(item) }
+                Task { await cartManager.removeItem(key: item.key) }
             } label: {
                 Label("Löschen", systemImage: "trash.fill")
             }
-            .disabled(isUpdating)
+            .disabled(isUpdatingThisItem)
         }
     }
     
     @ViewBuilder
     private var productImage: some View {
-        // ===================================================================
-        // **KORREKTUR 2:**
-        // Wir entpacken die optionale URL sicher mit `if let`. Nur wenn
-        // sowohl `thumbnail` als auch die `URL`-Konvertierung erfolgreich sind,
-        // wird das AsyncImage initialisiert.
-        // ===================================================================
-        if let thumbnailURLString = item.images.first?.thumbnail, let url = thumbnailURLString.asURL() {
+        // Sicherer Zugriff auf die Bild-URL
+        if let url = item.images.first?.thumbnail?.asURL() {
             AsyncImage(url: url) { phase in
                 if let image = phase.image {
                     image.resizable().aspectRatio(contentMode: .fill)
                 } else if phase.error != nil {
-                     Rectangle().fill(AppColors.backgroundLightGray)
-                        .overlay(Image(systemName: "photo.fill").font(.title).foregroundColor(AppColors.borderLight))
+                     Rectangle().fill(AppTheme.Colors.backgroundLightGray)
+                        .overlay(Image(systemName: "photo.fill").font(.title).foregroundColor(AppTheme.Colors.borderLight))
                 } else {
-                    ProgressView().tint(AppColors.primary)
+                    ProgressView().tint(AppTheme.Colors.primary)
                 }
             }
         } else {
-            // Zeigt ein Placeholder an, wenn die URL ungültig ist oder fehlt.
-            Rectangle().fill(AppColors.backgroundLightGray)
-               .overlay(Image(systemName: "photo.fill").font(.title).foregroundColor(AppColors.borderLight))
+            Rectangle().fill(AppTheme.Colors.backgroundLightGray)
+               .overlay(Image(systemName: "photo.fill").font(.title).foregroundColor(AppTheme.Colors.borderLight))
         }
-
-        // --- Die folgenden Zeilen bleiben unverändert ---
-        frame(width: 80, height: 80)
-        .background(AppColors.backgroundLightGray)
-        .cornerRadius(AppStyles.BorderRadius.medium)
-        .clipped()
     }
     
     @ViewBuilder
     private var quantityControl: some View {
         HStack {
-            if isUpdating {
-                ProgressView().tint(AppColors.primary)
+            if isUpdatingThisItem {
+                ProgressView().tint(AppTheme.Colors.primary)
                 Text("Aktualisiere...")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                    .padding(.leading, AppStyles.Spacing.small)
+                    .padding(.leading, AppTheme.Layout.Spacing.small)
             } else {
-                HStack(spacing: AppStyles.Spacing.medium) {
+                HStack(spacing: AppTheme.Layout.Spacing.medium) {
                     Button(action: {
+                        // Delegiert die Aktion direkt an den Manager.
                         if quantity > 1 {
-                            quantity -= 1
-                            Task { await cartManager.updateQuantity(for: item, newQuantity: quantity) }
+                            Task { await cartManager.updateQuantity(for: item.key, newQuantity: quantity - 1) }
                         }
-                    }) {
-                        Image(systemName: "minus")
-                    }
-                    .disabled(quantity <= 1)
+                    }) { Image(systemName: "minus") }.disabled(quantity <= 1)
                     
                     Text("\(quantity)")
-                        .font(AppFonts.roboto(size: AppFonts.Size.body, weight: .bold))
+                        .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body, weight: .bold))
                         .frame(minWidth: 25)
                     
                     Button(action: {
-                        quantity += 1
-                        Task { await cartManager.updateQuantity(for: item, newQuantity: quantity) }
-                    }) {
-                        Image(systemName: "plus")
-                    }
+                        // Delegiert die Aktion direkt an den Manager.
+                        Task { await cartManager.updateQuantity(for: item.key, newQuantity: quantity + 1) }
+                    }) { Image(systemName: "plus") }
                 }
-                .buttonStyle(QuantityButtonStyle())
-                .disabled(isUpdating)
+                .buttonStyle(AppTheme.QuantityButtonStyle())
+                .disabled(isUpdatingThisItem)
             }
         }
-    }
-}
-
-fileprivate struct QuantityButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 14, weight: .bold))
-            .foregroundColor(AppColors.primary)
-            .frame(width: 30, height: 30)
-            .background(AppColors.primary.opacity(configuration.isPressed ? 0.2 : 0.1))
-            .clipShape(Circle())
     }
 }

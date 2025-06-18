@@ -2,11 +2,11 @@ import SwiftUI
 
 struct ShimmerView: View {
     
-    // MODERNISIERT: Die Farben passen jetzt zum App-Design.
+    // KORRIGIERT: Verwendet jetzt die zentrale AppTheme-Struktur.
     private let gradient = Gradient(colors: [
-        AppColors.backgroundLightGray,
-        AppColors.borderLight.opacity(0.8),
-        AppColors.backgroundLightGray
+        AppTheme.Colors.backgroundLightGray,
+        AppTheme.Colors.borderLight.opacity(0.8),
+        AppTheme.Colors.backgroundLightGray
     ])
     
     @State private var startPoint: UnitPoint = .init(x: -1.8, y: -1.2)

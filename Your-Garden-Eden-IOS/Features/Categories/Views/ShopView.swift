@@ -1,33 +1,40 @@
+// DATEI: ShopView.swift
+// PFAD: Features/Categories/Views/ShopView.swift
+// ZWECK: Die Hauptansicht des "Shop"-Tabs, die eine Liste aller Top-Level-Kategorien anzeigt.
+//        Sie dient als primärer visueller Einstiegspunkt in die Shop-Struktur.
+
 import SwiftUI
 
 struct ShopView: View {
-    
-    @EnvironmentObject var categoryViewModel: CategoryViewModel
+    // Greift auf das `HomeViewModel` zu, das bereits beim App-Start initialisiert
+    // und mit den Top-Level-Kategorien befüllt wird. Dies verhindert redundante API-Aufrufe.
+    @EnvironmentObject var viewModel: HomeViewModel
 
     var body: some View {
         ZStack {
-            AppColors.backgroundPage.ignoresSafeArea()
+            AppTheme.Colors.backgroundPage.ignoresSafeArea()
 
-            if categoryViewModel.isLoading {
-                ProgressView().tint(AppColors.primary)
-            } else if let errorMessage = categoryViewModel.errorMessage {
-                ErrorStateView(message: errorMessage)
+            if viewModel.isLoadingCategories {
+                ProgressView().tint(AppTheme.Colors.primary)
+            } else if let errorMessage = viewModel.categoryErrorMessage {
+                StatusIndicatorView.errorState(message: errorMessage)
             } else {
-                // FIX: Die Liste wird jetzt direkt hier mit Überschriften aufgebaut.
+                // Die Haupt-Scroll-Ansicht, die die Kategorieliste enthält.
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: AppStyles.Spacing.large) {
-                        ForEach(categoryViewModel.topLevelCategories) { category in
-                            // Jede Kategorie bekommt eine eigene Sektion mit Überschrift.
-                            VStack(alignment: .leading, spacing: AppStyles.Spacing.medium) {
-                                Text(findLabelFor(category: category))
-                                    .font(AppFonts.montserrat(size: AppFonts.Size.h3, weight: .bold))
-                                    .foregroundColor(AppColors.textHeadings)
+                    LazyVStack(alignment: .leading, spacing: AppTheme.Layout.Spacing.large) {
+                        ForEach(viewModel.topLevelCategories) { category in
+                            let displayName = viewModel.getDisplayName(for: category)
+                            
+                            // Jede Kategorie wird als eigene Sektion mit Titel und klickbarer Karte dargestellt.
+                            VStack(alignment: .leading, spacing: AppTheme.Layout.Spacing.medium) {
+                                Text(displayName)
+                                    .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.h3, weight: .bold))
+                                    .foregroundColor(AppTheme.Colors.textHeadings)
                                 
                                 NavigationLink(value: category) {
-                                    ShopCategoryCardView(
-                                        category: category,
-                                        displayName: findLabelFor(category: category)
-                                    )
+                                    // Nutzt die neue, überlegene `CategoryCardView` Komponente im Stil `.imageOnly`,
+                                    // da der Titel bereits separat darüber steht.
+                                    CategoryCardView(category: category, style: .imageOnly)
                                 }
                             }
                         }
@@ -37,7 +44,11 @@ struct ShopView: View {
             }
         }
         .task {
-            await categoryViewModel.fetchTopLevelCategories()
+            // Stellt sicher, dass die Daten geladen werden, falls die View
+            // aufgerufen wird, bevor die HomeView die Daten geladen hat.
+            if viewModel.topLevelCategories.isEmpty {
+                await viewModel.loadInitialData()
+            }
         }
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -47,9 +58,5 @@ struct ShopView: View {
                     .frame(height: 150)
             }
         }
-    }
-    
-    private func findLabelFor(category: WooCommerceCategory) -> String {
-        return AppNavigationData.items.first { $0.mainCategorySlug == category.slug }?.label ?? category.name.strippingHTML()
     }
 }

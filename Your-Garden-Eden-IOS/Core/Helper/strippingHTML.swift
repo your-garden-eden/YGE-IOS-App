@@ -1,31 +1,38 @@
-import Foundation
-import RegexBuilder // Import für die moderne Regex-Syntax
+// DATEI: String+Utilities.swift
+// PFAD: Helper/String+Utilities.swift
+// VERSION: PHOENIX 2.0 (KORRIGIERT & KONSOLIDIERT)
+// ZWECK: Stellt eine Sammlung von allgemeinen, öffentlichen und wiederverwendbaren
+//        Erweiterungen für den `String`-Typ zur Verfügung.
 
-extension String {
+import Foundation
+import RegexBuilder
+
+public extension String {
     
-    /// Entfernt HTML-Tags aus einem String mithilfe einer modernen Swift-Regex.
-    /// Diese Methode ist oft performanter und direkter als die Verwendung von NSAttributedString für diese spezifische Aufgabe.
+    /// Entfernt HTML-Tags aus einem String.
+    /// Diese Funktion ist öffentlich, damit sie in der gesamten App verwendet werden kann
+    /// (z.B. für Produktnamen, Beschreibungen, etc.).
+    /// - Returns: Der String ohne HTML-Tags.
     func strippingHTML() -> String {
-        // MODERNISIERT: Die neue, deklarative Regex-Syntax von Swift.
-        // Sie sucht nach einem '<', gefolgt von beliebigen Zeichen (nicht-gierig), die kein '>' sind, und dann einem '>'.
         let htmlTagRegex = /<.*?>/
         return self.replacing(htmlTagRegex, with: "")
     }
     
-    /// Konvertiert den String in eine URL. An dieser Funktion gibt es nichts zu modernisieren,
-    /// sie ist bereits optimal und sicher.
+    /// Konvertiert den String in eine URL.
+    /// - Returns: Ein `URL`-Objekt oder `nil`, wenn der String keine gültige URL darstellt.
     func asURL() -> URL? {
         return URL(string: self)
     }
     
     /// Erstellt eine URL-freundliche "Slug"-Version des Strings.
-    /// Diese modernisierte Version verwendet Regex für eine robustere und klarere Umwandlung.
+    /// Umlaute werden umgewandelt, alles wird in Kleinbuchstaben geschrieben
+    /// und ungültige Zeichen werden entfernt.
+    /// - Returns: Ein bereinigter "Slug"-String.
     func slugify() -> String {
         // Schritt 1: Konvertiert Umlaute und Akzente in ihre Basis-Buchstaben (z.B. "für" -> "fur").
         let baseString = self.folding(options: .diacriticInsensitive, locale: .current)
             .lowercased()
 
-        // MODERNISIERT: Deklarative Regex-Definitionen für bessere Lesbarkeit.
         // Regex, um alle ungültigen Zeichen zu finden (erlaubt sind nur a-z, 0-9 und Bindestriche).
         let invalidCharsRegex = /[^a-z0-9-]+/
         // Regex, um eine oder mehrere Folgen von Leerzeichen zu finden.

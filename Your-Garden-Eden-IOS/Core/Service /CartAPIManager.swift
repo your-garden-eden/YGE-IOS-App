@@ -1,5 +1,6 @@
-// Path: Your-Garden-Eden-IOS/Core/Service/CartAPIManager.swift
-// VERSION 3.4 (FINAL - Synchronized with AppModels v2.9 Initializer)
+// DATEI: CartAPIManager.swift
+// PFAD: Services/App/CartAPIManager.swift
+// VERSION: 3.1 (FEHLER BEHOBEN)
 
 import Foundation
 
@@ -17,56 +18,42 @@ final class CartAPIManager: ObservableObject {
     @Published private(set) var state = State()
 
     static let shared = CartAPIManager()
-    private let session: URLSession
+    private let cartAPI = AppConfig.WooCommerce.StoreAPI.Cart.self
 
-    private init() {
-        self.session = URLSession(configuration: .default)
-        print("✅ CartAPIManager initialized.")
-    }
+    private init() {}
 
-    func initializeAndFetchCart() async {
-        await getCart(showLoadingIndicator: true)
-    }
-
-    // MARK: - Public Cart Actions
+    // MARK: - Öffentliche Warenkorb-Aktionen
     func getCart(showLoadingIndicator: Bool = false) async {
+        // KORREKTUR: `showLoading_indicator` zu `showLoadingIndicator` korrigiert.
         await performCartAction(isLoading: showLoadingIndicator) {
-            try await self.performRequest(path: "cart", httpMethod: "GET")
+            // KORREKTUR: `self` hinzugefügt, um auf `performRequest` in der Closure zuzugreifen.
+            try await self.performRequest(endpoint: self.cartAPI.get, httpMethod: "GET")
         }
     }
     
     func addItem(productId: Int, quantity: Int, variationId: Int? = nil) async {
         await performCartAction(isLoading: true) {
-            
-            let idToAdd: Int
-            if let variationId = variationId {
-                idToAdd = variationId
-            } else {
-                idToAdd = productId
-            }
-            
-            let body: [String: Any] = [
-                "id": idToAdd,
-                "quantity": quantity
-            ]
-            
-            return try await self.performRequest(path: "cart/add-item", httpMethod: "POST", body: body)
+            let body: [String: Any] = ["id": variationId ?? productId, "quantity": quantity]
+            // KORREKTUR: `self` hinzugefügt.
+            return try await self.performRequest(endpoint: self.cartAPI.addItem, httpMethod: "POST", body: body)
         }
     }
     
-    func updateQuantity(for item: Item, newQuantity: Int) async {
-        await performCartAction(updatingItemKey: item.key) {
-            try await self.performRequest(path: "cart/update-item", httpMethod: "POST", body: ["key": item.key, "quantity": newQuantity])
+    func updateQuantity(for itemKey: String, newQuantity: Int) async {
+        await performCartAction(updatingItemKey: itemKey) {
+            // KORREKTUR: `self` hinzugefügt.
+            try await self.performRequest(endpoint: self.cartAPI.updateItem, httpMethod: "POST", body: ["key": itemKey, "quantity": newQuantity])
         }
     }
     
-    func removeItem(_ item: Item) async {
-        await performCartAction(updatingItemKey: item.key) {
-            try await self.performRequest(path: "cart/remove-item", httpMethod: "POST", body: ["key": item.key])
+    func removeItem(key: String) async {
+        await performCartAction(updatingItemKey: key) {
+            // KORREKTUR: `self` hinzugefügt.
+            try await self.performRequest(endpoint: self.cartAPI.removeItem, httpMethod: "POST", body: ["key": key])
         }
     }
     
-    // MARK: - Private Core Logic
+    // MARK: - Private Kernlogik
     private func performCartAction(isLoading: Bool = false, updatingItemKey: String? = nil, _ action: @escaping () async throws -> WooCommerceStoreCart?) async {
         state.isLoading = isLoading
         state.updatingItemKey = updatingItemKey
@@ -77,11 +64,9 @@ final class CartAPIManager: ObservableObject {
                 state.items = newCart.safeItems
                 state.totals = newCart.totals
             }
-            state.errorMessage = nil
         } catch {
             let apiError = error as? WooCommerceAPIError ?? .underlying(error)
             state.errorMessage = apiError.localizedDescription
-            print("🔴 CartAPIManager Error: \(error.localizedDescription)")
         }
         
         state.isLoading = false
@@ -89,10 +74,8 @@ final class CartAPIManager: ObservableObject {
     }
     
     @discardableResult
-    private func performRequest(path: String, httpMethod: String, body: [String: Any]? = nil) async throws -> WooCommerceStoreCart? {
-        guard let url = URL(string: AppConfig.WooCommerce.storeApiBaseURL + "v1/" + path) else {
-            throw WooCommerceAPIError.invalidURL
-        }
+    private func performRequest(endpoint: String, httpMethod: String, body: [String: Any]? = nil) async throws -> WooCommerceStoreCart? {
+        guard let url = URL(string: endpoint) else { throw WooCommerceAPIError.invalidURL }
         
         var request = URLRequest(url: url)
         request.httpMethod = httpMethod
@@ -100,53 +83,29 @@ final class CartAPIManager: ObservableObject {
         
         if let cartToken = KeychainHelper.getCartToken() {
             request.setValue(cartToken, forHTTPHeaderField: "Cart-Token")
-            print("ℹ️ Cart Token attached to request for \(path).")
         }
 
-        if let body = body {
-            request.httpBody = try? JSONSerialization.data(withJSONObject: body)
-        }
+        if let body = body { request.httpBody = try? JSONSerialization.data(withJSONObject: body) }
         
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await URLSession.shared.data(for: request)
         
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw WooCommerceAPIError.underlying(NSError(domain: "network", code: 0))
-        }
+        guard let httpResponse = response as? HTTPURLResponse else { throw WooCommerceAPIError.underlying(NSError(domain: "network", code: 0)) }
         
         if let newCartToken = httpResponse.value(forHTTPHeaderField: "cart-token") {
             try? KeychainHelper.saveCartToken(newCartToken)
-            print("✅ New Cart Token received and saved.")
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
-            if let rawError = String(data: data, encoding: .utf8) {
-                print("💡 SERVER ERROR RESPONSE (raw): \(rawError)")
-            }
             let err = try? JSONDecoder().decode(WooCommerceStoreErrorResponse.self, from: data)
             throw WooCommerceAPIError.serverError(statusCode: httpResponse.statusCode, message: err?.message, errorCode: err?.code)
         }
         
-        if data.isEmpty {
-            print("✅ Request to \(path) successful, but response body is empty. Assuming empty cart.")
-            // ===================================================================
-            // **FINALE KORREKTUR:**
-            // Ruft den neuen, einfachen Initializer auf, der in AppModels.swift
-            // Version 2.9 definiert wurde.
-            // ===================================================================
-            return WooCommerceStoreCart()
-        }
+        if data.isEmpty { return WooCommerceStoreCart() }
         
         do {
-            let decoder = JSONDecoder()
-            // ÄNDERUNG: Wir verwenden jetzt die Standard-Strategie, da unsere Modelle
-            // die snake_case Namen direkt verwenden (z.B. total_price).
-            // decoder.keyDecodingStrategy = .convertFromSnakeCase
-            return try decoder.decode(WooCommerceStoreCart.self, from: data)
+            return try JSONDecoder().decode(WooCommerceStoreCart.self, from: data)
         } catch let decodingError {
-            print("🔴 DECODING FAILED for path: \(path). Error: \(decodingError.localizedDescription)")
-            if let rawResponseString = String(data: data, encoding: .utf8) {
-                print("💡 RAW SERVER RESPONSE PAYLOAD:\n---\n\(rawResponseString)\n---")
-            }
+            print("🔴 WARENKORB DECODING FEHLER: \(decodingError)")
             throw decodingError
         }
     }

@@ -1,18 +1,23 @@
+// DATEI: KeychainHelper.swift
+// PFAD: Helper/KeychainHelper.swift
+// ZWECK: Kapselt die Interaktion mit dem System-Keychain. Dient als sicherer
+//        Speicher für sensible Daten wie den Warenkorb-Token.
+
 import Foundation
 import KeychainAccess
 
-struct KeychainHelper {
+public struct KeychainHelper {
     private static let keychain = Keychain(service: "com.yourgardeneden.app.cart")
     
-    static func saveCartToken(_ token: String) throws {
+    public static func saveCartToken(_ token: String) throws {
         try keychain.set(token, key: "cartToken")
     }
     
-    static func getCartToken() -> String? {
+    public static func getCartToken() -> String? {
         return try? keychain.getString("cartToken")
     }
     
-    static func deleteCartToken() throws {
+    public static func deleteCartToken() throws {
         try keychain.remove("cartToken")
     }
 }

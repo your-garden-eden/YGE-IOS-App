@@ -1,70 +1,49 @@
-// Path: Your-Garden-Eden-IOS/Helper/PriceFormatter.swift
-// VERSION 2.1 (FINAL - Mit Preisspannen-Berechnung)
+// DATEI: PriceFormatter.swift
+// PFAD: Helper/PriceFormatter.swift
+// VERSION: PHOENIX 3.0 (BEREINIGT)
+// ZWECK: Stellt zustandslose Funktionen zur Verfügung, um Preisangaben
+//        in ein anzeigefreundliches Format für die Benutzeroberfläche umzuwandeln.
+//        Greift für String-Operationen auf die zentrale `String+Utilities`-Erweiterung zu.
 
 import Foundation
 import RegexBuilder
 
-struct PriceFormatter {
+public struct PriceFormatter {
     
-    /// Hält einen formatierten Preis und einen optionalen, durchgestrichenen alten Preis.
-    struct FormattedPrice {
-        let display: String
-        let strikethrough: String?
+    public struct FormattedPrice {
+        public let display: String
+        public let strikethrough: String?
     }
     
-    /// Eine einfache Fallback-Formatierung, falls keine HTML-Daten vorhanden sind.
-    static func formatPrice(_ price: String, currencySymbol: String = "€") -> String {
-        if price.contains(currencySymbol) {
-            return price
-        }
-        return "\(price)\(currencySymbol)"
-    }
-    
-    /// Parst die `price_html` von WooCommerce.
-    static func formatPriceString(from htmlString: String?, fallbackPrice: String, currencySymbol: String = "€") -> FormattedPrice {
+    public static func formatPriceString(from htmlString: String?, fallbackPrice: String, currencySymbol: String = "€") -> FormattedPrice {
         guard let html = htmlString, !html.isEmpty else {
-            return FormattedPrice(display: formatPrice(fallbackPrice, currencySymbol: currencySymbol), strikethrough: nil)
+            return FormattedPrice(display: formatSimplePrice(fallbackPrice, currencySymbol: currencySymbol), strikethrough: nil)
         }
 
-        let delRegex = Regex {
-            "<del>"
-            Capture { OneOrMore(.any, .reluctant) }
-            "</del>"
-        }
-        
-        let insRegex = Regex {
-            "<ins>"
-            Capture { OneOrMore(.any, .reluctant) }
-            "</ins>"
-        }
+        let delRegex = Regex { "<del>"; Capture { OneOrMore(.any, .reluctant) }; "</del>" }
+        let insRegex = Regex { "<ins>"; Capture { OneOrMore(.any, .reluctant) }; "</ins>" }
         
         var salePrice: String?
         var regularPrice: String?
 
         if let saleMatch = html.firstMatch(of: insRegex)?.1, let delMatch = html.firstMatch(of: delRegex)?.1 {
+            // Greift jetzt auf die öffentliche `strippingHTML()`-Funktion zu.
             salePrice = String(saleMatch).strippingHTML()
             regularPrice = String(delMatch).strippingHTML()
         } else {
-            let cleanPrice = html.strippingHTML()
-            salePrice = cleanPrice
+            salePrice = html.strippingHTML()
         }
         
-        let finalDisplayPrice = formatPrice(salePrice ?? fallbackPrice, currencySymbol: currencySymbol)
-        let finalStrikethroughPrice = regularPrice != nil ? formatPrice(regularPrice!, currencySymbol: currencySymbol) : nil
+        let finalDisplayPrice = formatSimplePrice(salePrice ?? fallbackPrice, currencySymbol: currencySymbol)
+        let finalStrikethroughPrice = regularPrice != nil ? formatSimplePrice(regularPrice!, currencySymbol: currencySymbol) : nil
 
         return FormattedPrice(display: finalDisplayPrice, strikethrough: finalStrikethroughPrice)
     }
     
-    /// **DIESE FUNKTION HAT GEFEHLT:**
-    /// Berechnet eine Preisspanne aus einer Liste von Variationen.
-    static func calculatePriceRange(from variations: [WooCommerceProductVariation], currencySymbol: String = "€") -> String? {
+    public static func calculatePriceRange(from variations: [WooCommerceProductVariation], currencySymbol: String = "€") -> String? {
         let prices = variations.compactMap { Double($0.price) }
         
-        guard let minPrice = prices.min(), let maxPrice = prices.max() else {
-            return nil
-        }
-        
-        guard minPrice != maxPrice else {
+        guard let minPrice = prices.min(), let maxPrice = prices.max(), minPrice != maxPrice else {
             return nil
         }
         
@@ -72,5 +51,16 @@ struct PriceFormatter {
         let maxFormatted = String(format: "%.2f", maxPrice)
         
         return "\(minFormatted)\(currencySymbol) - \(maxFormatted)\(currencySymbol)"
+    }
+    
+    /// BEREINIGUNG: Die Funktion wurde umbenannt, um ihre Aufgabe klarer zu machen,
+    /// da sie nicht nur formatiert, sondern auch das Währungssymbol hinzufügt, falls es fehlt.
+    public static func formatPrice(_ price: String, currencySymbol: String = "€") -> String {
+        return price.contains(currencySymbol) ? price : "\(price)\(currencySymbol)"
+    }
+    
+    /// Der alte Name wird als private Funktion beibehalten, um die interne Logik nicht zu brechen.
+    private static func formatSimplePrice(_ price: String, currencySymbol: String) -> String {
+        return self.formatPrice(price, currencySymbol: currencySymbol)
     }
 }

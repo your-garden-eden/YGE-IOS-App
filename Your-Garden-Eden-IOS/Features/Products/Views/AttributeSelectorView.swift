@@ -1,5 +1,7 @@
-// Path: Your-Garden-Eden-IOS/Features/Products/Views/AttributeSelectorView.swift
-// VERSION 2.1 (FINAL - With Diagnostic Print Statement)
+// DATEI: AttributeSelectorView.swift
+// PFAD: Features/Products/Views/Options/AttributeSelectorView.swift
+// ZWECK: Eine spezialisierte View zur Auswahl einer einzelnen Produkt-Option
+//        (z.B. Farbe oder Größe). Sie ist eine Unterkomponente von ProductOptionsView.
 
 import SwiftUI
 
@@ -11,9 +13,9 @@ struct AttributeSelectorView: View {
     let onSelect: (String) -> Void
     
     var body: some View {
-        VStack(alignment: .leading, spacing: AppStyles.Spacing.small) {
+        VStack(alignment: .leading, spacing: AppTheme.Layout.Spacing.small) {
             Text(attribute.name)
-                .font(AppFonts.montserrat(size: AppFonts.Size.headline, weight: .semibold))
+                .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.headline, weight: .semibold))
             
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack {
@@ -22,27 +24,24 @@ struct AttributeSelectorView: View {
                         let isAvailable = availableOptionSlugs.contains(option.slug) || isSelected
                         
                         Button(action: {
-                            // *** DIAGNOSE-CODE ***
-                            print("<<<<<<<<<<<<<<<<< BUTTON-KLICK ERKANNT >>>>>>>>>>>>>>>>>")
-                            print("ACTION: onSelect wird aufgerufen für Option '\(option.name)' (Slug: \(option.slug))")
-                            
                             onSelect(option.slug)
                         }) {
                             Text(option.name)
-                                .font(AppFonts.roboto(size: AppFonts.Size.body, weight: .bold))
+                                .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body, weight: .bold))
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 10)
-                                .background(isSelected ? AppColors.primary : AppColors.backgroundLightGray)
-                                .foregroundColor(isSelected ? .white : (isAvailable ? AppColors.primary : AppColors.textMuted))
-                                .cornerRadius(AppStyles.BorderRadius.large)
+                                .background(isSelected ? AppTheme.Colors.primary : AppTheme.Colors.backgroundLightGray)
+                                .foregroundColor(isSelected ? .white : (isAvailable ? AppTheme.Colors.primary : AppTheme.Colors.textMuted))
+                                .cornerRadius(AppTheme.Layout.BorderRadius.large)
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: AppStyles.BorderRadius.large)
-                                        .stroke(isAvailable ? AppColors.primary : AppColors.textMuted, lineWidth: isSelected ? 0 : 1)
+                                    RoundedRectangle(cornerRadius: AppTheme.Layout.BorderRadius.large)
+                                        .stroke(isAvailable ? AppTheme.Colors.primary : AppTheme.Colors.textMuted, lineWidth: isSelected ? 0 : 1)
                                 )
                                 .overlay(
+                                    // Visueller Indikator für eine nicht verfügbare Option
                                     Rectangle()
-                                        .frame(width: nil, height: 1.5, alignment: .center)
-                                        .foregroundColor(AppColors.error.opacity(0.8))
+                                        .frame(height: 1.5)
+                                        .foregroundColor(AppTheme.Colors.error.opacity(0.8))
                                         .rotationEffect(Angle(degrees: -10))
                                         .padding(.horizontal, -4)
                                         .opacity(isAvailable ? 0 : 1)

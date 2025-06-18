@@ -1,5 +1,7 @@
-// Path: Your-Garden-Eden-IOS/Features/Products/ViewModels/ProductOptionsViewModel.swift
-// VERSION 4.2 (FINAL - Connects to Cart)
+// DATEI: ProductOptionsViewModel.swift
+// PFAD: Features/Products/ViewModels/Options/ProductOptionsViewModel.swift
+// ZWECK: Verwaltet die komplexe Logik zur Auswahl von Produktvariationen,
+//        berechnet die Verfügbarkeit und den Preis in Echtzeit und interagiert mit dem Warenkorb-Manager.
 
 import SwiftUI
 import Combine
@@ -7,20 +9,22 @@ import Combine
 @MainActor
 final class ProductOptionsViewModel: ObservableObject {
     
-    // MARK: - Input Properties
+    // MARK: - Eingangs-Eigenschaften
     let product: WooCommerceProduct
     private let purchasableVariations: [WooCommerceProductVariation]
     private let cartManager = CartAPIManager.shared
 
-    // MARK: - Published State for the View
+    // MARK: - Veröffentlichter Zustand für die View
     @Published var selectedAttributes: [String: String] = [:]
     @Published private(set) var availability: [String: Set<String>] = [:]
     @Published var addToCartError: String?
     @Published var quantity: Int = 1
+    
+    let displayableAttributes: [DisplayableAttribute]
 
     private var cancellables = Set<AnyCancellable>()
 
-    // MARK: - Computed Properties
+    // MARK: - Berechnete Eigenschaften
     
     var selectedVariation: WooCommerceProductVariation? {
         guard selectedAttributes.count == self.displayableAttributes.count else { return nil }
@@ -40,29 +44,27 @@ final class ProductOptionsViewModel: ObservableObject {
             return PriceFormatter.formatPriceString(from: variation.price_html, fallbackPrice: variation.price)
         }
         if let range = PriceFormatter.calculatePriceRange(from: self.purchasableVariations) {
-            return PriceFormatter.FormattedPrice(display: range, strikethrough: nil)
+            return PriceFormatter.FormattedPrice(display: "Ab \(range)", strikethrough: nil)
         }
         return PriceFormatter.formatPriceString(from: product.price_html, fallbackPrice: product.price)
     }
     
     var stockStatusMessage: (text: String, color: Color) {
-        if selectedAttributes.count != displayableAttributes.count {
-            return ("Bitte alle Optionen wählen", AppColors.textMuted)
+        if selectedAttributes.count < displayableAttributes.count {
+            return ("Bitte alle Optionen wählen", AppTheme.Colors.textMuted)
         }
         if selectedVariation != nil {
-             return ("Auf Lager", AppColors.success)
+             return ("Auf Lager", AppTheme.Colors.success)
         } else {
-             return ("Diese Kombination ist nicht verfügbar", AppColors.error)
+             return ("Diese Kombination ist nicht verfügbar", AppTheme.Colors.error)
         }
     }
 
     var isAddToCartDisabled: Bool {
         cartManager.state.isLoading || selectedVariation == nil
     }
-    
-    let displayableAttributes: [DisplayableAttribute]
 
-    // MARK: - Initializer & Setup
+    // MARK: - Initialisierung
     
     init(product: WooCommerceProduct, variations: [WooCommerceProductVariation]) {
         self.product = product
@@ -74,17 +76,11 @@ final class ProductOptionsViewModel: ObservableObject {
             return DisplayableAttribute(name: attr.name, slug: attr.name.slugify(), options: options)
         }
         
-        $selectedAttributes
-            .dropFirst()
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.updateState() }
-            .store(in: &cancellables)
-        
-        print("📦 ProductOptionsViewModel initialized for '\(product.name)' with \(self.purchasableVariations.count) purchasable variations.")
-        updateState()
+        setupBindings()
+        updateAvailability()
     }
     
-    // MARK: - User Actions
+    // MARK: - Benutzer-Aktionen
     
     func select(attributeSlug: String, optionSlug: String) {
         addToCartError = nil
@@ -95,21 +91,23 @@ final class ProductOptionsViewModel: ObservableObject {
         }
     }
     
-    // **DIESE FUNKTION IST DER SCHLÜSSEL**
     func handleAddToCart() async {
         guard let variation = selectedVariation else {
             self.addToCartError = "Bitte wähle eine gültige Produktkombination."
             return
         }
         addToCartError = nil
-        // Ruft den zentralen Manager auf, um das Produkt hinzuzufügen.
         await cartManager.addItem(productId: product.id, quantity: quantity, variationId: variation.id)
     }
 
-    // MARK: - Private Logic
+    // MARK: - Private Logik
     
-    private func updateState() {
-        updateAvailability()
+    private func setupBindings() {
+        $selectedAttributes
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.updateAvailability() }
+            .store(in: &cancellables)
     }
     
     private func updateAvailability() {
@@ -137,6 +135,7 @@ final class ProductOptionsViewModel: ObservableObject {
     }
 }
 
+// MARK: - Displayable Attribute Helper Struct
 extension ProductOptionsViewModel {
     struct DisplayableAttribute: Identifiable {
         var id: String { slug }

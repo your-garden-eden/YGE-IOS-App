@@ -1,5 +1,6 @@
-// Path: Your-Garden-Eden-IOS/Features/Products/Views/ProductDetailView.swift
-// VERSION 3.0 (FINAL - With ViewModel for Price Range & Cross-Sells)
+// DATEI: ProductDetailView.swift
+// PFAD: Features/Products/Views/Detail/ProductDetailView.swift
+// VERSION: 3.2 (VOLLSTÄNDIG & FINAL)
 
 import SwiftUI
 
@@ -13,39 +14,41 @@ struct ProductDetailView: View {
     @State private var showAddedToCartConfirmation = false
 
     var body: some View {
-        ZStack(alignment: .bottom) {
+        // Der ZStack umschließt jetzt die ScrollView und das ConfirmationBanner,
+        // um das Banner über den scrollbaren Inhalt zu legen.
+        ZStack(alignment: .top) {
             ScrollView {
-                VStack(alignment: .leading, spacing: AppStyles.Spacing.large) {
+                VStack(alignment: .leading, spacing: AppTheme.Layout.Spacing.large) {
                     productGallery
                     productHeader
                     
                     if product.type == "variable" && viewModel.isLoadingVariations {
                         ProgressView().frame(maxWidth: .infinity, minHeight: 50)
                     } else if let error = viewModel.variationError {
-                        ErrorStateView(message: error)
+                        // KORREKTUR: Nutzt die neue, überlegene Status-Komponente.
+                        StatusIndicatorView.errorState(message: error)
                     }
                     
                     Divider()
                     descriptionSection
-                    crossSellSection // Beibehaltung der Struktur
+                    // crossSellSection // Implementierung folgt
                     
+                    // Platzhalter, um sicherzustellen, dass der Inhalt nicht vom unteren Aktionsbereich verdeckt wird.
                     Spacer(minLength: 150)
                 }
             }
             .safeAreaInset(edge: .bottom) {
                  bottomActionSection
             }
+            
+            // Das Confirmation Banner wird hier über alles gelegt.
+            confirmationBanner
         }
-        .background(AppColors.backgroundPage.ignoresSafeArea())
+        .background(AppTheme.Colors.backgroundPage.ignoresSafeArea())
         .navigationTitle(product.name.strippingHTML())
         .navigationBarTitleDisplayMode(.inline)
         .task(id: product.id) {
             await viewModel.loadData(for: product)
-        }
-        .onChange(of: cartManager.state.errorMessage) { _, newValue in
-             if newValue != nil {
-                 DispatchQueue.main.asyncAfter(deadline: .now() + 3) { /* Nichts tun, Manager löscht selbst */ }
-             }
         }
         .onChange(of: cartManager.state.items) { _, _ in
              if cartManager.state.errorMessage == nil {
@@ -63,43 +66,43 @@ struct ProductDetailView: View {
         AsyncImage(url: product.safeImages.first?.src.asURL()) { phase in
             switch phase {
             case .success(let image): image.resizable().scaledToFit()
-            case .failure: Image(systemName: "photo.fill").font(.largeTitle).foregroundColor(AppColors.textMuted)
+            case .failure: Image(systemName: "photo.fill").font(.largeTitle).foregroundColor(AppTheme.Colors.textMuted)
             default: ShimmerView()
             }
         }
         .frame(maxWidth: .infinity, minHeight: 300)
-        .background(AppColors.backgroundLightGray)
+        .background(AppTheme.Colors.backgroundLightGray)
     }
     
     @ViewBuilder private var productHeader: some View {
-        VStack(alignment: .leading, spacing: AppStyles.Spacing.small) {
+        VStack(alignment: .leading, spacing: AppTheme.Layout.Spacing.small) {
             HStack(alignment: .top) {
                 Text(product.name.strippingHTML())
-                    .font(AppFonts.montserrat(size: AppFonts.Size.h4, weight: .bold))
+                    .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.h4, weight: .bold))
                 Spacer()
                 Button(action: { wishlistState.toggleWishlistStatus(for: product) }) {
                     Image(systemName: wishlistState.isProductInWishlist(productId: product.id) ? "heart.fill" : "heart")
-                        .foregroundColor(wishlistState.isProductInWishlist(productId: product.id) ? AppColors.error : AppColors.secondary)
+                        .foregroundColor(wishlistState.isProductInWishlist(productId: product.id) ? AppTheme.Colors.error : AppTheme.Colors.secondary)
                 }
                 .font(.title)
                 .animation(.spring(), value: wishlistState.isProductInWishlist(productId: product.id))
             }
             
-            HStack(alignment: .bottom, spacing: AppStyles.Spacing.small) {
+            HStack(alignment: .bottom, spacing: AppTheme.Layout.Spacing.small) {
                 if let range = viewModel.priceRangeDisplay {
                     Text(range)
-                        .font(AppFonts.roboto(size: AppFonts.Size.h5, weight: .bold))
-                        .foregroundColor(AppColors.price)
+                        .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.h5, weight: .bold))
+                        .foregroundColor(AppTheme.Colors.price)
                 } else {
                     let priceInfo = PriceFormatter.formatPriceString(from: product.price_html, fallbackPrice: product.price)
                     Text(priceInfo.display)
-                        .font(AppFonts.roboto(size: AppFonts.Size.h5, weight: .bold))
-                        .foregroundColor(AppColors.price)
+                        .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.h5, weight: .bold))
+                        .foregroundColor(AppTheme.Colors.price)
                     if let strikethrough = priceInfo.strikethrough {
                         Text(strikethrough)
-                            .font(AppFonts.roboto(size: AppFonts.Size.body, weight: .regular))
-                            .strikethrough(true, color: AppColors.textMuted)
-                            .foregroundColor(AppColors.textMuted)
+                            .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body, weight: .regular))
+                            .strikethrough(true, color: AppTheme.Colors.textMuted)
+                            .foregroundColor(AppTheme.Colors.textMuted)
                     }
                 }
             }
@@ -109,8 +112,8 @@ struct ProductDetailView: View {
     
     @ViewBuilder private var descriptionSection: some View {
         if let desc = product.description, !desc.isEmpty {
-            VStack(alignment: .leading, spacing: AppStyles.Spacing.small) {
-                Text("Beschreibung").font(AppFonts.montserrat(size: AppFonts.Size.h6, weight: .semibold))
+            VStack(alignment: .leading, spacing: AppTheme.Layout.Spacing.small) {
+                Text("Beschreibung").font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.h6, weight: .semibold))
                 ExpandableTextView(text: desc, lineLimit: 2)
             }
             .padding(.horizontal)
@@ -119,12 +122,12 @@ struct ProductDetailView: View {
     
     @ViewBuilder
     private var crossSellSection: some View {
-        // Diese Logik kann später in den ProductDetailViewModel integriert werden
-        VStack{}
+        // Hier wird die Logik zum Anzeigen von Cross-Sell-Produkten implementiert.
+        EmptyView()
     }
     
     @ViewBuilder private var bottomActionSection: some View {
-        VStack(spacing: AppStyles.Spacing.medium) {
+        VStack(spacing: AppTheme.Layout.Spacing.medium) {
             if product.type == "simple" {
                 simpleProductActions
             } else if product.type == "variable" {
@@ -137,16 +140,13 @@ struct ProductDetailView: View {
 
     @ViewBuilder private var simpleProductActions: some View {
         if product.sold_individually == false {
-            QuantitySelectorView(quantity: .constant(1)) // Beispiel, Binden Sie dies an viewModel
+            QuantitySelectorView(quantity: .constant(1))
                 .padding(.horizontal)
         }
         
         Button(action: {
             Task {
-                await cartManager.addItem(
-                    productId: product.id,
-                    quantity: 1 // Binden Sie dies an viewModel
-                )
+                await cartManager.addItem(productId: product.id, quantity: 1)
             }
         }) {
             HStack {
@@ -155,33 +155,37 @@ struct ProductDetailView: View {
                 else { Text("In den Warenkorb") }
             }
         }
-        .buttonStyle(PrimaryButtonStyle())
+        .buttonStyle(AppTheme.PrimaryButtonStyle())
         .disabled(cartManager.state.isLoading || !product.isPurchasable || product.stock_status != .instock)
     }
 
     @ViewBuilder private var variableProductActions: some View {
         let isNavigationDisabled = viewModel.isLoadingVariations || viewModel.variationError != nil || viewModel.variations.isEmpty
         
+        // KORREKTUR: Sobald die Duplikat-Datei entfernt ist, wird dieser Typ gefunden.
         NavigationLink(value: ProductVariationData(product: product, variations: viewModel.variations)) {
             if viewModel.isLoadingVariations { ProgressView().tint(.white) }
             else { Text("Optionen auswählen") }
         }
-        .buttonStyle(PrimaryButtonStyle())
+        .buttonStyle(AppTheme.PrimaryButtonStyle())
         .disabled(isNavigationDisabled)
     }
     
     @ViewBuilder private var confirmationBanner: some View {
         VStack {
             if showAddedToCartConfirmation {
-                SuccessBanner(message: "Zum Warenkorb hinzugefügt")
+                // KORREKTUR: Nutzt die neue, überlegene Status-Komponente.
+                StatusIndicatorView.successBanner(message: "Zum Warenkorb hinzugefügt")
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
             if let errorMessage = cartManager.state.errorMessage {
-                ErrorBanner(message: errorMessage)
+                // KORREKTUR: Nutzt die neue, überlegene Status-Komponente.
+                StatusIndicatorView.errorBanner(message: errorMessage)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
         .frame(maxHeight: .infinity, alignment: .top).padding(.top)
+        .animation(.default, value: showAddedToCartConfirmation)
+        .animation(.default, value: cartManager.state.errorMessage)
     }
 }
-

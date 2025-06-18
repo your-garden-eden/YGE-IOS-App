@@ -1,32 +1,40 @@
+// DATEI: CheckoutView.swift
+// PFAD: Features/Checkout/Views/CheckoutView.swift
+// ZWECK: Stellt die Benutzeroberfläche für den Bezahlvorgang dar.
+//        Diese Ansicht wird der zentrale Punkt für die Eingabe von Adressen,
+//        die Auswahl von Versand- und Zahlungsmethoden.
+
 import SwiftUI
 
-struct CheckoutView: View, Hashable {
+struct CheckoutView: View {
+    // KORREKTUR: Die manuelle Implementierung von Hashable/Equatable wurde entfernt.
+    // SwiftUI kann dies für eine einfache, parameterlose View automatisch handhaben,
+    // was den Code sauberer und weniger fehleranfällig macht.
     
-    // Hashable Konformität für `NavigationLink(value:)`
-    func hash(into hasher: inout Hasher) {
-        hasher.combine("CheckoutViewIdentifier")
-    }
-    
-    static func == (lhs: CheckoutView, rhs: CheckoutView) -> Bool {
-        return true
-    }
+    // MARK: - Body
     
     var body: some View {
         ZStack {
-            AppColors.backgroundPage.ignoresSafeArea()
+            // Hintergrundfarbe für die gesamte Ansicht
+            AppTheme.Colors.backgroundPage.ignoresSafeArea()
             
-            VStack(spacing: AppStyles.Spacing.large) {
-                Image(systemName: "creditcard.fill")
-                    .font(.system(size: 60))
-                    .foregroundColor(AppColors.primary)
+            // Hauptcontainer für den Inhalt
+            VStack(spacing: AppTheme.Layout.Spacing.large) {
                 
+                // Visuelles Icon als Platzhalter
+                Image(systemName: "creditcard.and.123")
+                    .font(.system(size: 60, weight: .light))
+                    .foregroundColor(AppTheme.Colors.primary)
+                
+                // Überschrift
                 Text("Kasse")
-                    .font(AppFonts.montserrat(size: AppFonts.Size.h2, weight: .bold))
-                    .foregroundColor(AppColors.textHeadings)
+                    .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.h2, weight: .bold))
+                    .foregroundColor(AppTheme.Colors.textHeadings)
                 
-                Text("Dieser Bereich ist in Entwicklung.\nHier kommt der Bezahlvorgang hin.")
-                    .font(AppFonts.roboto(size: AppFonts.Size.body))
-                    .foregroundColor(AppColors.textMuted)
+                // Platzhaltertext für zukünftige Entwicklung
+                Text("Dieser Bereich ist in Entwicklung.\nHier wird der Bezahlvorgang implementiert.")
+                    .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body))
+                    .foregroundColor(AppTheme.Colors.textMuted)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
             }
@@ -35,3 +43,4 @@ struct CheckoutView: View, Hashable {
         .navigationBarTitleDisplayMode(.inline)
     }
 }
+

@@ -1,5 +1,8 @@
-// Path: Your-Garden-Eden-IOS/Features/Categories/Views/CategoryLandingView.swift
-// VERSION 5.0 (FINAL & PERFECTED): Implements individual headlines for each sub-category card.
+// DATEI: CategoryLandingView.swift
+// PFAD: Features/Categories/Views/CategoryLandingView.swift
+// VERSION: 6.0 (KONSOLIDIERT & VOLLSTÄNDIG)
+// ZWECK: Dient als Landing-Page für eine Hauptkategorie. Zeigt entweder eine
+//        Liste von Unterkategorien oder leitet direkt zur Produktliste weiter.
 
 import SwiftUI
 
@@ -15,72 +18,77 @@ struct CategoryLandingView: View {
 
     var body: some View {
         ZStack {
-            AppColors.backgroundPage.ignoresSafeArea()
+            AppTheme.Colors.backgroundPage.ignoresSafeArea()
             
+            // Die View reagiert auf den Zustand des ViewModels.
             switch viewModel.viewState {
             case .loading:
-                ProgressView().tint(AppColors.primary)
+                ProgressView().tint(AppTheme.Colors.primary)
             
             case .showSubCategories:
-                // FIX: Die Logik wurde komplett neu aufgebaut, um individuelle Überschriften zu ermöglichen.
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: AppStyles.Spacing.large) {
-                        ForEach(viewModel.subCategories) { subCategory in
-                            VStack(alignment: .leading, spacing: AppStyles.Spacing.medium) {
-                                // 1. Individuelle Überschrift für jede Unterkategorie
-                                Text(Self.findLabelFor(category: subCategory))
-                                    .font(AppFonts.montserrat(size: AppFonts.Size.h3, weight: .bold))
-                                    .foregroundColor(AppColors.textHeadings)
-                                
-                                // 2. Die zugehörige klickbare Karte
-                                NavigationLink(value: subCategory) {
-                                    ShopCategoryCardView(
-                                        category: subCategory,
-                                        displayName: Self.findLabelFor(category: subCategory)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    .padding()
-                }
+                subCategoryListView
                 
             case .showProducts:
                 ProductListView(category: category)
 
             case .empty:
-                emptyProductsView
+                emptyStateView
                 
             case .error(let message):
-                ErrorStateView(message: message)
+                StatusIndicatorView.errorState(message: message)
             }
         }
-        .navigationTitle("")
+        .navigationTitle(getDisplayName(for: category))
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Image("logo_your_garden_eden_transparent")
-                    .resizable().scaledToFit().frame(height: 150)
-            }
-        }
         .task {
             await viewModel.loadContent()
         }
     }
     
-    private var emptyProductsView: some View {
-        VStack(spacing: AppStyles.Spacing.large) {
-            Image(systemName: "tray.fill").font(.system(size: 60)).foregroundColor(AppColors.primary.opacity(0.5))
-            Text("Keine Produkte").font(AppFonts.montserrat(size: AppFonts.Size.title2, weight: .bold)).foregroundColor(AppColors.textHeadings)
-            Text("In dieser Kategorie wurden leider keine Produkte gefunden.").font(AppFonts.roboto(size: AppFonts.Size.body)).foregroundColor(AppColors.textMuted).multilineTextAlignment(.center)
+    /// Die Ansicht zur Darstellung der Unterkategorien.
+    private var subCategoryListView: some View {
+        ScrollView {
+            LazyVStack(spacing: AppTheme.Layout.Spacing.large) {
+                ForEach(viewModel.subCategories) { subCategory in
+                    NavigationLink(value: subCategory) {
+                        // Nutzt die neue, überlegene `CategoryCardView` Komponente im Stil `.bannerWithTextOverlay`,
+                        // da hier der Name direkt auf dem Bild stehen soll.
+                        CategoryCardView(
+                            category: subCategory,
+                            style: .bannerWithTextOverlay(displayName: getDisplayName(for: subCategory))
+                        )
+                    }
+                }
+            }
+            .padding()
+        }
+    }
+    
+    /// Die Ansicht, die angezeigt wird, wenn keine Produkte gefunden wurden.
+    private var emptyStateView: some View {
+        VStack(spacing: AppTheme.Layout.Spacing.large) {
+            Image(systemName: "tray.fill")
+                .font(.system(size: 60))
+                .foregroundColor(AppTheme.Colors.primary.opacity(0.5))
+            
+            Text("Keine Produkte")
+                .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.title2, weight: .bold))
+                .foregroundColor(AppTheme.Colors.textHeadings)
+            
+            Text("In dieser Kategorie wurden leider keine Produkte gefunden.")
+                .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body))
+                .foregroundColor(AppTheme.Colors.textMuted)
+                .multilineTextAlignment(.center)
         }.padding()
     }
     
-    private static func findLabelFor(category: WooCommerceCategory) -> String {
-        if let mainItem = AppNavigationData.items.first(where: { $0.mainCategorySlug == category.slug }) {
+    /// Private Hilfsfunktion, um die Logik zur Namensfindung an einem Ort zu halten
+    /// und Codeduplizierung innerhalb dieser View zu vermeiden.
+    private func getDisplayName(for category: WooCommerceCategory) -> String {
+        if let mainItem = NavigationData.items.first(where: { $0.mainCategorySlug == category.slug }) {
             return mainItem.label
         }
-        for item in AppNavigationData.items {
+        for item in NavigationData.items {
             if let subItems = item.subItems, let subItem = subItems.first(where: { $0.linkSlug == category.slug }) {
                 return subItem.label
             }

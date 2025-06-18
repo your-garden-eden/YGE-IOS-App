@@ -1,5 +1,6 @@
-// Path: Your-Garden-Eden-IOS/Features/Products/Views/ProductOptionsView.swift
-// VERSION 3.2 (FINAL - Uses CustomBackButtonModifier)
+// DATEI: ProductOptionsView.swift
+// PFAD: Features/Products/Views/Options/ProductOptionsView.swift
+// ZWECK: Die Hauptansicht zur Auswahl von Optionen (Variationen) für ein variables Produkt.
 
 import SwiftUI
 
@@ -22,7 +23,7 @@ struct ProductOptionsView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             ScrollView {
-                VStack(alignment: .leading, spacing: AppStyles.Spacing.xLarge) {
+                VStack(alignment: .leading, spacing: AppTheme.Layout.Spacing.xLarge) {
                     gallerySection
                     headerSection
                     Divider()
@@ -34,10 +35,10 @@ struct ProductOptionsView: View {
                 addToCartSection
             }
         }
-        .background(AppColors.backgroundPage.ignoresSafeArea())
+        .background(AppTheme.Colors.backgroundPage.ignoresSafeArea())
         .navigationTitle("Optionen auswählen")
         .navigationBarTitleDisplayMode(.inline)
-        .customBackButton() // WENDET DEN NEUEN MODIFIER AN
+        .customBackButton()
         .onAppear {
             self.selectedImageID = viewModel.product.safeImages.first?.id
         }
@@ -56,15 +57,15 @@ struct ProductOptionsView: View {
     // MARK: - Subviews
     
     private var gallerySection: some View {
-        VStack(spacing: AppStyles.Spacing.small) {
+        VStack(spacing: AppTheme.Layout.Spacing.small) {
             AsyncImage(url: (viewModel.currentImage ?? viewModel.product.safeImages.first)?.src.asURL()) { phase in
                 switch phase {
                 case .success(let image):
                     image.resizable().scaledToFit()
                 default:
                     Rectangle()
-                        .fill(AppColors.backgroundLightGray)
-                        .overlay(ProgressView().tint(AppColors.primary))
+                        .fill(AppTheme.Colors.backgroundLightGray)
+                        .overlay(ProgressView().tint(AppTheme.Colors.primary))
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 300)
@@ -83,15 +84,15 @@ struct ProductOptionsView: View {
                                     case .success(let thumb):
                                         thumb.resizable().scaledToFill()
                                     default:
-                                        Rectangle().fill(AppColors.borderLight)
+                                        Rectangle().fill(AppTheme.Colors.borderLight)
                                     }
                                 }
                                 .frame(width: 60, height: 60)
                                 .clipped()
-                                .cornerRadius(AppStyles.BorderRadius.medium)
+                                .cornerRadius(AppTheme.Layout.BorderRadius.medium)
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: AppStyles.BorderRadius.medium)
-                                        .stroke(selectedImageID == image.id ? AppColors.primary : Color.clear, lineWidth: 2)
+                                    RoundedRectangle(cornerRadius: AppTheme.Layout.BorderRadius.medium)
+                                        .stroke(selectedImageID == image.id ? AppTheme.Colors.primary : Color.clear, lineWidth: 2)
                                 )
                             }
                         }
@@ -103,20 +104,20 @@ struct ProductOptionsView: View {
     }
     
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: AppStyles.Spacing.small) {
+        VStack(alignment: .leading, spacing: AppTheme.Layout.Spacing.small) {
             Text(viewModel.product.name.strippingHTML())
-                .font(AppFonts.montserrat(size: AppFonts.Size.h4, weight: .bold))
+                .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.h4, weight: .bold))
             
             let priceInfo = viewModel.displayPrice
             Text(priceInfo.display)
-                .font(AppFonts.roboto(size: AppFonts.Size.h3, weight: .bold))
-                .foregroundColor(AppColors.price)
+                .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.h3, weight: .bold))
+                .foregroundColor(AppTheme.Colors.price)
         }
         .padding(.horizontal)
     }
     
     private var attributesSection: some View {
-        VStack(alignment: .leading, spacing: AppStyles.Spacing.large) {
+        VStack(alignment: .leading, spacing: AppTheme.Layout.Spacing.large) {
             ForEach(viewModel.displayableAttributes) { attribute in
                 AttributeSelectorView(
                     attribute: attribute,
@@ -132,9 +133,9 @@ struct ProductOptionsView: View {
     }
     
     private var addToCartSection: some View {
-        VStack(spacing: AppStyles.Spacing.medium) {
+        VStack(spacing: AppTheme.Layout.Spacing.medium) {
             Text(viewModel.stockStatusMessage.text)
-                .font(AppFonts.roboto(size: AppFonts.Size.body, weight: .bold))
+                .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body, weight: .bold))
                 .foregroundColor(viewModel.stockStatusMessage.color)
                 .animation(.easeInOut, value: viewModel.stockStatusMessage.text)
             
@@ -147,7 +148,7 @@ struct ProductOptionsView: View {
                     }
                 }
             }
-            .buttonStyle(PrimaryButtonStyle())
+            .buttonStyle(AppTheme.PrimaryButtonStyle())
             .disabled(viewModel.isAddToCartDisabled)
             
             if let error = cartManager.state.errorMessage ?? viewModel.addToCartError {
@@ -158,26 +159,6 @@ struct ProductOptionsView: View {
         }
         .padding()
         .background(.thinMaterial)
-        .cornerRadius(20, corners: [.topLeft, .topRight]) // Dieser Aufruf verursacht die Fehler
-    }
-}
-
-// ===================================================================
-// **DIESER TEIL HAT GEFEHLT UND BEHEBT DIE "corners"-FEHLER**
-// ===================================================================
-
-extension View {
-    func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
-        clipShape( RoundedCorner(radius: radius, corners: corners) )
-    }
-}
-
-struct RoundedCorner: Shape {
-    var radius: CGFloat = .infinity
-    var corners: UIRectCorner = .allCorners
-
-    func path(in rect: CGRect) -> Path {
-        let path = UIBezierPath(roundedRect: rect, byRoundingCorners: corners, cornerRadii: CGSize(width: radius, height: radius))
-        return Path(path.cgPath)
+        .cornerRadius(20, corners: [.topLeft, .topRight])
     }
 }

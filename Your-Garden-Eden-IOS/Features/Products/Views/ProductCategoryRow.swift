@@ -1,6 +1,11 @@
+// DATEI: ProductCategoryRowView.swift
+// PFAD: Features/Products/Views/Components/ProductCategoryRowView.swift
+// ZWECK: Eine wiederverwendbare View, die eine einzelne Produktkategorie
+//        als klickbares Banner darstellt.
+
 import SwiftUI
 
-struct ProductCategoryRow: View {
+struct ProductCategoryRowView: View {
     let label: String
     let imageUrl: URL?
     let localImageFilename: String?
@@ -9,7 +14,7 @@ struct ProductCategoryRow: View {
         ZStack(alignment: .bottomLeading) {
             imageBanner
                 .frame(height: 120)
-                .cornerRadius(AppStyles.BorderRadius.large)
+                .cornerRadius(AppTheme.Layout.BorderRadius.large)
                 .clipped()
 
             LinearGradient(
@@ -17,14 +22,14 @@ struct ProductCategoryRow: View {
                 startPoint: .center,
                 endPoint: .bottom
             )
-            .cornerRadius(AppStyles.BorderRadius.large)
+            .cornerRadius(AppTheme.Layout.BorderRadius.large)
 
             Text(label)
-                .font(AppFonts.montserrat(size: AppFonts.Size.title2, weight: .bold))
+                .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.title2, weight: .bold))
                 .foregroundColor(.white)
                 .padding()
         }
-        .appShadow(AppStyles.Shadows.medium)
+        .appShadow(AppTheme.Shadows.medium)
     }
 
     @ViewBuilder
@@ -39,9 +44,7 @@ struct ProductCategoryRow: View {
                 switch phase {
                 case .success(let image):
                     image.resizable().aspectRatio(contentMode: .fill)
-                case .failure:
-                    placeholderView
-                case .empty:
+                case .failure, .empty:
                     placeholderView
                 @unknown default:
                     EmptyView()
@@ -55,10 +58,10 @@ struct ProductCategoryRow: View {
     
     private var placeholderView: some View {
         ZStack {
-            AppColors.backgroundLightGray
+            AppTheme.Colors.backgroundLightGray
             Image(systemName: "photo.fill")
                 .font(.largeTitle)
-                .foregroundColor(AppColors.textMuted.opacity(0.3))
+                .foregroundColor(AppTheme.Colors.textMuted.opacity(0.3))
         }
     }
 }

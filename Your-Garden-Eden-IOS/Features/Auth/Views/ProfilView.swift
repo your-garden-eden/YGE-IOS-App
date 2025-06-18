@@ -1,3 +1,16 @@
+//
+//  ProfilView.swift
+//  Your-Garden-Eden-IOS
+//
+//  Created by Josef Ewert on 18.06.25.
+//
+
+
+// DATEI: ProfilView.swift
+// PFAD: Features/Profile/Views/ProfilView.swift
+// ZWECK: Stellt die Profil-Ansicht für den eingeloggten Benutzer dar oder zeigt
+//        eine Aufforderung zum Anmelden/Registrieren für Gäste an.
+
 import SwiftUI
 
 struct ProfilView: View {
@@ -6,9 +19,9 @@ struct ProfilView: View {
     @State private var showingAuthSheet = false
 
     var body: some View {
-        // MODERNISIERT: Die View ist der Root einer NavigationStack, die in der TabView bereitgestellt wird.
+        // Diese View ist die Wurzel der Navigation innerhalb ihres Tabs.
         ZStack {
-            AppColors.backgroundPage.ignoresSafeArea()
+            AppTheme.Colors.backgroundPage.ignoresSafeArea()
             
             Group {
                 if let user = authManager.user {
@@ -21,6 +34,7 @@ struct ProfilView: View {
         .navigationTitle("Mein Profil")
         .navigationBarTitleDisplayMode(.large)
         .sheet(isPresented: $showingAuthSheet) {
+            // Präsentiert den zentralen Authentifizierungs-Flow als modales Sheet.
             AuthContainerView(onDismiss: { self.showingAuthSheet = false })
                 .environmentObject(authManager)
         }
@@ -33,26 +47,26 @@ struct ProfilView: View {
                     Text("Name")
                     Spacer()
                     Text("\(user.firstName) \(user.lastName)")
-                        .foregroundColor(AppColors.textMuted)
+                        .foregroundColor(AppTheme.Colors.textMuted)
                 }
                 HStack {
                     Text("E-Mail")
                     Spacer()
                     Text(user.email)
-                        .foregroundColor(AppColors.textMuted)
+                        .foregroundColor(AppTheme.Colors.textMuted)
                 }
             }
             
             Section {
                 Text("Meine Bestellungen (in Kürze)")
-                    .foregroundColor(AppColors.textMuted)
+                    .foregroundColor(AppTheme.Colors.textMuted)
             }
             
             Section {
                 Button("Abmelden", role: .destructive) {
                     authManager.logout()
                 }
-                .foregroundColor(AppColors.error)
+                .foregroundColor(AppTheme.Colors.error)
             }
         }
         .listStyle(.insetGrouped)
@@ -63,22 +77,22 @@ struct ProfilView: View {
         VStack(spacing: 20) {
             Image(systemName: "person.crop.circle.badge.questionmark")
                 .font(.system(size: 80))
-                .foregroundColor(AppColors.primary.opacity(0.6))
+                .foregroundColor(AppTheme.Colors.primary.opacity(0.6))
             
             Text("Du bist nicht angemeldet")
-                .font(AppFonts.montserrat(size: AppFonts.Size.title2, weight: .bold))
-                .foregroundColor(AppColors.textHeadings)
+                .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.title2, weight: .bold))
+                .foregroundColor(AppTheme.Colors.textHeadings)
             
             Text("Melde dich an, um deine Bestellungen zu sehen, deine Wunschliste zu speichern und mehr.")
-                .font(AppFonts.roboto(size: AppFonts.Size.body))
-                .foregroundColor(AppColors.textMuted)
+                .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body))
+                .foregroundColor(AppTheme.Colors.textMuted)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
             
             Button("Anmelden oder Registrieren") {
                 self.showingAuthSheet = true
             }
-            .buttonStyle(PrimaryButtonStyle())
+            .buttonStyle(AppTheme.PrimaryButtonStyle())
             .padding(.top)
         }
         .padding()

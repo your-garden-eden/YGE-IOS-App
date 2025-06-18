@@ -1,20 +1,25 @@
+// DATEI: ProductRowView.swift
+// PFAD: Features/Products/Views/Components/ProductRowView.swift
+// ZWECK: Stellt ein Produkt in einer horizontalen Reihen-Ansicht dar,
+//        typischerweise für Listen wie im Warenkorb oder auf einer Suchergebnisseite.
+
 import SwiftUI
 
 struct ProductRowView: View {
     let product: WooCommerceProduct
 
     var body: some View {
-        HStack(alignment: .top, spacing: AppStyles.Spacing.medium) {
+        HStack(alignment: .top, spacing: AppTheme.Layout.Spacing.medium) {
             productImage
                 .frame(width: 90, height: 90)
-                .background(AppColors.backgroundLightGray)
-                .cornerRadius(AppStyles.BorderRadius.medium)
+                .background(AppTheme.Colors.backgroundLightGray)
+                .cornerRadius(AppTheme.Layout.BorderRadius.medium)
                 .clipped()
 
-            VStack(alignment: .leading, spacing: AppStyles.Spacing.xSmall) {
+            VStack(alignment: .leading, spacing: AppTheme.Layout.Spacing.xSmall) {
                 Text(product.name.strippingHTML())
-                    .font(AppFonts.montserrat(size: AppFonts.Size.headline, weight: .semibold))
-                    .foregroundColor(AppColors.textHeadings)
+                    .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.headline, weight: .semibold))
+                    .foregroundColor(AppTheme.Colors.textHeadings)
                     .lineLimit(2)
                 
                 Spacer()
@@ -25,10 +30,10 @@ struct ProductRowView: View {
             }
             .frame(height: 90)
         }
-        .padding(AppStyles.Spacing.medium)
-        .background(AppColors.backgroundComponent)
-        .cornerRadius(AppStyles.BorderRadius.large)
-        .appShadow(AppStyles.Shadows.small)
+        .padding(AppTheme.Layout.Spacing.medium)
+        .background(AppTheme.Colors.backgroundComponent)
+        .cornerRadius(AppTheme.Layout.BorderRadius.large)
+        .appShadow(AppTheme.Shadows.small)
     }
     
     @ViewBuilder
@@ -40,7 +45,7 @@ struct ProductRowView: View {
             case .failure:
                  Image(systemName: "photo.fill")
                     .font(.largeTitle)
-                    .foregroundColor(AppColors.textMuted.opacity(0.5))
+                    .foregroundColor(AppTheme.Colors.textMuted.opacity(0.5))
             case .empty:
                 ShimmerView()
             @unknown default:
@@ -53,12 +58,11 @@ struct ProductRowView: View {
     private var priceView: some View {
         let priceInfo = PriceFormatter.formatPriceString(
             from: product.price_html,
-            fallbackPrice: product.price,
-            currencySymbol: "€"
+            fallbackPrice: product.price
         )
         Text(priceInfo.display)
-            .font(AppFonts.roboto(size: AppFonts.Size.subheadline, weight: .bold))
-            .foregroundColor(AppColors.price)
+            .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.subheadline, weight: .bold))
+            .foregroundColor(AppTheme.Colors.price)
     }
     
     @ViewBuilder
@@ -66,11 +70,11 @@ struct ProductRowView: View {
         let isInStock = product.stock_status == .instock
         
         Text(isInStock ? "Auf Lager" : "Nicht verfügbar")
-            .font(AppFonts.roboto(size: AppFonts.Size.caption, weight: .bold))
-            .foregroundColor(isInStock ? AppColors.success : AppColors.error)
+            .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.caption, weight: .bold))
+            .foregroundColor(isInStock ? AppTheme.Colors.success : AppTheme.Colors.error)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background((isInStock ? AppColors.success : AppColors.error).opacity(0.15))
-            .cornerRadius(AppStyles.BorderRadius.small)
+            .background((isInStock ? AppTheme.Colors.success : AppTheme.Colors.error).opacity(0.15))
+            .cornerRadius(AppTheme.Layout.BorderRadius.small)
     }
 }

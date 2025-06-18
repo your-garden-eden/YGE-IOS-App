@@ -1,14 +1,3 @@
-//
-//  CustomBackButtonModifier.swift
-//  Your-Garden-Eden-IOS
-//
-//  Created by Josef Ewert on 16.06.25.
-//
-
-
-// Path: Your-Garden-Eden-IOS/Core/UI/ViewModifiers/CustomBackButtonModifier.swift
-// VERSION 1.0 (FINAL)
-
 import SwiftUI
 
 struct CustomBackButtonModifier: ViewModifier {
@@ -29,7 +18,8 @@ struct CustomBackButtonModifier: ViewModifier {
                             Text("Back")
                                 .font(.system(size: 17))
                         }
-                        .foregroundColor(AppColors.primary) // Verwenden Sie hier Ihre App-Farbe
+                        // KORRIGIERT: Verwendet jetzt die zentrale AppTheme-Struktur.
+                        .foregroundColor(AppTheme.Colors.primary)
                     }
                 }
             }

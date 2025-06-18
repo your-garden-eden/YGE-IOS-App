@@ -1,5 +1,6 @@
-// Path: Your-Garden-Eden-IOS/Features/Products/Views/ProductCardView.swift
-// VERSION 2.0 (FINAL - Intelligent Stock & Variation Display)
+// DATEI: ProductCardView.swift
+// PFAD: Features/Products/Views/Components/ProductCardView.swift
+// ZWECK: Eine wiederverwendbare Karte zur Darstellung eines einzelnen Produkts in einer Gitter- oder Listenansicht.
 
 import SwiftUI
 
@@ -9,114 +10,96 @@ struct ProductCardView: View {
     var body: some View {
         NavigationLink(value: product) {
             VStack(alignment: .leading, spacing: 0) {
-                
-                // --- BILD & OVERLAYS ---
                 imageWithOverlays
-                    .aspectRatio(1.0, contentMode: .fit) // Sorgt für quadratische Bilder
+                    .aspectRatio(1.0, contentMode: .fit)
                 
-                // --- TEXT-INHALT ---
-                VStack(alignment: .leading, spacing: AppStyles.Spacing.xSmall) {
+                VStack(alignment: .leading, spacing: AppTheme.Layout.Spacing.xSmall) {
                     Text(product.name.strippingHTML())
-                        .font(AppFonts.montserrat(size: AppFonts.Size.body, weight: .regular))
-                        .foregroundColor(AppColors.textBase)
+                        .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.body, weight: .regular))
+                        .foregroundColor(AppTheme.Colors.textBase)
                         .lineLimit(2)
-                        .frame(height: 40, alignment: .top) // Feste Höhe für einheitliches Layout
+                        .frame(height: 40, alignment: .top)
 
                     priceView
                 }
-                .padding(AppStyles.Spacing.small)
+                .padding(AppTheme.Layout.Spacing.small)
             }
-            .background(AppColors.backgroundComponent)
-            .cornerRadius(AppStyles.BorderRadius.medium)
-            .appShadow(AppStyles.Shadows.small)
-            .grayscale(product.stock_status == .outofstock ? 1.0 : 0.0) // Graustufen für ausverkaufte Produkte
+            .background(AppTheme.Colors.backgroundComponent)
+            .cornerRadius(AppTheme.Layout.BorderRadius.medium)
+            .appShadow(AppTheme.Shadows.small)
+            .grayscale(product.stock_status == .outofstock ? 1.0 : 0.0)
             .opacity(product.stock_status == .outofstock ? 0.6 : 1.0)
         }
         .buttonStyle(PlainButtonStyle())
     }
 
     // MARK: - Subviews
-
     private var imageWithOverlays: some View {
         ZStack(alignment: .topTrailing) {
-            // Bild
             AsyncImage(url: product.safeImages.first?.src.asURL()) { phase in
                 if let image = phase.image {
-                    image.resizable().aspectRatio(contentMode: .fill)
+                    image.resizable()
                 } else {
-                    Rectangle().fill(AppColors.backgroundLightGray)
-                        .overlay(Image(systemName: "photo.fill").font(.largeTitle).foregroundColor(AppColors.borderLight))
+                    Rectangle().fill(AppTheme.Colors.backgroundLightGray)
+                        .overlay(Image(systemName: "photo.fill").font(.largeTitle).foregroundColor(AppTheme.Colors.borderLight))
                 }
             }
             
-            // --- HIER IST DIE NEUE LOGIK FÜR DIE STATUS-ANZEIGE ---
-            VStack(alignment: .trailing, spacing: AppStyles.Spacing.xSmall) {
+            VStack(alignment: .trailing, spacing: AppTheme.Layout.Spacing.xSmall) {
                 if product.isOnSale {
                     saleBadge
                 }
-                stockInfoOverlay // Unser neuer intelligenter Overlay
+                stockInfoOverlay
             }
-            .padding(AppStyles.Spacing.small)
+            .padding(AppTheme.Layout.Spacing.small)
         }
         .clipped()
     }
     
     @ViewBuilder
     private var stockInfoOverlay: some View {
-        // Logik zur Bestimmung, welcher Badge angezeigt wird
         if product.stock_status == .outofstock {
-            StockInfoBadge(
-                text: "Ausverkauft",
-                backgroundColor: AppColors.error,
-                foregroundColor: AppColors.textOnPrimary,
-                fontWeight: .bold
-            )
+            StockInfoBadge(text: "Ausverkauft", backgroundColor: AppTheme.Colors.error, foregroundColor: AppTheme.Colors.textOnPrimary, fontWeight: .bold)
         } else if product.type == "variable" {
-            StockInfoBadge(
-                text: "Variationen verfügbar",
-                backgroundColor: AppColors.textMuted.opacity(0.8),
-                foregroundColor: .white,
-                fontWeight: .regular
-            )
+            StockInfoBadge(text: "Variationen verfügbar", backgroundColor: AppTheme.Colors.textMuted.opacity(0.8), foregroundColor: .white, fontWeight: .regular)
         }
     }
 
     private var saleBadge: some View {
         Text("Angebot")
-            .font(AppFonts.montserrat(size: AppFonts.Size.caption, weight: .bold))
-            .padding(.horizontal, AppStyles.Spacing.small)
-            .padding(.vertical, AppStyles.Spacing.xSmall / 2)
-            .background(AppColors.primary)
-            .foregroundColor(AppColors.textOnPrimary)
-            .cornerRadius(AppStyles.BorderRadius.small)
+            .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.caption, weight: .bold))
+            .padding(.horizontal, AppTheme.Layout.Spacing.small)
+            .padding(.vertical, AppTheme.Layout.Spacing.xSmall / 2)
+            .background(AppTheme.Colors.primary)
+            .foregroundColor(AppTheme.Colors.textOnPrimary)
+            .cornerRadius(AppTheme.Layout.BorderRadius.small)
     }
     
     @ViewBuilder
     private var priceView: some View {
         if let priceRange = product.priceRangeDisplay {
              Text(priceRange)
-                .font(AppFonts.roboto(size: AppFonts.Size.body, weight: .regular))
-                .foregroundColor(AppColors.textMuted)
+                .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body, weight: .regular))
+                .foregroundColor(AppTheme.Colors.textMuted)
         } else {
             let formattedPrice = PriceFormatter.formatPriceString(from: product.price_html, fallbackPrice: product.price)
-            HStack(spacing: AppStyles.Spacing.small) {
+            HStack(spacing: AppTheme.Layout.Spacing.small) {
                 Text(formattedPrice.display)
-                    .font(AppFonts.roboto(size: AppFonts.Size.body, weight: .bold))
-                    .foregroundColor(AppColors.price)
+                    .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body, weight: .bold))
+                    .foregroundColor(AppTheme.Colors.price)
                 
                 if let strikethrough = formattedPrice.strikethrough {
                     Text(strikethrough)
-                        .font(AppFonts.roboto(size: AppFonts.Size.subheadline))
+                        .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.subheadline))
                         .strikethrough()
-                        .foregroundColor(AppColors.textMuted)
+                        .foregroundColor(AppTheme.Colors.textMuted)
                 }
             }
         }
     }
 }
 
-
-// MARK: - Helper View für die Badges
+// Eine kleine, private Hilfs-View, die nur innerhalb von ProductCardView verwendet wird.
 fileprivate struct StockInfoBadge: View {
     let text: String
     let backgroundColor: Color
@@ -125,12 +108,12 @@ fileprivate struct StockInfoBadge: View {
 
     var body: some View {
         Text(text)
-            .font(AppFonts.montserrat(size: AppFonts.Size.caption, weight: fontWeight))
-            .padding(.horizontal, AppStyles.Spacing.small)
-            .padding(.vertical, AppStyles.Spacing.xSmall / 2)
+            .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.caption, weight: fontWeight))
+            .padding(.horizontal, AppTheme.Layout.Spacing.small)
+            .padding(.vertical, AppTheme.Layout.Spacing.xSmall / 2)
             .background(backgroundColor)
             .foregroundColor(foregroundColor)
-            .cornerRadius(AppStyles.BorderRadius.small)
+            .cornerRadius(AppTheme.Layout.BorderRadius.small)
             .transition(.opacity.animation(.easeIn))
     }
 }
