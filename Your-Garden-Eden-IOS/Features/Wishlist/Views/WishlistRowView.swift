@@ -1,32 +1,76 @@
 // DATEI: WishlistRowView.swift
 // PFAD: Features/Wishlist/Views/Components/WishlistRowView.swift
-// ZWECK: Stellt einen einzelnen Artikel (eine Zeile) in der Wunschliste dar.
+// VERSION: 2.0 (FINAL & VISUELL ANGEGLICHEN)
+// ZWECK: Stellt einen Artikel in der Wunschliste dar, visuell angeglichen an die CartRowView,
+//        mit einer integrierten Kontrollleiste für die "Zum Warenkorb"-Aktion.
 
 import SwiftUI
 
 struct WishlistRowView: View {
     let product: WooCommerceProduct
     
-    var body: some View {
-        HStack(alignment: .top, spacing: AppTheme.Layout.Spacing.medium) {
-            productImage
-                .frame(width: 90, height: 90)
-                .cornerRadius(AppTheme.Layout.BorderRadius.medium)
+    let isAddingToCart: Bool
+    let onAddToCart: () -> Void
 
-            VStack(alignment: .leading, spacing: AppTheme.Layout.Spacing.xSmall) {
-                Text(product.name.strippingHTML())
-                    .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.headline, weight: .semibold))
-                    .foregroundColor(AppTheme.Colors.textHeadings)
-                    .lineLimit(2)
-                
-                Spacer()
-                
-                priceView
-                
-                stockStatusView
+    var body: some View {
+        VStack(spacing: 0) {
+            // ===================================================================
+            // **STRUKTUR-UPDATE: Ebene 1 - Informations-Anzeige**
+            // ===================================================================
+            HStack(alignment: .top, spacing: AppTheme.Layout.Spacing.medium) {
+                productImage
+                    .frame(width: 90, height: 90)
+                    .cornerRadius(AppTheme.Layout.BorderRadius.medium)
+
+                VStack(alignment: .leading, spacing: AppTheme.Layout.Spacing.xSmall) {
+                    Text(product.name.strippingHTML())
+                        .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.headline, weight: .semibold))
+                        .foregroundColor(AppTheme.Colors.textHeadings)
+                        .lineLimit(2)
+                    
+                    Spacer()
+                    
+                    priceView
+                    
+                    stockStatusView
+                }
+                .frame(height: 90)
             }
-            .frame(height: 90)
+            .padding([.top, .leading, .trailing])
+
+            // ===================================================================
+            // **STRUKTUR-UPDATE: Ebene 2 - Interaktive Kontrollleiste**
+            // ===================================================================
+            if product.type == "simple" && product.isPurchasable && product.stock_status == .instock {
+                HStack {
+                    Spacer() // Schiebt den Button nach rechts
+                    
+                    Button(action: onAddToCart) {
+                        if isAddingToCart {
+                            ProgressView()
+                                .tint(AppTheme.Colors.primary)
+                        } else {
+                            Image(systemName: "cart.badge.plus")
+                                .font(.title2)
+                                .foregroundColor(AppTheme.Colors.primary)
+                        }
+                    }
+                    .frame(width: 44, height: 44)
+                    .disabled(isAddingToCart)
+                }
+                .padding([.horizontal, .bottom])
+                .padding(.top, AppTheme.Layout.Spacing.xSmall)
+            } else {
+                // Fügt einen leeren Platzhalter hinzu, damit das Padding konsistent bleibt,
+                // auch wenn der Button nicht angezeigt wird.
+                Spacer().frame(height: AppTheme.Layout.Spacing.medium + AppTheme.Layout.Spacing.xSmall)
+            }
         }
+        .background(AppTheme.Colors.backgroundComponent)
+        .cornerRadius(AppTheme.Layout.BorderRadius.large)
+        .appShadow(AppTheme.Shadows.small)
+        .opacity(isAddingToCart ? 0.6 : 1.0)
+        .animation(.easeOut(duration: 0.2), value: isAddingToCart)
     }
     
     @ViewBuilder
@@ -52,10 +96,7 @@ struct WishlistRowView: View {
     
     @ViewBuilder
     private var priceView: some View {
-        let priceInfo = PriceFormatter.formatPriceString(
-            from: product.price_html,
-            fallbackPrice: product.price
-        )
+        let priceInfo = PriceFormatter.formatPriceString(from: product.price_html, fallbackPrice: product.price)
         HStack(spacing: AppTheme.Layout.Spacing.small) {
             Text(priceInfo.display)
                 .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.subheadline, weight: .bold))

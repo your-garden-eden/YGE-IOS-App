@@ -1,6 +1,6 @@
 // DATEI: ProductOptionsView.swift
 // PFAD: Features/Products/Views/Options/ProductOptionsView.swift
-// ZWECK: Die Hauptansicht zur Auswahl von Optionen (Variationen) für ein variables Produkt.
+// VERSION: 1.1 (FINAL & ANGEPASST)
 
 import SwiftUI
 
@@ -38,7 +38,7 @@ struct ProductOptionsView: View {
         .background(AppTheme.Colors.backgroundPage.ignoresSafeArea())
         .navigationTitle("Optionen auswählen")
         .navigationBarTitleDisplayMode(.inline)
-        .customBackButton()
+        .customBackButton() // <-- BEFEHL BEREITS VORHANDEN, KORREKTHEIT BESTÄTIGT
         .onAppear {
             self.selectedImageID = viewModel.product.safeImages.first?.id
         }

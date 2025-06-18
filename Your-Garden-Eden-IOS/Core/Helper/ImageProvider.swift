@@ -1,18 +1,11 @@
 // DATEI: ImageProvider.swift
 // PFAD: Helper/ImageProvider.swift
-// VERSION: 1.0 (VOLLSTÄNDIG & FINAL)
-// ZWECK: Eine zentrale Dienstklasse zur dynamischen Bereitstellung von lokalen Bildern.
-//        Verhindert, dass Views Kenntnis über spezifische Asset-Namen haben müssen.
+// VERSION: 1.1 (FINAL & VOLLSTÄNDIG)
 
 import SwiftUI
 
-/// Stellt eine zentrale Logik zur Verfügung, um Bilder basierend auf Geschäftslogik (z.B. Kategorie-Slugs) bereitzustellen.
 public struct ImageProvider {
     
-    /// Gibt das passende Banner-Bild für einen gegebenen Kategorie-Slug zurück.
-    /// Dies ist die einzige Stelle im Code, die diese Zuordnung kennt.
-    /// - Parameter slug: Der `slug` der WooCommerce-Kategorie.
-    /// - Returns: Ein `Image`-Objekt, falls ein passendes lokales Asset gefunden wurde, sonst `nil`.
     public static func banner(forCategorySlug slug: String) -> Image? {
         switch slug {
             // --- Hauptkategorien ---
@@ -88,10 +81,10 @@ public struct ImageProvider {
         case "fuer-die-ganze-grossen-zubehoer": return Image("cat_banner_fuer_die_ganze_grossen_zubehoer")
 
             // --- Unterkategorien: Grills & Outdoor-Küchen ---
-       
+        case "grills-gasgrills": return Image("cat_banner_grills_gasgrills")
+        case "grills-holzkohlegrills": return Image("cat_banner_grills_holzkohlegrills")
+        case "grills-zubehoer": return Image("cat_banner_grills_zubehoer")
             
-        // Wenn kein lokales Bild für den Slug definiert ist, wird nil zurückgegeben.
-        // Die aufrufende View kann dann auf ein API-Bild oder einen Platzhalter ausweichen.
         default:
             return nil
         }

@@ -1,19 +1,20 @@
 // DATEI: WishlistView.swift
 // PFAD: Features/Wishlist/Views/WishlistView.swift
-// VERSION: 2.0 (FINAL & KORRIGIERT)
-// ZWECK: Die Hauptansicht zur Darstellung der Wunschliste des Benutzers.
+// VERSION: 2.2 (FINAL & ANGEPASST)
+// ZWECK: Hauptansicht der Wunschliste, angepasst an das globale Header-Schema mit Logo und Zurück-Button.
 
 import SwiftUI
 
 struct WishlistView: View {
     @EnvironmentObject private var wishlistState: WishlistState
     @EnvironmentObject private var authManager: AuthManager
+    @EnvironmentObject private var cartManager: CartAPIManager
     
     @State private var showingAuthSheet = false
-    
+    @State private var addingProductId: Int?
+
     var body: some View {
         ZStack {
-            // KORREKTUR: Verwendet die zentrale AppTheme-Struktur.
             AppTheme.Colors.backgroundPage.ignoresSafeArea()
             
             Group {
@@ -30,23 +31,31 @@ struct WishlistView: View {
                 }
             }
         }
-        .navigationTitle("Wunschliste")
+        // KORREKTUR: Der explizite Navigationstitel wurde entfernt.
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Text("Wunschliste")
-                    // KORREKTUR: Verwendet die zentrale AppTheme-Struktur.
-                    .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.headline, weight: .bold))
-                    .foregroundColor(AppTheme.Colors.textHeadings)
-            }
-        }
         .refreshable {
             await wishlistState.fetchWishlistFromServer()
         }
         .sheet(isPresented: $showingAuthSheet) {
             AuthContainerView(onDismiss: { self.showingAuthSheet = false })
-                .environmentObject(authManager)
         }
+        .onChange(of: cartManager.state.errorMessage) { _, newValue in
+            if newValue != nil {
+                addingProductId = nil
+            }
+        }
+        // KORREKTUR: Das Logo wird als primäres Toolbar-Element hinzugefügt.
+        // Der alte Text-Titel wurde entfernt.
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Image("logo_your_garden_eden_transparent")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 150)
+            }
+        }
+        // KORREKTUR: Der Zurück-Button wird wie befohlen hinzugefügt.
+        .customBackButton()
     }
 
     private var loadingView: some View {
@@ -93,7 +102,6 @@ struct WishlistView: View {
                 .padding(.horizontal)
             
             Button("Anmelden oder Registrieren") { self.showingAuthSheet = true }
-                // KORREKTUR: Verwendet die zentrale AppTheme-Struktur.
                 .buttonStyle(AppTheme.PrimaryButtonStyle())
                 .padding(.top)
         }.padding()
@@ -104,12 +112,25 @@ struct WishlistView: View {
             ForEach(products) { product in
                 ZStack {
                     NavigationLink(value: product) { EmptyView() }.opacity(0)
-                    // Verwendet die neue, saubere Row-Komponente.
-                    WishlistRowView(product: product)
+                    
+                    WishlistRowView(
+                        product: product,
+                        isAddingToCart: addingProductId == product.id,
+                        onAddToCart: {
+                            Task {
+                                addingProductId = product.id
+                                await cartManager.addItem(productId: product.id, quantity: 1)
+                                
+                                if cartManager.state.errorMessage == nil {
+                                    wishlistState.toggleWishlistStatus(for: product)
+                                }
+                                addingProductId = nil
+                            }
+                        }
+                    )
                 }
             }
             .onDelete(perform: deleteItems)
-            // KORREKTUR: Verwendet die zentrale AppTheme-Struktur.
             .listRowBackground(AppTheme.Colors.backgroundPage)
             .listRowSeparator(.hidden)
             .listRowInsets(EdgeInsets(top: AppTheme.Layout.Spacing.small, leading: 0, bottom: AppTheme.Layout.Spacing.small, trailing: 0))

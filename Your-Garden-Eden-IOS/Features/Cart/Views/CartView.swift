@@ -1,21 +1,18 @@
 // DATEI: CartView.swift
 // PFAD: Features/Cart/Views/CartView.swift
-// ZWECK: Die Hauptansicht für den Warenkorb. Dient als Container und
-//        delegiert die Anzeige der verschiedenen Zustände an spezialisierte Unter-Views.
+// VERSION: 1.2 (FINAL & ANGEPASST)
+// ZWECK: Die Hauptansicht für den Warenkorb, jetzt mit Logo-Header und Zurück-Button.
 
 import SwiftUI
 
 struct CartView: View {
     @EnvironmentObject private var cartManager: CartAPIManager
-    
-    // Environment-Binding, um bei Klick auf "Weiter einkaufen" den Tab wechseln zu können.
     @Environment(\.selectedTab) private var selectedTab
 
     var body: some View {
         ZStack {
             AppTheme.Colors.backgroundPage.ignoresSafeArea()
 
-            // Die View entscheidet basierend auf dem Zustand des Managers, welche Unter-View angezeigt wird.
             if cartManager.state.isLoading && cartManager.state.items.isEmpty {
                 initialLoadingView
             } else if cartManager.state.items.isEmpty {
@@ -24,16 +21,26 @@ struct CartView: View {
                 cartContentView
             }
         }
-        .navigationTitle("Warenkorb")
+        // KORREKTUR: Der explizite Navigationstitel wurde entfernt.
         .navigationBarTitleDisplayMode(.inline)
         .refreshable {
             await cartManager.getCart()
         }
+        // KORREKTUR: Das Logo wird als primäres Toolbar-Element hinzugefügt.
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Image("logo_your_garden_eden_transparent")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 150)
+            }
+        }
+        // KORREKTUR: Der Zurück-Button wird wie befohlen hinzugefügt.
+        .customBackButton()
     }
     
     // MARK: - Subviews für verschiedene Zustände
     
-    /// Zeigt eine Liste der Warenkorb-Artikel und die Gesamtsumme an.
     private var cartContentView: some View {
         ScrollView {
             LazyVStack(spacing: AppTheme.Layout.Spacing.medium) {
@@ -44,14 +51,12 @@ struct CartView: View {
             .padding()
         }
         .safeAreaInset(edge: .bottom) {
-            // Die Gesamtsumme und der Checkout-Button werden am unteren Rand "angedockt".
             if let totals = cartManager.state.totals {
                 cartTotalsView(totals: totals)
             }
         }
     }
 
-    /// Die Ansicht, die angezeigt wird, wenn der Warenkorb initial geladen wird.
     private var initialLoadingView: some View {
         VStack(spacing: AppTheme.Layout.Spacing.medium) {
             ProgressView().tint(AppTheme.Colors.primary)
@@ -59,7 +64,6 @@ struct CartView: View {
         }
     }
     
-    /// Die Ansicht, die angezeigt wird, wenn der Warenkorb leer ist.
     private var emptyCartView: some View {
         VStack(spacing: AppTheme.Layout.Spacing.large) {
             Image(systemName: "cart")
@@ -70,7 +74,6 @@ struct CartView: View {
                 .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.title2, weight: .bold))
             
             Button("Weiter einkaufen") {
-                // Wechselt zum "Shop"-Tab (Index 1).
                 self.selectedTab.wrappedValue = 1
             }
             .buttonStyle(AppTheme.PrimaryButtonStyle())
@@ -79,7 +82,6 @@ struct CartView: View {
         .padding()
     }
     
-    /// Die Ansicht am unteren Rand, die die Gesamtsumme und den Checkout-Button anzeigt.
     private func cartTotalsView(totals: Totals) -> some View {
         VStack(spacing: AppTheme.Layout.Spacing.medium) {
             if let error = cartManager.state.errorMessage {
@@ -98,7 +100,6 @@ struct CartView: View {
                     .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.headline, weight: .bold))
             }
             
-            // Nutzt den typsicheren `AppDestination`-Wert für die Navigation.
             NavigationLink(value: AppDestination.checkout) {
                  Text("Zur Kasse")
             }

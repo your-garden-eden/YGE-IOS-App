@@ -1,6 +1,6 @@
 // DATEI: ProductDetailView.swift
 // PFAD: Features/Products/Views/Detail/ProductDetailView.swift
-// VERSION: 3.2 (VOLLSTÄNDIG & FINAL)
+// VERSION: 3.3 (FINAL & ANGEPASST)
 
 import SwiftUI
 
@@ -14,8 +14,6 @@ struct ProductDetailView: View {
     @State private var showAddedToCartConfirmation = false
 
     var body: some View {
-        // Der ZStack umschließt jetzt die ScrollView und das ConfirmationBanner,
-        // um das Banner über den scrollbaren Inhalt zu legen.
         ZStack(alignment: .top) {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppTheme.Layout.Spacing.large) {
@@ -25,15 +23,12 @@ struct ProductDetailView: View {
                     if product.type == "variable" && viewModel.isLoadingVariations {
                         ProgressView().frame(maxWidth: .infinity, minHeight: 50)
                     } else if let error = viewModel.variationError {
-                        // KORREKTUR: Nutzt die neue, überlegene Status-Komponente.
                         StatusIndicatorView.errorState(message: error)
                     }
                     
                     Divider()
                     descriptionSection
-                    // crossSellSection // Implementierung folgt
                     
-                    // Platzhalter, um sicherzustellen, dass der Inhalt nicht vom unteren Aktionsbereich verdeckt wird.
                     Spacer(minLength: 150)
                 }
             }
@@ -41,12 +36,12 @@ struct ProductDetailView: View {
                  bottomActionSection
             }
             
-            // Das Confirmation Banner wird hier über alles gelegt.
             confirmationBanner
         }
         .background(AppTheme.Colors.backgroundPage.ignoresSafeArea())
         .navigationTitle(product.name.strippingHTML())
         .navigationBarTitleDisplayMode(.inline)
+        .customBackButton() // <-- BEFEHL HINZUGEFÜGT
         .task(id: product.id) {
             await viewModel.loadData(for: product)
         }
@@ -120,12 +115,6 @@ struct ProductDetailView: View {
         }
     }
     
-    @ViewBuilder
-    private var crossSellSection: some View {
-        // Hier wird die Logik zum Anzeigen von Cross-Sell-Produkten implementiert.
-        EmptyView()
-    }
-    
     @ViewBuilder private var bottomActionSection: some View {
         VStack(spacing: AppTheme.Layout.Spacing.medium) {
             if product.type == "simple" {
@@ -162,7 +151,6 @@ struct ProductDetailView: View {
     @ViewBuilder private var variableProductActions: some View {
         let isNavigationDisabled = viewModel.isLoadingVariations || viewModel.variationError != nil || viewModel.variations.isEmpty
         
-        // KORREKTUR: Sobald die Duplikat-Datei entfernt ist, wird dieser Typ gefunden.
         NavigationLink(value: ProductVariationData(product: product, variations: viewModel.variations)) {
             if viewModel.isLoadingVariations { ProgressView().tint(.white) }
             else { Text("Optionen auswählen") }
@@ -174,12 +162,10 @@ struct ProductDetailView: View {
     @ViewBuilder private var confirmationBanner: some View {
         VStack {
             if showAddedToCartConfirmation {
-                // KORREKTUR: Nutzt die neue, überlegene Status-Komponente.
                 StatusIndicatorView.successBanner(message: "Zum Warenkorb hinzugefügt")
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
             if let errorMessage = cartManager.state.errorMessage {
-                // KORREKTUR: Nutzt die neue, überlegene Status-Komponente.
                 StatusIndicatorView.errorBanner(message: errorMessage)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }

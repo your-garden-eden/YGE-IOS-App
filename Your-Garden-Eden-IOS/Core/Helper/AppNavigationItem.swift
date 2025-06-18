@@ -1,7 +1,8 @@
 // DATEI: NavigationData.swift
 // PFAD: Helper/NavigationData.swift
+// VERSION: 2.0 (FINAL & BEREINIGT)
 // ZWECK: Enthält die statische, hierarchische Struktur der Hauptnavigation der App.
-//        Dies ist die zentrale Quelle der Wahrheit für alle Navigationsmenüs.
+//        Diese Akte ist entkoppelt von visuellen Darstellungsdetails.
 
 import Foundation
 
@@ -11,7 +12,7 @@ public struct AppNavigationItem: Identifiable, Hashable {
     public let mainCategorySlug: String
     public let label: String
     public let i18nId: String
-    public let imageFilename: String?
+    // KORREKTUR: `imageFilename` wurde entfernt. Die Verantwortung liegt nun beim ImageProvider.
     public let subItems: [AppSubNavigationItem]?
 }
 
@@ -34,7 +35,7 @@ public struct NavigationData {
     
     public static let items: [AppNavigationItem] = [
         AppNavigationItem(
-            mainCategorySlug: "gartenmoebel", label: "Gartenmöbel", i18nId: "header.nav.furniture", imageFilename: "cat_banner_gartenmoebel",
+            mainCategorySlug: "gartenmoebel", label: "Gartenmöbel", i18nId: "header.nav.furniture",
             subItems: [
                 AppSubNavigationItem(label: "Sofas", i18nId: "header.nav.furniture.sofas", linkSlug: extractSlug(from: "/product-list/gartenmoebel-sofas", prefixToRemove: "/product-list/")),
                 AppSubNavigationItem(label: "Stühle", i18nId: "header.nav.furniture.chairs", linkSlug: extractSlug(from: "/product-list/gartenmoebel-stuehle", prefixToRemove: "/product-list/")),
@@ -51,7 +52,7 @@ public struct NavigationData {
             ]
         ),
         AppNavigationItem(
-            mainCategorySlug: "sonnenschutz", label: "Sonnenschutz", i18nId: "header.nav.sunprotection", imageFilename: "cat_banner_sonnenschutz",
+            mainCategorySlug: "sonnenschutz", label: "Sonnenschutz", i18nId: "header.nav.sunprotection",
             subItems: [
                 AppSubNavigationItem(label: "Markisen", i18nId: "header.nav.sunprotection.awnings", linkSlug: extractSlug(from: "/product-list/sonnenschutz-markisen", prefixToRemove: "/product-list/")),
                 AppSubNavigationItem(label: "Sonnenschirme", i18nId: "header.nav.sunprotection.umbrellas", linkSlug: extractSlug(from: "/product-list/sonnenschutz-sonnenschirme", prefixToRemove: "/product-list/")),
@@ -59,7 +60,7 @@ public struct NavigationData {
             ]
         ),
         AppNavigationItem(
-            mainCategorySlug: "wasser-im-garten", label: "Wasser im Garten", i18nId: "header.nav.water", imageFilename: "cat_banner_wasser_im_garten",
+            mainCategorySlug: "wasser-im-garten", label: "Wasser im Garten", i18nId: "header.nav.water",
             subItems: [
                 AppSubNavigationItem(label: "Pools", i18nId: "header.nav.water.pools", linkSlug: extractSlug(from: "/product-list/wasser-im-garten-pools", prefixToRemove: "/product-list/")),
                 AppSubNavigationItem(label: "Teichzubehör", i18nId: "header.nav.water.pondAccessories", linkSlug: extractSlug(from: "/product-list/wasser-im-garten-teichzubehoer", prefixToRemove: "/product-list/")),
@@ -67,7 +68,7 @@ public struct NavigationData {
             ]
         ),
         AppNavigationItem(
-            mainCategorySlug: "heizen-feuer", label: "Heizen & Feuer", i18nId: "header.nav.heating", imageFilename: "cat_banner_heizen_feuer",
+            mainCategorySlug: "heizen-feuer", label: "Heizen & Feuer", i18nId: "header.nav.heating",
             subItems: [
                 AppSubNavigationItem(label: "Kamine", i18nId: "header.nav.heating.fireplaces", linkSlug: extractSlug(from: "/product-list/heizen-feuer-kamine", prefixToRemove: "/product-list/")),
                 AppSubNavigationItem(label: "Feuerholzaufbewahrung", i18nId: "header.nav.heating.firewoodstorage", linkSlug: extractSlug(from: "/product-list/heizen-feuer-feuerholzaufbewahrung", prefixToRemove: "/product-list/")),
@@ -75,7 +76,7 @@ public struct NavigationData {
             ]
         ),
         AppNavigationItem(
-            mainCategorySlug: "gartenhelfer-aufbewahrung", label: "Gartenhelfer & Aufbewahrung", i18nId: "header.nav.gardenhelpers", imageFilename: "cat_banner_gartenhelfer",
+            mainCategorySlug: "gartenhelfer-aufbewahrung", label: "Gartenhelfer & Aufbewahrung", i18nId: "header.nav.gardenhelpers",
             subItems: [
                 AppSubNavigationItem(label: "Gartengeräte", i18nId: "header.nav.gardenhelpers.tools", linkSlug: extractSlug(from: "/product-list/gartenhelfer-aufbewahrung-gartengeraete", prefixToRemove: "/product-list/")),
                 AppSubNavigationItem(label: "Gartenschuppen", i18nId: "header.nav.gardenhelpers.sheds", linkSlug: extractSlug(from: "/product-list/gartenhelfer-aufbewahrung-gartenschuppen", prefixToRemove: "/product-list/")),
@@ -85,7 +86,7 @@ public struct NavigationData {
             ]
         ),
         AppNavigationItem(
-            mainCategorySlug: "deko-licht", label: "Dekoration & Licht", i18nId: "header.nav.deco", imageFilename: "cat_banner_deko_licht",
+            mainCategorySlug: "deko-licht", label: "Dekoration & Licht", i18nId: "header.nav.deco",
             subItems: [
                 AppSubNavigationItem(label: "Gartenbeleuchtung", i18nId: "header.nav.deco.lighting", linkSlug: extractSlug(from: "/product-list/deko-licht-gartenbeleuchtung", prefixToRemove: "/product-list/")),
                 AppSubNavigationItem(label: "Gartenlautsprecher", i18nId: "header.nav.deco.audio", linkSlug: extractSlug(from: "/product-list/deko-licht-audio", prefixToRemove: "/product-list/")),
@@ -95,7 +96,7 @@ public struct NavigationData {
             ]
         ),
         AppNavigationItem(
-            mainCategorySlug: "pflanzen-anzucht", label: "Pflanzen & Anzucht", i18nId: "header.nav.plants", imageFilename: "cat_banner_pflanzen_anzucht",
+            mainCategorySlug: "pflanzen-anzucht", label: "Pflanzen & Anzucht", i18nId: "header.nav.plants",
             subItems: [
                 AppSubNavigationItem(label: "Gewächshäuser", i18nId: "header.nav.plants.greenhouses", linkSlug: extractSlug(from: "/product-list/pflanzen-anzucht-gewaechshaeuser", prefixToRemove: "/product-list/")),
                 AppSubNavigationItem(label: "Hochbeete", i18nId: "header.nav.plants.raisedbeds", linkSlug: extractSlug(from: "/product-list/pflanzen-anzucht-hochbeet", prefixToRemove: "/product-list/")),
@@ -109,7 +110,7 @@ public struct NavigationData {
             ]
         ),
         AppNavigationItem(
-            mainCategorySlug: "fuer-die-ganze-grossen", label: "Spiel & Spaß", i18nId: "header.nav.playfun", imageFilename: "cat_banner_spiel_spass",
+            mainCategorySlug: "fuer-die-ganze-grossen", label: "Spiel & Spaß", i18nId: "header.nav.playfun",
             subItems: [
                 AppSubNavigationItem(label: "Sandkästen", i18nId: "header.nav.playfun.sandpits", linkSlug: extractSlug(from: "/product-list/fuer-die-ganze-grossen-sandkasten", prefixToRemove: "/product-list/")),
                 AppSubNavigationItem(label: "Spielburgen", i18nId: "header.nav.playfun.playcastles", linkSlug: extractSlug(from: "/product-list/fuer-die-ganze-grossen-spielburgen", prefixToRemove: "/product-list/")),
@@ -118,6 +119,5 @@ public struct NavigationData {
                 AppSubNavigationItem(label: "Zubehör", i18nId: "header.nav.playfun.accessories", linkSlug: extractSlug(from: "/product-list/fuer-die-ganze-grossen-zubehoer", prefixToRemove: "/product-list/"))
             ]
         )
-            
     ]
 }

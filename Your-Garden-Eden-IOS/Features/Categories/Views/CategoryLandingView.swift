@@ -1,8 +1,6 @@
 // DATEI: CategoryLandingView.swift
 // PFAD: Features/Categories/Views/CategoryLandingView.swift
-// VERSION: 6.0 (KONSOLIDIERT & VOLLSTÄNDIG)
-// ZWECK: Dient als Landing-Page für eine Hauptkategorie. Zeigt entweder eine
-//        Liste von Unterkategorien oder leitet direkt zur Produktliste weiter.
+// VERSION: 6.1 (FINAL & ANGEPASST)
 
 import SwiftUI
 
@@ -20,7 +18,6 @@ struct CategoryLandingView: View {
         ZStack {
             AppTheme.Colors.backgroundPage.ignoresSafeArea()
             
-            // Die View reagiert auf den Zustand des ViewModels.
             switch viewModel.viewState {
             case .loading:
                 ProgressView().tint(AppTheme.Colors.primary)
@@ -40,19 +37,17 @@ struct CategoryLandingView: View {
         }
         .navigationTitle(getDisplayName(for: category))
         .navigationBarTitleDisplayMode(.inline)
+        .customBackButton() // <-- BEFEHL HINZUGEFÜGT
         .task {
             await viewModel.loadContent()
         }
     }
     
-    /// Die Ansicht zur Darstellung der Unterkategorien.
     private var subCategoryListView: some View {
         ScrollView {
             LazyVStack(spacing: AppTheme.Layout.Spacing.large) {
                 ForEach(viewModel.subCategories) { subCategory in
                     NavigationLink(value: subCategory) {
-                        // Nutzt die neue, überlegene `CategoryCardView` Komponente im Stil `.bannerWithTextOverlay`,
-                        // da hier der Name direkt auf dem Bild stehen soll.
                         CategoryCardView(
                             category: subCategory,
                             style: .bannerWithTextOverlay(displayName: getDisplayName(for: subCategory))
@@ -64,7 +59,6 @@ struct CategoryLandingView: View {
         }
     }
     
-    /// Die Ansicht, die angezeigt wird, wenn keine Produkte gefunden wurden.
     private var emptyStateView: some View {
         VStack(spacing: AppTheme.Layout.Spacing.large) {
             Image(systemName: "tray.fill")
@@ -82,8 +76,6 @@ struct CategoryLandingView: View {
         }.padding()
     }
     
-    /// Private Hilfsfunktion, um die Logik zur Namensfindung an einem Ort zu halten
-    /// und Codeduplizierung innerhalb dieser View zu vermeiden.
     private func getDisplayName(for category: WooCommerceCategory) -> String {
         if let mainItem = NavigationData.items.first(where: { $0.mainCategorySlug == category.slug }) {
             return mainItem.label
