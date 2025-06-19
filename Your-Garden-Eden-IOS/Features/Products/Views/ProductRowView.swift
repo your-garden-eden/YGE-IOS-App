@@ -1,7 +1,8 @@
 // DATEI: ProductRowView.swift
 // PFAD: Features/Products/Views/Components/ProductRowView.swift
-// ZWECK: Stellt ein Produkt in einer horizontalen Reihen-Ansicht dar,
-//        typischerweise für Listen wie im Warenkorb oder auf einer Suchergebnisseite.
+// VERSION: 2.0 (OPERATION: FREIES FEUERFELD - NEUTRALISIERT)
+// ZWECK: Stellt ein Produkt als reine Inhaltskomponente dar.
+//        Alle blockierenden Hüllen-Modifier wurden entfernt.
 
 import SwiftUI
 
@@ -30,10 +31,15 @@ struct ProductRowView: View {
             }
             .frame(height: 90)
         }
-        .padding(AppTheme.Layout.Spacing.medium)
-        .background(AppTheme.Colors.backgroundComponent)
-        .cornerRadius(AppTheme.Layout.BorderRadius.large)
-        .appShadow(AppTheme.Shadows.small)
+        // ===================================================================
+        // **MODIFIKATION: BLOCKIERENDE HÜLLE ENTFERNT**
+        // Die folgenden Modifikatoren wurden entfernt, um die Komponente sicher zu machen.
+        // Die übergeordnete Ansicht ist nun für das Hüllen-Styling zuständig.
+        // .padding(...)
+        // .background(...)
+        // .cornerRadius(...)
+        // .appShadow(...)
+        // ===================================================================
     }
     
     @ViewBuilder

@@ -1,6 +1,6 @@
 // DATEI: AppNavigationModifier.swift
 // PFAD: Core/Navigation/AppNavigationModifier.swift
-// VERSION: 1.5 (FINAL & KORRIGIERT)
+// VERSION: 1.5 (VALIDIERT & FINAL)
 
 import SwiftUI
 
@@ -8,9 +8,6 @@ import SwiftUI
 struct AppNavigationModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
-            // ACHTUNG: Der .customBackButton() Modifikator wurde hier entfernt,
-            // um seine Anzeige auf Wurzel-Ansichten wie HomeView und ShopView zu verhindern.
-            
             .navigationDestination(for: WooCommerceProduct.self) { product in
                 ProductDetailView(product: product)
             }

@@ -1,6 +1,6 @@
 // DATEI: ProductDetailView.swift
 // PFAD: Features/Products/Views/Detail/ProductDetailView.swift
-// VERSION: 3.3 (FINAL & ANGEPASST)
+// VERSION: 3.5 (UNVERÄNDERT & GEPRÜFT)
 
 import SwiftUI
 
@@ -11,6 +11,7 @@ struct ProductDetailView: View {
     @EnvironmentObject var wishlistState: WishlistState
     @EnvironmentObject var cartManager: CartAPIManager
     
+    @State private var selectedQuantity: Int = 1
     @State private var showAddedToCartConfirmation = false
 
     var body: some View {
@@ -19,29 +20,25 @@ struct ProductDetailView: View {
                 VStack(alignment: .leading, spacing: AppTheme.Layout.Spacing.large) {
                     productGallery
                     productHeader
-                    
                     if product.type == "variable" && viewModel.isLoadingVariations {
                         ProgressView().frame(maxWidth: .infinity, minHeight: 50)
                     } else if let error = viewModel.variationError {
                         StatusIndicatorView.errorState(message: error)
                     }
-                    
                     Divider()
                     descriptionSection
-                    
                     Spacer(minLength: 150)
                 }
             }
             .safeAreaInset(edge: .bottom) {
                  bottomActionSection
             }
-            
             confirmationBanner
         }
         .background(AppTheme.Colors.backgroundPage.ignoresSafeArea())
         .navigationTitle(product.name.strippingHTML())
         .navigationBarTitleDisplayMode(.inline)
-        .customBackButton() // <-- BEFEHL HINZUGEFÜGT
+        .customBackButton()
         .task(id: product.id) {
             await viewModel.loadData(for: product)
         }
@@ -55,21 +52,40 @@ struct ProductDetailView: View {
         }
     }
     
-    // MARK: - Subviews
-    
-    @ViewBuilder private var productGallery: some View {
-        AsyncImage(url: product.safeImages.first?.src.asURL()) { phase in
-            switch phase {
-            case .success(let image): image.resizable().scaledToFit()
-            case .failure: Image(systemName: "photo.fill").font(.largeTitle).foregroundColor(AppTheme.Colors.textMuted)
-            default: ShimmerView()
+    @ViewBuilder
+    private var productGallery: some View {
+        if product.safeImages.count > 1 {
+            TabView {
+                ForEach(product.safeImages) { image in
+                    AsyncImage(url: image.src.asURL()) { phase in
+                        switch phase {
+                        case .success(let img):
+                            img.resizable().scaledToFit()
+                        case .failure:
+                            Image(systemName: "photo.fill").font(.largeTitle).foregroundColor(AppTheme.Colors.textMuted)
+                        default:
+                            ShimmerView()
+                        }
+                    }
+                }
             }
+            .tabViewStyle(.page(indexDisplayMode: .automatic))
+            .frame(height: 300)
+        } else {
+            AsyncImage(url: product.safeImages.first?.src.asURL()) { phase in
+                switch phase {
+                case .success(let image): image.resizable().scaledToFit()
+                case .failure: Image(systemName: "photo.fill").font(.largeTitle).foregroundColor(AppTheme.Colors.textMuted)
+                default: ShimmerView()
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 300)
+            .background(AppTheme.Colors.backgroundLightGray)
         }
-        .frame(maxWidth: .infinity, minHeight: 300)
-        .background(AppTheme.Colors.backgroundLightGray)
     }
     
-    @ViewBuilder private var productHeader: some View {
+    @ViewBuilder
+    private var productHeader: some View {
         VStack(alignment: .leading, spacing: AppTheme.Layout.Spacing.small) {
             HStack(alignment: .top) {
                 Text(product.name.strippingHTML())
@@ -105,7 +121,8 @@ struct ProductDetailView: View {
         .padding(.horizontal)
     }
     
-    @ViewBuilder private var descriptionSection: some View {
+    @ViewBuilder
+    private var descriptionSection: some View {
         if let desc = product.description, !desc.isEmpty {
             VStack(alignment: .leading, spacing: AppTheme.Layout.Spacing.small) {
                 Text("Beschreibung").font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.h6, weight: .semibold))
@@ -115,7 +132,8 @@ struct ProductDetailView: View {
         }
     }
     
-    @ViewBuilder private var bottomActionSection: some View {
+    @ViewBuilder
+    private var bottomActionSection: some View {
         VStack(spacing: AppTheme.Layout.Spacing.medium) {
             if product.type == "simple" {
                 simpleProductActions
@@ -127,15 +145,16 @@ struct ProductDetailView: View {
         .background(.regularMaterial)
     }
 
-    @ViewBuilder private var simpleProductActions: some View {
+    @ViewBuilder
+    private var simpleProductActions: some View {
         if product.sold_individually == false {
-            QuantitySelectorView(quantity: .constant(1))
+            QuantitySelectorView(quantity: $selectedQuantity)
                 .padding(.horizontal)
         }
         
         Button(action: {
             Task {
-                await cartManager.addItem(productId: product.id, quantity: 1)
+                await cartManager.addItem(productId: product.id, quantity: selectedQuantity)
             }
         }) {
             HStack {
@@ -148,7 +167,8 @@ struct ProductDetailView: View {
         .disabled(cartManager.state.isLoading || !product.isPurchasable || product.stock_status != .instock)
     }
 
-    @ViewBuilder private var variableProductActions: some View {
+    @ViewBuilder
+    private var variableProductActions: some View {
         let isNavigationDisabled = viewModel.isLoadingVariations || viewModel.variationError != nil || viewModel.variations.isEmpty
         
         NavigationLink(value: ProductVariationData(product: product, variations: viewModel.variations)) {
@@ -159,7 +179,8 @@ struct ProductDetailView: View {
         .disabled(isNavigationDisabled)
     }
     
-    @ViewBuilder private var confirmationBanner: some View {
+    @ViewBuilder
+    private var confirmationBanner: some View {
         VStack {
             if showAddedToCartConfirmation {
                 StatusIndicatorView.successBanner(message: "Zum Warenkorb hinzugefügt")

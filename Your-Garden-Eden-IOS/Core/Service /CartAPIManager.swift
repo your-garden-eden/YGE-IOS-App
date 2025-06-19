@@ -1,6 +1,6 @@
 // DATEI: CartAPIManager.swift
 // PFAD: Services/App/CartAPIManager.swift
-// VERSION: 3.1 (FEHLER BEHOBEN)
+// VERSION: 3.5 (OPERATION: ZERBERSTEN IMPLEMENTIERT - FALLBACK FÜR CLEAR-FUNKTION)
 
 import Foundation
 
@@ -23,10 +23,9 @@ final class CartAPIManager: ObservableObject {
     private init() {}
 
     // MARK: - Öffentliche Warenkorb-Aktionen
+    
     func getCart(showLoadingIndicator: Bool = false) async {
-        // KORREKTUR: `showLoading_indicator` zu `showLoadingIndicator` korrigiert.
         await performCartAction(isLoading: showLoadingIndicator) {
-            // KORREKTUR: `self` hinzugefügt, um auf `performRequest` in der Closure zuzugreifen.
             try await self.performRequest(endpoint: self.cartAPI.get, httpMethod: "GET")
         }
     }
@@ -34,39 +33,74 @@ final class CartAPIManager: ObservableObject {
     func addItem(productId: Int, quantity: Int, variationId: Int? = nil) async {
         await performCartAction(isLoading: true) {
             let body: [String: Any] = ["id": variationId ?? productId, "quantity": quantity]
-            // KORREKTUR: `self` hinzugefügt.
             return try await self.performRequest(endpoint: self.cartAPI.addItem, httpMethod: "POST", body: body)
         }
     }
     
     func updateQuantity(for itemKey: String, newQuantity: Int) async {
         await performCartAction(updatingItemKey: itemKey) {
-            // KORREKTUR: `self` hinzugefügt.
             try await self.performRequest(endpoint: self.cartAPI.updateItem, httpMethod: "POST", body: ["key": itemKey, "quantity": newQuantity])
         }
     }
     
     func removeItem(key: String) async {
         await performCartAction(updatingItemKey: key) {
-            // KORREKTUR: `self` hinzugefügt.
             try await self.performRequest(endpoint: self.cartAPI.removeItem, httpMethod: "POST", body: ["key": key])
         }
     }
     
+    // ===================================================================
+    // **NEUE STRATEGIE: "OPERATION: ZERBERSTEN"**
+    // Wenn /cart/clear fehlschlägt, entfernen wir stattdessen alle
+    // Artikel einzeln. Dies ist ein robuster Fallback.
+    // ===================================================================
+    func clearCart() async {
+        let itemsToRemove = state.items
+        guard !itemsToRemove.isEmpty else { return }
+
+        state.isLoading = true
+        state.errorMessage = nil
+        
+        do {
+            // Führe alle "removeItem"-Anfragen parallel aus.
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                for item in itemsToRemove {
+                    group.addTask {
+                        _ = try await self.performRequest(endpoint: self.cartAPI.removeItem, httpMethod: "POST", body: ["key": item.key])
+                    }
+                }
+                // Warte, bis alle Aufgaben abgeschlossen sind.
+                try await group.waitForAll()
+            }
+            
+            // Nach der Operation den finalen (leeren) Zustand vom Server holen, um 100%ige Konsistenz zu garantieren.
+            await getCart(showLoadingIndicator: false)
+            
+        } catch {
+            let apiError = error as? WooCommerceAPIError ?? .underlying(error)
+            state.errorMessage = apiError.localizedDescriptionForUser
+        }
+        
+        state.isLoading = false
+    }
+    
     // MARK: - Private Kernlogik
+    
+    // Diese private Funktion bleibt bestehen, wird aber von der neuen clearCart-Logik nicht mehr direkt genutzt.
     private func performCartAction(isLoading: Bool = false, updatingItemKey: String? = nil, _ action: @escaping () async throws -> WooCommerceStoreCart?) async {
         state.isLoading = isLoading
         state.updatingItemKey = updatingItemKey
         state.errorMessage = nil
         
         do {
-            if let newCart = try await action() {
+            let newCart = try await action()
+            if let newCart = newCart {
                 state.items = newCart.safeItems
                 state.totals = newCart.totals
             }
         } catch {
             let apiError = error as? WooCommerceAPIError ?? .underlying(error)
-            state.errorMessage = apiError.localizedDescription
+            state.errorMessage = apiError.localizedDescriptionForUser
         }
         
         state.isLoading = false
@@ -85,7 +119,9 @@ final class CartAPIManager: ObservableObject {
             request.setValue(cartToken, forHTTPHeaderField: "Cart-Token")
         }
 
-        if let body = body { request.httpBody = try? JSONSerialization.data(withJSONObject: body) }
+        if let body = body, !body.isEmpty {
+             request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        }
         
         let (data, response) = try await URLSession.shared.data(for: request)
         
@@ -96,7 +132,7 @@ final class CartAPIManager: ObservableObject {
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
-            let err = try? JSONDecoder().decode(WooCommerceStoreErrorResponse.self, from: data)
+            let err = try? JSONDecoder().decode(WooCommerceErrorResponse.self, from: data)
             throw WooCommerceAPIError.serverError(statusCode: httpResponse.statusCode, message: err?.message, errorCode: err?.code)
         }
         
@@ -105,8 +141,8 @@ final class CartAPIManager: ObservableObject {
         do {
             return try JSONDecoder().decode(WooCommerceStoreCart.self, from: data)
         } catch let decodingError {
-            print("🔴 WARENKORB DECODING FEHLER: \(decodingError)")
-            throw decodingError
+            print("🔴 WARENKORB DECODING FEHLER: \(decodingError) für URL \(url.absoluteString)")
+            throw WooCommerceAPIError.decodingError(decodingError)
         }
     }
 }

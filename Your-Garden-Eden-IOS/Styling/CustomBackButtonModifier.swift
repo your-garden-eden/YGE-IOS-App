@@ -1,3 +1,7 @@
+// DATEI: CustomBackButtonModifier.swift
+// PFAD: Core/Navigation/AppNavigationModifier.swift
+// VERSION: 2.0 (OPERATION: RÜCKZUG)
+
 import SwiftUI
 
 struct CustomBackButtonModifier: ViewModifier {
@@ -15,10 +19,12 @@ struct CustomBackButtonModifier: ViewModifier {
                         HStack(spacing: 4) {
                             Image(systemName: "chevron.left")
                                 .font(.system(size: 17, weight: .semibold))
-                            Text("Back")
+                            // ===================================================================
+                            // **MODIFIKATION: TEXT AUF "ZURÜCK" GEÄNDERT**
+                            // ===================================================================
+                            Text("Zurück")
                                 .font(.system(size: 17))
                         }
-                        // KORRIGIERT: Verwendet jetzt die zentrale AppTheme-Struktur.
                         .foregroundColor(AppTheme.Colors.primary)
                     }
                 }
@@ -26,7 +32,7 @@ struct CustomBackButtonModifier: ViewModifier {
     }
 }
 
-extension View {
+public extension View {
     func customBackButton() -> some View {
         self.modifier(CustomBackButtonModifier())
     }

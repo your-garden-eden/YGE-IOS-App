@@ -1,119 +1,97 @@
 // DATEI: ProductCardView.swift
 // PFAD: Features/Products/Views/Components/ProductCardView.swift
-// ZWECK: Eine wiederverwendbare Karte zur Darstellung eines einzelnen Produkts in einer Gitter- oder Listenansicht.
+// VERSION: 3.1 (OPERATION: REAKTIVIERUNG)
+// ZWECK: Stellt ein Produkt dar. Die Wunschlisten-Aktion wird nun durch eine
+//        präzise, priorisierte Tap-Geste von der Navigation entkoppelt.
 
 import SwiftUI
 
 struct ProductCardView: View {
     let product: WooCommerceProduct
+    
+    @EnvironmentObject private var wishlistState: WishlistState
 
     var body: some View {
-        NavigationLink(value: product) {
-            VStack(alignment: .leading, spacing: 0) {
-                imageWithOverlays
-                    .aspectRatio(1.0, contentMode: .fit)
+        VStack(alignment: .leading, spacing: 0) {
+            
+            ZStack(alignment: .topTrailing) {
+                productImage
+                    .frame(height: 150)
+                    .frame(maxWidth: .infinity)
+                    .clipped()
                 
-                VStack(alignment: .leading, spacing: AppTheme.Layout.Spacing.xSmall) {
-                    Text(product.name.strippingHTML())
-                        .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.body, weight: .regular))
-                        .foregroundColor(AppTheme.Colors.textBase)
-                        .lineLimit(2)
-                        .frame(height: 40, alignment: .top)
-
-                    priceView
-                }
-                .padding(AppTheme.Layout.Spacing.small)
-            }
-            .background(AppTheme.Colors.backgroundComponent)
-            .cornerRadius(AppTheme.Layout.BorderRadius.medium)
-            .appShadow(AppTheme.Shadows.small)
-            .grayscale(product.stock_status == .outofstock ? 1.0 : 0.0)
-            .opacity(product.stock_status == .outofstock ? 0.6 : 1.0)
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-
-    // MARK: - Subviews
-    private var imageWithOverlays: some View {
-        ZStack(alignment: .topTrailing) {
-            AsyncImage(url: product.safeImages.first?.src.asURL()) { phase in
-                if let image = phase.image {
-                    image.resizable()
-                } else {
-                    Rectangle().fill(AppTheme.Colors.backgroundLightGray)
-                        .overlay(Image(systemName: "photo.fill").font(.largeTitle).foregroundColor(AppTheme.Colors.borderLight))
-                }
+                wishlistButton
+                    .padding(AppTheme.Layout.Spacing.small)
             }
             
-            VStack(alignment: .trailing, spacing: AppTheme.Layout.Spacing.xSmall) {
-                if product.isOnSale {
-                    saleBadge
-                }
-                stockInfoOverlay
+            VStack(alignment: .leading, spacing: AppTheme.Layout.Spacing.xSmall) {
+                Text(product.name.strippingHTML())
+                    .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.caption, weight: .semibold))
+                    .foregroundColor(AppTheme.Colors.textHeadings)
+                    .lineLimit(2)
+                    .frame(height: 35, alignment: .top)
+
+                Spacer()
+                
+                priceView
             }
             .padding(AppTheme.Layout.Spacing.small)
+            .frame(height: 70)
         }
-        .clipped()
+        .background(AppTheme.Colors.backgroundComponent)
+        .cornerRadius(AppTheme.Layout.BorderRadius.large)
+        .appShadow(AppTheme.Shadows.small)
     }
     
     @ViewBuilder
-    private var stockInfoOverlay: some View {
-        if product.stock_status == .outofstock {
-            StockInfoBadge(text: "Ausverkauft", backgroundColor: AppTheme.Colors.error, foregroundColor: AppTheme.Colors.textOnPrimary, fontWeight: .bold)
-        } else if product.type == "variable" {
-            StockInfoBadge(text: "Variationen verfügbar", backgroundColor: AppTheme.Colors.textMuted.opacity(0.8), foregroundColor: .white, fontWeight: .regular)
+    private var productImage: some View {
+        AsyncImage(url: product.safeImages.first?.src.asURL()) { phase in
+            switch phase {
+            case .success(let image):
+                image.resizable().aspectRatio(contentMode: .fill)
+            case .failure:
+                 Image(systemName: "photo.fill").font(.largeTitle).foregroundColor(AppTheme.Colors.textMuted.opacity(0.5))
+            default:
+                ShimmerView()
+            }
         }
     }
-
-    private var saleBadge: some View {
-        Text("Angebot")
-            .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.caption, weight: .bold))
-            .padding(.horizontal, AppTheme.Layout.Spacing.small)
-            .padding(.vertical, AppTheme.Layout.Spacing.xSmall / 2)
-            .background(AppTheme.Colors.primary)
-            .foregroundColor(AppTheme.Colors.textOnPrimary)
-            .cornerRadius(AppTheme.Layout.BorderRadius.small)
+    
+    @ViewBuilder
+    private var wishlistButton: some View {
+        // ===================================================================
+        // **MODIFIKATION: GESTEN-KOLLISION BEHOBEN**
+        // Der Button wird durch eine Image/onTapGesture-Kombination ersetzt,
+        // um die Geste exklusiv zu machen und nicht an den NavigationLink weiterzureichen.
+        // ===================================================================
+        Image(systemName: wishlistState.isProductInWishlist(productId: product.id) ? "heart.fill" : "heart")
+            .font(.title3)
+            .foregroundColor(wishlistState.isProductInWishlist(productId: product.id) ? AppTheme.Colors.error : AppTheme.Colors.secondary)
+            .padding(AppTheme.Layout.Spacing.xSmall)
+            .background(.regularMaterial, in: Circle())
+            // DEFINIERT EINE PRÄZISE, NICHT-DURCHLÄSSIGE TAP-FLÄCHE
+            .contentShape(Rectangle())
+            .onTapGesture {
+                // Diese Aktion wird nun garantiert und exklusiv ausgeführt.
+                wishlistState.toggleWishlistStatus(for: product)
+            }
+            .animation(.spring(), value: wishlistState.isProductInWishlist(productId: product.id))
     }
     
     @ViewBuilder
     private var priceView: some View {
-        if let priceRange = product.priceRangeDisplay {
-             Text(priceRange)
-                .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body, weight: .regular))
-                .foregroundColor(AppTheme.Colors.textMuted)
-        } else {
-            let formattedPrice = PriceFormatter.formatPriceString(from: product.price_html, fallbackPrice: product.price)
-            HStack(spacing: AppTheme.Layout.Spacing.small) {
-                Text(formattedPrice.display)
-                    .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body, weight: .bold))
-                    .foregroundColor(AppTheme.Colors.price)
-                
-                if let strikethrough = formattedPrice.strikethrough {
-                    Text(strikethrough)
-                        .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.subheadline))
-                        .strikethrough()
-                        .foregroundColor(AppTheme.Colors.textMuted)
-                }
+        let priceInfo = PriceFormatter.formatPriceString(from: product.price_html, fallbackPrice: product.price)
+        HStack(spacing: AppTheme.Layout.Spacing.small) {
+            Text(priceInfo.display)
+                .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body, weight: .bold))
+                .foregroundColor(AppTheme.Colors.price)
+            
+            if let strikethrough = priceInfo.strikethrough {
+                Text(strikethrough)
+                    .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.caption))
+                    .strikethrough()
+                    .foregroundColor(AppTheme.Colors.textMuted)
             }
         }
-    }
-}
-
-// Eine kleine, private Hilfs-View, die nur innerhalb von ProductCardView verwendet wird.
-fileprivate struct StockInfoBadge: View {
-    let text: String
-    let backgroundColor: Color
-    let foregroundColor: Color
-    let fontWeight: Font.Weight
-
-    var body: some View {
-        Text(text)
-            .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.caption, weight: fontWeight))
-            .padding(.horizontal, AppTheme.Layout.Spacing.small)
-            .padding(.vertical, AppTheme.Layout.Spacing.xSmall / 2)
-            .background(backgroundColor)
-            .foregroundColor(foregroundColor)
-            .cornerRadius(AppTheme.Layout.BorderRadius.small)
-            .transition(.opacity.animation(.easeIn))
     }
 }

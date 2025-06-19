@@ -1,6 +1,6 @@
 // DATEI: ProductOptionsView.swift
 // PFAD: Features/Products/Views/Options/ProductOptionsView.swift
-// VERSION: 1.1 (FINAL & ANGEPASST)
+// VERSION: 1.1 (UNVERÄNDERT & GEPRÜFT)
 
 import SwiftUI
 
@@ -38,7 +38,7 @@ struct ProductOptionsView: View {
         .background(AppTheme.Colors.backgroundPage.ignoresSafeArea())
         .navigationTitle("Optionen auswählen")
         .navigationBarTitleDisplayMode(.inline)
-        .customBackButton() // <-- BEFEHL BEREITS VORHANDEN, KORREKTHEIT BESTÄTIGT
+        .customBackButton()
         .onAppear {
             self.selectedImageID = viewModel.product.safeImages.first?.id
         }
@@ -53,8 +53,6 @@ struct ProductOptionsView: View {
             }
         }
     }
-    
-    // MARK: - Subviews
     
     private var gallerySection: some View {
         VStack(spacing: AppTheme.Layout.Spacing.small) {

@@ -1,7 +1,6 @@
 // DATEI: WishlistView.swift
-// PFAD: Features/Wishlist/Views/WishlistView.swift
-// VERSION: 2.2 (FINAL & ANGEPASST)
-// ZWECK: Hauptansicht der Wunschliste, angepasst an das globale Header-Schema mit Logo und Zurück-Button.
+// VERSION: 5.1 (OPERATION: SPRUNGBEFEHL)
+// ZWECK: Implementiert einen korrekten Tab-Wechsel anstelle einer fehlerhaften dismiss-Aktion.
 
 import SwiftUI
 
@@ -10,8 +9,14 @@ struct WishlistView: View {
     @EnvironmentObject private var authManager: AuthManager
     @EnvironmentObject private var cartManager: CartAPIManager
     
+    // ===================================================================
+    // **FINALE KORREKTUR: DISMISS ERSETZT DURCH TAB-STEUERUNG**
+    // ===================================================================
+    @Environment(\.selectedTab) private var selectedTab
+
     @State private var showingAuthSheet = false
     @State private var addingProductId: Int?
+    @State private var showingClearConfirmation = false
 
     var body: some View {
         ZStack {
@@ -31,31 +36,113 @@ struct WishlistView: View {
                 }
             }
         }
-        // KORREKTUR: Der explizite Navigationstitel wurde entfernt.
         .navigationBarTitleDisplayMode(.inline)
-        .refreshable {
-            await wishlistState.fetchWishlistFromServer()
-        }
-        .sheet(isPresented: $showingAuthSheet) {
-            AuthContainerView(onDismiss: { self.showingAuthSheet = false })
-        }
-        .onChange(of: cartManager.state.errorMessage) { _, newValue in
-            if newValue != nil {
-                addingProductId = nil
-            }
-        }
-        // KORREKTUR: Das Logo wird als primäres Toolbar-Element hinzugefügt.
-        // Der alte Text-Titel wurde entfernt.
+        .navigationBarBackButtonHidden(true)
+        .refreshable { await wishlistState.fetchWishlistFromServer() }
+        .sheet(isPresented: $showingAuthSheet) { AuthContainerView(onDismiss: { self.showingAuthSheet = false }) }
+        .onChange(of: cartManager.state.errorMessage) { _, newValue in if newValue != nil { addingProductId = nil } }
         .toolbar {
+            // ===================================================================
+            // **FINALE KORREKTUR: BUTTON-AKTION UND LABEL ANGEPASST**
+            // ===================================================================
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button(action: {
+                    // Befehl zum Sprung auf den "Shop"-Tab (Index 1)
+                    selectedTab.wrappedValue = 1
+                }) {
+                    HStack {
+                        Image(systemName: "chevron.left")
+                        // Das Label wird zur Klarheit auf "Shop" geändert, da dies die Aktion ist.
+                        Text("Zurück zum Shop")
+                    }
+                    .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body, weight: .medium))
+                    .foregroundColor(AppTheme.Colors.primaryDark)
+                }
+            }
+            
             ToolbarItem(placement: .principal) {
-                Image("logo_your_garden_eden_transparent")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(height: 150)
+                Image("logo_your_garden_eden_transparent").resizable().scaledToFit().frame(height: 150)
+            }
+            
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Menu {
+                    Picker("Sortieren nach", selection: $wishlistState.sortOption) {
+                        ForEach(WishlistSortOption.allCases) { option in
+                            Text(option.rawValue).tag(option)
+                        }
+                    }
+                } label: {
+                    Image(systemName: "arrow.up.arrow.down.circle")
+                        .font(.title3).foregroundColor(AppTheme.Colors.primaryDark)
+                }
+                .disabled(wishlistState.wishlistProducts.isEmpty)
             }
         }
-        // KORREKTUR: Der Zurück-Button wird wie befohlen hinzugefügt.
-        .customBackButton()
+        .alert("Wunschliste leeren?", isPresented: $showingClearConfirmation) {
+            Button("Löschen", role: .destructive) {
+                wishlistState.clearWishlist()
+            }
+            Button("Abbrechen", role: .cancel) { }
+        } message: {
+            Text("Möchtest du wirklich alle Artikel von deiner Wunschliste entfernen?")
+        }
+    }
+
+    private func productList(products: [WooCommerceProduct]) -> some View {
+        List {
+            ForEach(products) { product in
+                NavigationLink(value: product) {
+                    WishlistRowView(
+                        product: product,
+                        isAddingToCart: addingProductId == product.id,
+                        onAddToCart: {
+                            Task {
+                                addingProductId = product.id
+                                await cartManager.addItem(productId: product.id, quantity: 1)
+                                if cartManager.state.errorMessage == nil {
+                                    wishlistState.toggleWishlistStatus(for: product)
+                                }
+                                addingProductId = nil
+                            }
+                        },
+                        onDelete: {
+                            wishlistState.toggleWishlistStatus(for: product)
+                        }
+                    )
+                    .padding()
+                    .background(AppTheme.Colors.backgroundComponent)
+                    .cornerRadius(AppTheme.Layout.BorderRadius.large)
+                    .appShadow(AppTheme.Shadows.small)
+                    .opacity((addingProductId == product.id) ? 0.6 : 1.0)
+                    .animation(.easeOut(duration: 0.2), value: addingProductId)
+                }
+                .buttonStyle(.plain)
+                .listRowBackground(AppTheme.Colors.backgroundPage)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: AppTheme.Layout.Spacing.small, leading: 0, bottom: AppTheme.Layout.Spacing.small, trailing: 0))
+            }
+            
+            Section {
+                Button(action: {
+                    showingClearConfirmation = true
+                }) {
+                    HStack {
+                        Spacer()
+                        Image(systemName: "trash.fill")
+                        Text("Wunschliste leeren")
+                        Spacer()
+                    }
+                }
+                .foregroundColor(AppTheme.Colors.error)
+                .padding()
+            }
+            .listRowBackground(AppTheme.Colors.backgroundPage)
+            .listRowSeparator(.hidden)
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .padding(.horizontal, AppTheme.Layout.Spacing.medium)
+        .id(wishlistState.sortOption)
     }
 
     private var loadingView: some View {
@@ -69,81 +156,18 @@ struct WishlistView: View {
 
     private var emptyWishlistView: some View {
         VStack(spacing: 20) {
-            Image(systemName: "heart.slash.fill")
-                .font(.system(size: 60))
-                .foregroundColor(AppTheme.Colors.textMuted.opacity(0.7))
-            
-            Text("Deine Wunschliste ist leer")
-                .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.h5, weight: .bold))
-                .foregroundColor(AppTheme.Colors.textHeadings)
-            
-            Text("Füge Produkte hinzu, indem du auf das Herz-Symbol tippst.")
-                .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body))
-                .foregroundColor(AppTheme.Colors.textMuted)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
+            Image(systemName: "heart.slash.fill").font(.system(size: 60)).foregroundColor(AppTheme.Colors.textMuted.opacity(0.7))
+            Text("Deine Wunschliste ist leer").font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.h5, weight: .bold)).foregroundColor(AppTheme.Colors.textHeadings)
+            Text("Füge Produkte hinzu, indem du auf das Herz-Symbol tippst.").font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body)).foregroundColor(AppTheme.Colors.textMuted).multilineTextAlignment(.center).padding(.horizontal)
         }.padding()
     }
 
     private var loginPromptView: some View {
         VStack(spacing: 20) {
-            Image(systemName: "person.crop.circle.badge.questionmark.fill")
-                .font(.system(size: 60))
-                .foregroundColor(AppTheme.Colors.textMuted.opacity(0.7))
-            
-            Text("Anmelden für Wunschliste")
-                .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.h5, weight: .bold))
-                .foregroundColor(AppTheme.Colors.textHeadings)
-            
-            Text("Um deine Wunschliste geräteübergreifend zu speichern, melde dich bitte an.")
-                .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body))
-                .foregroundColor(AppTheme.Colors.textMuted)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-            
-            Button("Anmelden oder Registrieren") { self.showingAuthSheet = true }
-                .buttonStyle(AppTheme.PrimaryButtonStyle())
-                .padding(.top)
+            Image(systemName: "person.crop.circle.badge.questionmark.fill").font(.system(size: 60)).foregroundColor(AppTheme.Colors.textMuted.opacity(0.7))
+            Text("Anmelden für Wunschliste").font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.h5, weight: .bold)).foregroundColor(AppTheme.Colors.textHeadings)
+            Text("Um deine Wunschliste geräteübergreifend zu speichern, melde dich bitte an.").font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body)).foregroundColor(AppTheme.Colors.textMuted).multilineTextAlignment(.center).padding(.horizontal)
+            Button("Anmelden oder Registrieren") { self.showingAuthSheet = true }.buttonStyle(AppTheme.PrimaryButtonStyle()).padding(.top)
         }.padding()
-    }
-
-    private func productList(products: [WooCommerceProduct]) -> some View {
-        List {
-            ForEach(products) { product in
-                ZStack {
-                    NavigationLink(value: product) { EmptyView() }.opacity(0)
-                    
-                    WishlistRowView(
-                        product: product,
-                        isAddingToCart: addingProductId == product.id,
-                        onAddToCart: {
-                            Task {
-                                addingProductId = product.id
-                                await cartManager.addItem(productId: product.id, quantity: 1)
-                                
-                                if cartManager.state.errorMessage == nil {
-                                    wishlistState.toggleWishlistStatus(for: product)
-                                }
-                                addingProductId = nil
-                            }
-                        }
-                    )
-                }
-            }
-            .onDelete(perform: deleteItems)
-            .listRowBackground(AppTheme.Colors.backgroundPage)
-            .listRowSeparator(.hidden)
-            .listRowInsets(EdgeInsets(top: AppTheme.Layout.Spacing.small, leading: 0, bottom: AppTheme.Layout.Spacing.small, trailing: 0))
-        }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .padding(.horizontal, AppTheme.Layout.Spacing.medium)
-    }
-
-    private func deleteItems(at offsets: IndexSet) {
-        let productsToDelete = offsets.map { wishlistState.wishlistProducts[$0] }
-        for product in productsToDelete {
-            wishlistState.toggleWishlistStatus(for: product)
-        }
     }
 }

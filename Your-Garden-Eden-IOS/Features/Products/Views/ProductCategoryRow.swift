@@ -1,7 +1,6 @@
 // DATEI: ProductCategoryRowView.swift
 // PFAD: Features/Products/Views/Components/ProductCategoryRowView.swift
-// ZWECK: Eine wiederverwendbare View, die eine einzelne Produktkategorie
-//        als klickbares Banner darstellt.
+// ZWECK: (UNVERÄNDERT & GEPRÜFT)
 
 import SwiftUI
 

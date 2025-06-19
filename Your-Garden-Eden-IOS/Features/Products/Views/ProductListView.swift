@@ -1,8 +1,6 @@
 // DATEI: ProductListView.swift
 // PFAD: Features/Products/Views/List/ProductListView.swift
-// VERSION: 3.2 (FINAL & KORRIGIERT)
-// ZWECK: Stellt eine Liste von Produkten für eine bestimmte Kategorie dar,
-//        einschließlich Suche, Filterung und unendlichem Scrollen (Infinite Scrolling).
+// VERSION: 4.2 (OPERATION: ZENTRALES KOMMANDO)
 
 import SwiftUI
 
@@ -33,7 +31,6 @@ struct ProductListView: View {
                 if viewModel.isLoading && viewModel.products.isEmpty {
                     ProgressView().tint(AppTheme.Colors.primary)
                 } else if let errorMessage = viewModel.errorMessage {
-                    // KORREKTUR: Greift auf die neue, überlegene StatusIndicatorView zu.
                     StatusIndicatorView.errorState(message: errorMessage)
                 } else if viewModel.products.isEmpty {
                      emptyOrSearchEmptyView
@@ -50,12 +47,15 @@ struct ProductListView: View {
         .navigationTitle(navigationBarTitle)
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $isFilterSheetPresented) {
-            // FilterView muss existieren und korrekt implementiert sein.
-            // FilterView(filterState: viewModel.filterState, ...)
+            // FilterView(...)
         }
         .onChange(of: searchText) { _, newQuery in
             viewModel.search(for: newQuery)
         }
+        // ===================================================================
+        // **MODIFIKATION: LOKALER NAVIGATIONS-CONTROLLER ENTFERNT**
+        // Die Verantwortung wurde an die Root-View der NavigationStack abgegeben.
+        // ===================================================================
     }
     
     private var searchAndFilterBar: some View {
@@ -84,12 +84,15 @@ struct ProductListView: View {
         ScrollView {
             LazyVGrid(columns: [GridItem(.flexible(), spacing: AppTheme.Layout.Spacing.medium), GridItem(.flexible(), spacing: AppTheme.Layout.Spacing.medium)], spacing: AppTheme.Layout.Spacing.medium) {
                 ForEach(viewModel.products) { product in
-                    ProductCardView(product: product)
-                        .onAppear {
-                            if product.id == viewModel.products.dropLast(5).last?.id && viewModel.canLoadMore {
-                                Task { await viewModel.loadMoreProducts() }
+                    NavigationLink(value: product) {
+                        ProductCardView(product: product)
+                            .onAppear {
+                                if product.id == viewModel.products.dropLast(5).last?.id && viewModel.canLoadMore {
+                                    Task { await viewModel.loadMoreProducts() }
+                                }
                             }
-                        }
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .padding()
