@@ -1,6 +1,6 @@
 // DATEI: WooCommerceAPIManager.swift
 // PFAD: Services/WooCommerceAPIManager.swift
-// VERSION: 5.2 (VOLLSTÄNDIG & FEHLER BEHOBEN)
+// VERSION: FINAL - Alle Operationen integriert.
 
 import Foundation
 
@@ -17,14 +17,12 @@ class WooCommerceAPIManager {
         self.session = URLSession(configuration: config)
     }
     
-    @MainActor
     func fetchProducts(params: ProductFilterParameters, page: Int = 1, perPage: Int = 20) async throws -> WooCommerceProductsResponseContainer {
         var queryItems: [URLQueryItem] = [
             URLQueryItem(name: "page", value: String(page)),
             URLQueryItem(name: "per_page", value: String(perPage))
         ]
         
-        // Liest jetzt alle Parameter aus der zentralen `ProductFilterParameters`-Struktur.
         if let orderBy = params.orderBy, let order = params.order {
             queryItems.append(URLQueryItem(name: "orderby", value: orderBy))
             queryItems.append(URLQueryItem(name: "order", value: order))
@@ -47,13 +45,11 @@ class WooCommerceAPIManager {
         return WooCommerceProductsResponseContainer(products: products, totalPages: totalPages, totalCount: totalCount)
     }
     
-    @MainActor
     func fetchProductVariations(productId: Int) async throws -> [WooCommerceProductVariation] {
         let (variations, _) = try await performCoreRequest(path: "products/\(productId)/variations", queryItems: [URLQueryItem(name: "per_page", value: "100")], decodingType: [WooCommerceProductVariation].self)
         return variations
     }
     
-    @MainActor
     func fetchCategories(parent: Int? = nil) async throws -> [WooCommerceCategory] {
         var queryItems = [URLQueryItem(name: "per_page", value: "100"), URLQueryItem(name: "hide_empty", value: "true")]
         if let parentId = parent { queryItems.append(URLQueryItem(name: "parent", value: String(parentId))) }
@@ -61,10 +57,20 @@ class WooCommerceAPIManager {
         return categories
     }
 
+    func fetchAttributeDefinitions() async throws -> [WooCommerceAttributeDefinition] {
+        let (definitions, _) = try await performCoreRequest(path: "products/attributes", queryItems: [], decodingType: [WooCommerceAttributeDefinition].self)
+        return definitions
+    }
+    
+    func fetchAttributeTerms(for attributeId: Int) async throws -> [WooCommerceAttributeTerm] {
+        let queryItems = [URLQueryItem(name: "per_page", value: "100"), URLQueryItem(name: "hide_empty", value: "true")]
+        let (terms, _) = try await performCoreRequest(path: "products/attributes/\(attributeId)/terms", queryItems: queryItems, decodingType: [WooCommerceAttributeTerm].self)
+        return terms
+    }
+
     private func performCoreRequest<T: Decodable>(path: String, queryItems: [URLQueryItem], decodingType: T.Type) async throws -> (T, HTTPURLResponse) {
         var components = URLComponents(string: AppConfig.WooCommerce.CoreAPI.base + path)!
         components.queryItems = addAuthQueryItems(to: queryItems)
-        // KORREKTUR: Der `decodingType` Parameter wird hier korrekt übergeben.
         return try await performRequest(url: components.url, httpMethod: "GET", decodingType: decodingType)
     }
 
@@ -82,12 +88,11 @@ class WooCommerceAPIManager {
                 let (message, code) = parseWooCommerceError(from: data)
                 throw WooCommerceAPIError.serverError(statusCode: httpResponse.statusCode, message: message, errorCode: code)
             }
-            if data.isEmpty { throw WooCommerceAPIError.noData }
-            // KORREKTUR: Der `decodingType` wird hier direkt als `T.self` verwendet,
-            // was dem Compiler hilft, den generischen Typ `T` abzuleiten.
-            return (try JSONDecoder().decode(T.self, from: data), httpResponse)
+            if data.isEmpty && T.self != String.self { throw WooCommerceAPIError.noData }
+            let decodedObject = try JSONDecoder().decode(T.self, from: data)
+            return (decodedObject, httpResponse)
         } catch let error as DecodingError {
-            print("🔴 DECODING ERROR for URL: \(url.absoluteString)\nDetails: \(error)")
+            LogSentinel.shared.error("DECODING ERROR for URL: \(url.absoluteString)\nDetails: \(error)")
             throw WooCommerceAPIError.decodingError(error)
         } catch { throw WooCommerceAPIError.underlying(error) }
     }

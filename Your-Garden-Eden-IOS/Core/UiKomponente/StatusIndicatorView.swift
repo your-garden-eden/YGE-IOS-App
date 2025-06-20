@@ -1,58 +1,17 @@
-//
-//  StatusIndicatorView.swift
-//  Your-Garden-Eden-IOS
-//
-//  Created by Josef Ewert on 18.06.25.
-//
-
-
 // DATEI: StatusIndicatorView.swift
 // PFAD: Core/UI/Components/StatusIndicatorView.swift
-// ZWECK: Eine wiederverwendbare Komponente zur Anzeige von verschiedenen Zuständen
-//        (z.B. Fehler, Erfolg, Information) als vollflächige Ansicht oder als schwebendes Banner.
+// ÄNDERUNG: Die lokalen Enums wurden ausgelagert. Die View nutzt nun die
+//           globalen Enums `StatusIndicatorStyle` und `StatusIndicatorDisplayMode`.
 
 import SwiftUI
 
-/// Eine vielseitige Ansicht zur Anzeige von Statusmeldungen.
 struct StatusIndicatorView: View {
     
-    /// Definiert den Stil und Inhalt der Anzeige.
-    enum Style {
-        case error(message: String)
-        case success(message: String)
-        
-        var message: String {
-            switch self {
-            case .error(let message): return message
-            case .success(let message): return message
-            }
-        }
-        
-        var iconName: String {
-            switch self {
-            case .error: return "exclamationmark.triangle.fill"
-            case .success: return "checkmark.circle.fill"
-            }
-        }
-        
-        var color: Color {
-            switch self {
-            case .error: return AppTheme.Colors.error
-            case .success: return AppTheme.Colors.success
-            }
-        }
-    }
+    // Die lokalen Enum-Definitionen wurden entfernt.
     
-    /// Definiert die Darstellungsart.
-    enum DisplayMode {
-        /// Ein schwebendes Banner am oberen oder unteren Bildschirmrand.
-        case banner
-        /// Eine zentrierte Vollbild-Ansicht.
-        case fullScreen
-    }
-    
-    let style: Style
-    let displayMode: DisplayMode
+    // ANPASSUNG: Nutzt die globalen Enums.
+    let style: StatusIndicatorStyle
+    let displayMode: StatusIndicatorDisplayMode
     
     var body: some View {
         switch displayMode {
@@ -94,21 +53,16 @@ struct StatusIndicatorView: View {
     }
 }
 
-// MARK: - Convenience Initializer
-// Diese ermöglichen die alte, einfache Syntax beizubehalten, während intern die neue, flexible Struktur genutzt wird.
-
+// Convenience Initializer bleiben funktional, verweisen nun aber intern auf die neuen Enums.
 extension StatusIndicatorView {
-    /// Initializer für eine einfache Vollbild-Fehleransicht.
     static func errorState(message: String) -> some View {
         StatusIndicatorView(style: .error(message: message), displayMode: .fullScreen)
     }
     
-    /// Initializer für ein einfaches Erfolgs-Banner.
     static func successBanner(message: String) -> some View {
         StatusIndicatorView(style: .success(message: message), displayMode: .banner)
     }
     
-    /// Initializer für ein einfaches Fehler-Banner.
     static func errorBanner(message: String) -> some View {
         StatusIndicatorView(style: .error(message: message), displayMode: .banner)
     }

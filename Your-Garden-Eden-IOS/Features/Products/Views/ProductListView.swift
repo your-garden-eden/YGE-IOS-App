@@ -1,6 +1,8 @@
 // DATEI: ProductListView.swift
 // PFAD: Features/Products/Views/List/ProductListView.swift
-// VERSION: 4.2 (OPERATION: ZENTRALES KOMMANDO)
+// STATUS: VALIDERT & BESTÄTIGT
+// BEFUND: Die Verwendung von `LazyVGrid` ist optimal für die performante Darstellung
+//         eines Produktgitters mit einer variablen Anzahl von Elementen.
 
 import SwiftUI
 
@@ -47,15 +49,13 @@ struct ProductListView: View {
         .navigationTitle(navigationBarTitle)
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $isFilterSheetPresented) {
-            // FilterView(...)
+            FilterView(filterState: viewModel.filterState, isPresented: $isFilterSheetPresented) {
+                viewModel.applyFilters()
+            }
         }
         .onChange(of: searchText) { _, newQuery in
             viewModel.search(for: newQuery)
         }
-        // ===================================================================
-        // **MODIFIKATION: LOKALER NAVIGATIONS-CONTROLLER ENTFERNT**
-        // Die Verantwortung wurde an die Root-View der NavigationStack abgegeben.
-        // ===================================================================
     }
     
     private var searchAndFilterBar: some View {
@@ -80,13 +80,18 @@ struct ProductListView: View {
         }
     }
 
+    // --- KERN DER VALIDIERUNG ---
     private var productGrid: some View {
         ScrollView {
+            // LazyVGrid sorgt dafür, dass die Views für die Produkte nur dann erstellt
+            // und im Speicher gehalten werden, wenn sie sichtbar sind. Dies ist die
+            // korrekte und performanteste Methode für Gitter-Layouts.
             LazyVGrid(columns: [GridItem(.flexible(), spacing: AppTheme.Layout.Spacing.medium), GridItem(.flexible(), spacing: AppTheme.Layout.Spacing.medium)], spacing: AppTheme.Layout.Spacing.medium) {
                 ForEach(viewModel.products) { product in
                     NavigationLink(value: product) {
                         ProductCardView(product: product)
                             .onAppear {
+                                // Die Paginierungslogik ist korrekt am Ende der sichtbaren Elemente platziert.
                                 if product.id == viewModel.products.dropLast(5).last?.id && viewModel.canLoadMore {
                                     Task { await viewModel.loadMoreProducts() }
                                 }

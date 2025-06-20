@@ -1,8 +1,6 @@
 // DATEI: ProductCardView.swift
 // PFAD: Features/Products/Views/Components/ProductCardView.swift
-// VERSION: 3.1 (OPERATION: REAKTIVIERUNG)
-// ZWECK: Stellt ein Produkt dar. Die Wunschlisten-Aktion wird nun durch eine
-//        präzise, priorisierte Tap-Geste von der Navigation entkoppelt.
+// VERSION: FINAL - Alle Operationen integriert.
 
 import SwiftUI
 
@@ -59,20 +57,13 @@ struct ProductCardView: View {
     
     @ViewBuilder
     private var wishlistButton: some View {
-        // ===================================================================
-        // **MODIFIKATION: GESTEN-KOLLISION BEHOBEN**
-        // Der Button wird durch eine Image/onTapGesture-Kombination ersetzt,
-        // um die Geste exklusiv zu machen und nicht an den NavigationLink weiterzureichen.
-        // ===================================================================
         Image(systemName: wishlistState.isProductInWishlist(productId: product.id) ? "heart.fill" : "heart")
             .font(.title3)
             .foregroundColor(wishlistState.isProductInWishlist(productId: product.id) ? AppTheme.Colors.error : AppTheme.Colors.secondary)
             .padding(AppTheme.Layout.Spacing.xSmall)
             .background(.regularMaterial, in: Circle())
-            // DEFINIERT EINE PRÄZISE, NICHT-DURCHLÄSSIGE TAP-FLÄCHE
             .contentShape(Rectangle())
             .onTapGesture {
-                // Diese Aktion wird nun garantiert und exklusiv ausgeführt.
                 wishlistState.toggleWishlistStatus(for: product)
             }
             .animation(.spring(), value: wishlistState.isProductInWishlist(productId: product.id))
@@ -80,7 +71,8 @@ struct ProductCardView: View {
     
     @ViewBuilder
     private var priceView: some View {
-        let priceInfo = PriceFormatter.formatPriceString(from: product.price_html, fallbackPrice: product.price)
+        let priceInfo = PriceFormatter.formatDisplayPrice(for: product)
+        
         HStack(spacing: AppTheme.Layout.Spacing.small) {
             Text(priceInfo.display)
                 .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body, weight: .bold))

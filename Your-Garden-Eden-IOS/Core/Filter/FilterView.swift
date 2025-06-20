@@ -1,3 +1,7 @@
+// DATEI: FilterView.swift
+// PFAD: Views/FilterView.swift
+// VERSION: FINAL - Alle Operationen integriert.
+
 import SwiftUI
 
 struct FilterView: View {
@@ -12,7 +16,7 @@ struct FilterView: View {
                 sortSection
                 optionsSection
                 priceSection
-                // attributesSection // Vorerst auskommentiert, da in ProductFilterState noch nicht voll implementiert.
+                attributesSection
             }
             .navigationTitle("Filter & Sortierung")
             .navigationBarTitleDisplayMode(.inline)
@@ -21,7 +25,6 @@ struct FilterView: View {
                     Button("Zurücksetzen") {
                         filterState.reset()
                     }
-                    // KORREKTUR: Korrekter Zugriffspfad auf die Farb-Ressource.
                     .tint(AppTheme.Colors.error)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -30,8 +33,12 @@ struct FilterView: View {
                         isPresented = false
                     }
                     .buttonStyle(.borderedProminent)
-                    // KORREKTUR: Korrekter Zugriffspfad auf die Farb-Ressource.
                     .tint(AppTheme.Colors.primary)
+                }
+            }
+            .onAppear {
+                Task {
+                    await filterState.loadAvailableAttributes()
                 }
             }
         }
@@ -40,7 +47,7 @@ struct FilterView: View {
     private var sortSection: some View {
         Section(header: Text("Sortieren nach")) {
             Picker("Sortierung", selection: $filterState.selectedSortOption) {
-                ForEach(ProductFilterState.SortOption.allCases) { option in
+                ForEach(ProductSortOption.allCases) { option in
                     Text(option.rawValue).tag(option)
                 }
             }
@@ -52,11 +59,10 @@ struct FilterView: View {
     private var optionsSection: some View {
         Section(header: Text("Anzeige-Optionen")) {
             Toggle("Nur verfügbare Produkte", isOn: $filterState.showOnlyAvailable)
-                // KORREKTUR: Korrekter Zugriffspfad auf die Farb-Ressource.
                 .tint(AppTheme.Colors.primary)
             
             Picker("Produkttyp", selection: $filterState.selectedProductType) {
-                ForEach(ProductFilterState.ProductTypeOption.allCases) { type in
+                ForEach(ProductTypeFilterOption.allCases) { type in
                     Text(type.rawValue).tag(type)
                 }
             }
@@ -67,22 +73,17 @@ struct FilterView: View {
         Section(header: Text("Preisspanne")) {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Von \(Int(filterState.minPrice))€ bis \(Int(filterState.maxPrice))€")
-                    // KORREKTUR: Korrekter Zugriffspfad auf die Farb-Ressource.
                     .foregroundColor(AppTheme.Colors.textBase)
                 
                 HStack {
                     Text("Min:")
-                    // HINWEIS: Stellt sicher, dass ProductFilterState eine `minPriceBinding`-Property bereitstellt.
                     Slider(value: $filterState.minPrice, in: filterState.absolutePriceRange, step: 10)
-                        // KORREKTUR: Korrekter Zugriffspfad auf die Farb-Ressource.
                         .tint(AppTheme.Colors.primary)
                 }
                 
                 HStack {
                     Text("Max:")
-                    // HINWEIS: Stellt sicher, dass ProductFilterState eine `maxPriceBinding`-Property bereitstellt.
                     Slider(value: $filterState.maxPrice, in: filterState.absolutePriceRange, step: 10)
-                        // KORREKTUR: Korrekter Zugriffspfad auf die Farb-Ressource.
                         .tint(AppTheme.Colors.primary)
                 }
             }
@@ -90,28 +91,47 @@ struct FilterView: View {
         }
     }
     
-    /*
-    // Diese Sektion ist vorbereitet für die Re-Aktivierung, sobald die Logik in ProductFilterState implementiert ist.
+    @ViewBuilder
     private var attributesSection: some View {
-        ForEach(filterState.availableAttributes) { attribute in
-            Section(header: Text(attribute.name)) {
-                ForEach(Array(attribute.options.sorted()), id: \.self) { option in
-                    Button(action: {
-                        filterState.toggleOptionSelection(for: attribute.name, option: option)
-                    }) {
-                        HStack {
-                            Text(option)
-                            Spacer()
-                            if filterState.isOptionSelected(for: attribute.name, option: option) {
-                                Image(systemName: "checkmark")
-                                    .foregroundColor(AppTheme.Colors.primary)
+        switch filterState.attributeLoadingState {
+        case .loading:
+            Section { HStack { Spacer(); ProgressView("Lade Optionen..."); Spacer() } }
+        case .success:
+            if filterState.availableAttributes.isEmpty {
+                Section(header: Text("Optionen")) {
+                    Text("Keine Filteroptionen verfügbar.").foregroundColor(.secondary)
+                }
+            } else {
+                ForEach(filterState.availableAttributes) { attribute in
+                    Section(header: Text(attribute.definition.name)) {
+                        ForEach(attribute.terms) { term in
+                            Button(action: {
+                                filterState.toggleSelection(forAttributeSlug: attribute.definition.slug, termSlug: term.slug)
+                            }) {
+                                HStack {
+                                    Text(term.name)
+                                    Spacer()
+                                    if filterState.isTermSelected(forAttributeSlug: attribute.definition.slug, termSlug: term.slug) {
+                                        Image(systemName: "checkmark").foregroundColor(AppTheme.Colors.primary)
+                                    }
+                                }
+                                .foregroundColor(AppTheme.Colors.textBase)
                             }
                         }
-                        .foregroundColor(AppTheme.Colors.textBase)
                     }
                 }
             }
+        case .failed(let error):
+            Section(header: Text("Optionen")) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Fehler beim Laden").foregroundColor(AppTheme.Colors.error)
+                    Text(error.localizedDescription).font(.caption).foregroundColor(.secondary)
+                    Button("Erneut versuchen") { Task { await filterState.loadAvailableAttributes() } }.tint(AppTheme.Colors.primary)
+                }
+                .padding(.vertical, 4)
+            }
+        case .idle:
+            EmptyView()
         }
     }
-    */
 }

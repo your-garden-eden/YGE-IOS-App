@@ -1,6 +1,6 @@
 // DATEI: WishlistView.swift
-// VERSION: 5.1 (OPERATION: SPRUNGBEFEHL)
-// ZWECK: Implementiert einen korrekten Tab-Wechsel anstelle einer fehlerhaften dismiss-Aktion.
+// PFAD: Features/Wishlist/Views/WishlistView.swift
+// VERSION: FINAL - Alle Operationen integriert.
 
 import SwiftUI
 
@@ -8,14 +8,9 @@ struct WishlistView: View {
     @EnvironmentObject private var wishlistState: WishlistState
     @EnvironmentObject private var authManager: AuthManager
     @EnvironmentObject private var cartManager: CartAPIManager
-    
-    // ===================================================================
-    // **FINALE KORREKTUR: DISMISS ERSETZT DURCH TAB-STEUERUNG**
-    // ===================================================================
     @Environment(\.selectedTab) private var selectedTab
 
     @State private var showingAuthSheet = false
-    @State private var addingProductId: Int?
     @State private var showingClearConfirmation = false
 
     var body: some View {
@@ -40,19 +35,13 @@ struct WishlistView: View {
         .navigationBarBackButtonHidden(true)
         .refreshable { await wishlistState.fetchWishlistFromServer() }
         .sheet(isPresented: $showingAuthSheet) { AuthContainerView(onDismiss: { self.showingAuthSheet = false }) }
-        .onChange(of: cartManager.state.errorMessage) { _, newValue in if newValue != nil { addingProductId = nil } }
         .toolbar {
-            // ===================================================================
-            // **FINALE KORREKTUR: BUTTON-AKTION UND LABEL ANGEPASST**
-            // ===================================================================
             ToolbarItem(placement: .navigationBarLeading) {
                 Button(action: {
-                    // Befehl zum Sprung auf den "Shop"-Tab (Index 1)
                     selectedTab.wrappedValue = 1
                 }) {
                     HStack {
                         Image(systemName: "chevron.left")
-                        // Das Label wird zur Klarheit auf "Shop" geändert, da dies die Aktion ist.
                         Text("Zurück zum Shop")
                     }
                     .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body, weight: .medium))
@@ -94,17 +83,6 @@ struct WishlistView: View {
                 NavigationLink(value: product) {
                     WishlistRowView(
                         product: product,
-                        isAddingToCart: addingProductId == product.id,
-                        onAddToCart: {
-                            Task {
-                                addingProductId = product.id
-                                await cartManager.addItem(productId: product.id, quantity: 1)
-                                if cartManager.state.errorMessage == nil {
-                                    wishlistState.toggleWishlistStatus(for: product)
-                                }
-                                addingProductId = nil
-                            }
-                        },
                         onDelete: {
                             wishlistState.toggleWishlistStatus(for: product)
                         }
@@ -113,8 +91,6 @@ struct WishlistView: View {
                     .background(AppTheme.Colors.backgroundComponent)
                     .cornerRadius(AppTheme.Layout.BorderRadius.large)
                     .appShadow(AppTheme.Shadows.small)
-                    .opacity((addingProductId == product.id) ? 0.6 : 1.0)
-                    .animation(.easeOut(duration: 0.2), value: addingProductId)
                 }
                 .buttonStyle(.plain)
                 .listRowBackground(AppTheme.Colors.backgroundPage)

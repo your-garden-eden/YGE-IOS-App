@@ -1,19 +1,16 @@
 // DATEI: CartView.swift
 // PFAD: Features/Cart/Views/CartView.swift
-// VERSION: 4.0 (OPERATION: GAST-PROTOKOLL)
+// VERSION: FINAL (OPERATION GLEICHSCHALTUNG 2.0)
+// ÄNDERUNG: Die Navigationslogik wurde an das neue, korrekte Mapping-System angepasst.
 
 import SwiftUI
 
 struct CartView: View {
     @EnvironmentObject private var cartManager: CartAPIManager
     @Environment(\.selectedTab) private var selectedTab
-    
-    // ===================================================================
-    // **MODIFIKATION: NEUE ABHÄNGIGKEITEN HINZUGEFÜGT**
-    // ===================================================================
     @EnvironmentObject private var authManager: AuthManager
-    @State private var showingAuthSheet = false
     
+    @State private var showingAuthSheet = false
     @State private var isShowingClearCartAlert = false
 
     var body: some View {
@@ -23,7 +20,6 @@ struct CartView: View {
             if cartManager.state.isLoading && cartManager.state.items.isEmpty {
                 initialLoadingView
             } else if cartManager.state.items.isEmpty {
-                // HINWEIS: emptyCartView enthält nun die neue Logikgabelung.
                 emptyCartView
             } else {
                 cartContentView
@@ -33,9 +29,6 @@ struct CartView: View {
         .refreshable {
             await cartManager.getCart()
         }
-        // ===================================================================
-        // **MODIFIKATION: SHEET FÜR LOGIN HINZUGEFÜGT**
-        // ===================================================================
         .sheet(isPresented: $showingAuthSheet) {
             AuthContainerView(onDismiss: { self.showingAuthSheet = false })
         }
@@ -75,7 +68,19 @@ struct CartView: View {
         ScrollView {
             LazyVStack(spacing: AppTheme.Layout.Spacing.medium) {
                 ForEach(cartManager.state.items) { item in
-                    CartRowView(item: item)
+                    // Ermittle die korrekte Hauptprodukt-ID.
+                    let parentProductId = cartManager.state.variationToParentMap[item.id] ?? item.id
+                    
+                    // Suche das Hauptprodukt im Cache.
+                    if let product = cartManager.state.productDetails[parentProductId] {
+                        NavigationLink(value: product) {
+                            CartRowView(item: item)
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        // Zeige die Zeile ohne Link an, falls die Daten noch nicht da sind.
+                        CartRowView(item: item)
+                    }
                 }
             }
             .padding()
@@ -94,14 +99,9 @@ struct CartView: View {
         }
     }
     
-    // ===================================================================
-    // **MODIFIKATION: emptyCartView ENTHÄLT NUN DIE LOGIN-LOGIK**
-    // ===================================================================
     @ViewBuilder
     private var emptyCartView: some View {
-        // Prüft, ob der Benutzer eingeloggt ist.
         if authManager.isLoggedIn {
-            // Ansicht für eingeloggte Benutzer
             VStack(spacing: AppTheme.Layout.Spacing.large) {
                 Image(systemName: "cart")
                     .font(.system(size: 60, weight: .light))
@@ -118,7 +118,6 @@ struct CartView: View {
             }
             .padding()
         } else {
-            // Ansicht für Gäste (nicht eingeloggte Benutzer)
             VStack(spacing: 20) {
                 Image(systemName: "person.crop.circle.badge.questionmark.fill")
                     .font(.system(size: 60))
@@ -171,7 +170,10 @@ struct CartView: View {
                 Text("Gesamt")
                     .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.headline, weight: .bold))
                 Spacer()
-                Text(totals.totalPriceFormatted)
+                Text(PriceFormatter.formatPriceFromMinorUnit(
+                    value: totals.total_price ?? "0",
+                    minorUnit: totals.currency_minor_unit ?? 2
+                ))
                     .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.headline, weight: .bold))
             }
             .padding(.top, AppTheme.Layout.Spacing.xSmall)

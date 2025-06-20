@@ -1,6 +1,6 @@
 // DATEI: AuthManager.swift
 // PFAD: Services/App/AuthManager.swift
-// VERSION: 2.1 (FEHLER BEHOBEN)
+// VERSION: FINAL - Alle Operationen integriert.
 
 import Foundation
 import KeychainAccess
@@ -15,12 +15,15 @@ final class AuthManager: ObservableObject {
 
     private let keychain = Keychain(service: "com.yourgardeneden.app.auth")
     private let authAPI = AppConfig.Auth.self
+    private let logger = LogSentinel.shared
 
     private init() {
         if getAuthToken() != nil, let data = try? keychain.getData("userProfile"), let savedUser = try? JSONDecoder().decode(UserModel.self, from: data) {
             self.user = savedUser
             self.isLoggedIn = true
+            logger.info("Benutzer aus gesicherter Sitzung wiederhergestellt: \(savedUser.email)")
         } else if getAuthToken() != nil {
+            logger.warning("Inkonsistente Sitzung gefunden (Token ohne Profil). Automatischer Logout wird durchgeführt.")
             logout()
         }
     }
@@ -28,33 +31,65 @@ final class AuthManager: ObservableObject {
     func signInWithEmail(email: String, password: String) async throws {
         self.isLoading = true
         defer { self.isLoading = false }
+        logger.info("Anmeldeversuch gestartet.")
         
-        // KORREKTUR: `loginEndpoint` wurde zu `login` in AppConfig.
-        guard let url = URL(string: authAPI.login) else { throw AuthErrorResponse.genericError("Ungültige API-URL.") }
+        guard let url = URL(string: authAPI.login) else {
+            logger.error("Ungültige API-URL für Login.")
+            throw AuthErrorResponse.genericError("Ungültige API-URL.")
+        }
+        
         let parameters: [String: Any] = ["email": email, "password": password]
-        let response = try await performAuthRequest(url: url, parameters: parameters)
-        handleSuccess(response)
+        
+        do {
+            let response = try await performAuthRequest(url: url, parameters: parameters)
+            handleSuccess(response)
+            logger.info("Anmeldung erfolgreich für Benutzer: \(response.data.user.email)")
+        } catch {
+            logger.error("Anmeldeversuch fehlgeschlagen: \(error.localizedDescription)")
+            throw error
+        }
     }
 
     func signUpWithEmail(email: String, password: String, firstName: String, lastName: String) async throws {
         self.isLoading = true
         defer { self.isLoading = false }
+        logger.info("Registrierungsversuch gestartet für E-Mail: \(email).")
         
-        // KORREKTUR: `registrationAuthKey` wurde zu `registrationKey` in AppConfig.
-        guard !authAPI.registrationKey.isEmpty else { throw AuthErrorResponse.genericError("Reg-Schlüssel nicht konfiguriert.") }
-        // KORREKTUR: `registerEndpoint` wurde zu `register` in AppConfig.
-        guard let url = URL(string: authAPI.register) else { throw AuthErrorResponse.genericError("Ungültige API-URL.") }
+        guard !authAPI.registrationKey.isEmpty else {
+            logger.error("Registrierungsschlüssel ist nicht konfiguriert.")
+            throw AuthErrorResponse.genericError("Reg-Schlüssel nicht konfiguriert.")
+        }
+        guard let url = URL(string: authAPI.register) else {
+            logger.error("Ungültige API-URL für Registrierung.")
+            throw AuthErrorResponse.genericError("Ungültige API-URL.")
+        }
+        
         let parameters: [String: Any] = ["email": email, "password": password, "first_name": firstName, "last_name": lastName, "auth_key": authAPI.registrationKey]
-        let response = try await performAuthRequest(url: url, parameters: parameters)
-        handleSuccess(response)
+        
+        do {
+            let response = try await performAuthRequest(url: url, parameters: parameters)
+            handleSuccess(response)
+            logger.info("Registrierung erfolgreich für neuen Benutzer: \(response.data.user.email)")
+        } catch {
+            logger.error("Registrierungsversuch fehlgeschlagen: \(error.localizedDescription)")
+            throw error
+        }
     }
     
     func logout() {
+        if let userEmail = user?.email {
+            logger.info("Logout wird durchgeführt für Benutzer: \(userEmail).")
+        } else {
+            logger.info("Logout wird durchgeführt (kein Benutzerprofil vorhanden).")
+        }
         user = nil
         isLoggedIn = false
         try? keychain.remove("authToken")
         try? keychain.remove("userProfile")
-        Task { try? KeychainHelper.deleteCartToken() }
+        Task {
+            try? KeychainHelper.deleteCartToken()
+            logger.info("Warenkorb-Token für ausgeloggten Benutzer gelöscht.")
+        }
     }
     
     func getAuthToken() -> String? {
@@ -73,6 +108,7 @@ final class AuthManager: ObservableObject {
         
         guard (200...299).contains(httpResponse.statusCode) else {
             if let authError = try? JSONDecoder().decode(AuthErrorResponse.self, from: data) { throw authError }
+            logger.error("Unbekannter Serverfehler bei Authentifizierung. Status: \(httpResponse.statusCode)")
             throw AuthErrorResponse.genericError("Unbekannter Serverfehler. Status: \(httpResponse.statusCode)")
         }
         
@@ -86,5 +122,6 @@ final class AuthManager: ObservableObject {
         if let userData = try? JSONEncoder().encode(response.data.user) {
             try? keychain.set(userData, key: "userProfile")
         }
+        logger.debug("Auth-Token und Benutzerprofil sicher im Keychain gespeichert.")
     }
 }

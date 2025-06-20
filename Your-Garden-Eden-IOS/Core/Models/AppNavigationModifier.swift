@@ -1,10 +1,10 @@
 // DATEI: AppNavigationModifier.swift
 // PFAD: Core/Navigation/AppNavigationModifier.swift
-// VERSION: 1.5 (VALIDIERT & FINAL)
+// ÄNDERUNG: Der fehlerhafte Handler für `Int.self` wird entfernt, um
+//           die nicht unterstützte Navigation zu deaktivieren.
 
 import SwiftUI
 
-/// Ein wiederverwendbares Paket von Navigationszielen für die gesamte App.
 struct AppNavigationModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
@@ -17,6 +17,7 @@ struct AppNavigationModifier: ViewModifier {
             .navigationDestination(for: ProductVariationData.self) { data in
                 ProductOptionsView(product: data.product, variations: data.variations)
             }
+            // Der fehlerhafte Handler für Int.self wurde entfernt.
             .navigationDestination(for: AppDestination.self) { destination in
                 switch destination {
                 case .checkout:
@@ -27,7 +28,6 @@ struct AppNavigationModifier: ViewModifier {
 }
 
 public extension View {
-    /// Wendet die Standard-Navigationsziele der App auf eine View an.
     func withAppNavigation() -> some View {
         self.modifier(AppNavigationModifier())
     }

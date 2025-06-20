@@ -1,16 +1,12 @@
 // DATEI: WishlistRowView.swift
 // PFAD: Features/Wishlist/Views/Components/WishlistRowView.swift
-// VERSION: 3.0 (OPERATION: SYNCHRONISATION)
-// ZWECK: Stellt einen Artikel in der Wunschliste dar, visuell angeglichen an die CartRowView.
+// VERSION: FINAL - Alle Operationen integriert.
 
 import SwiftUI
 
 struct WishlistRowView: View {
     let product: WooCommerceProduct
     
-    let isAddingToCart: Bool
-    let onAddToCart: () -> Void
-    // NEU: Closure für die Lösch-Aktion
     let onDelete: () -> Void
 
     var body: some View {
@@ -28,14 +24,11 @@ struct WishlistRowView: View {
                 priceView
                 
                 Spacer()
-                
-                // HINWEIS: Der Mengen-Selektor wird bewusst weggelassen.
             }
             .frame(height: 90)
             
             Spacer()
             
-            // NEU: Expliziter Lösch-Button, angelehnt an das Warenkorb-Design
             VStack {
                 Button(action: onDelete) {
                     Image(systemName: "trash")
@@ -43,27 +36,10 @@ struct WishlistRowView: View {
                         .foregroundColor(AppTheme.Colors.error)
                 }
                 .frame(width: 44, height: 44)
-                
-                Spacer()
-                
-                // Behält den "Zum Warenkorb"-Button bei
-                if product.type == "simple" && product.isPurchasable && product.stock_status == .instock {
-                    Button(action: onAddToCart) {
-                        if isAddingToCart {
-                            ProgressView()
-                                .tint(AppTheme.Colors.primary)
-                        } else {
-                            Image(systemName: "cart.badge.plus")
-                                .font(.title2)
-                                .foregroundColor(AppTheme.Colors.primary)
-                        }
-                    }
-                    .frame(width: 44, height: 44)
-                    .disabled(isAddingToCart)
-                }
+                .buttonStyle(.plain)
+                .contentShape(Rectangle())
             }
         }
-        // HINWEIS: Das Styling für die Karte wird jetzt von der übergeordneten WishlistView gehandhabt.
     }
     
     @ViewBuilder
@@ -89,7 +65,7 @@ struct WishlistRowView: View {
     
     @ViewBuilder
     private var priceView: some View {
-        let priceInfo = PriceFormatter.formatPriceString(from: product.price_html, fallbackPrice: product.price)
+        let priceInfo = PriceFormatter.formatDisplayPrice(for: product)
         Text(priceInfo.display)
             .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.subheadline, weight: .bold))
             .foregroundColor(AppTheme.Colors.price)

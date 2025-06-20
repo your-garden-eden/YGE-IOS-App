@@ -1,8 +1,6 @@
 // DATEI: CartRowView.swift
 // PFAD: Features/Cart/Views/Components/CartRowView.swift
-// VERSION: 3.0 (FINAL & VISUELL ANGEGLICHEN)
-// ZWECK: Stellt einen Artikel im Warenkorb dar, visuell angeglichen an die WishlistRowView,
-//        mit einer integrierten, aber separaten Kontrollleiste.
+// ÄNDERUNG: Der NavigationLink wurde entfernt, um die fehlerhafte Navigation zu deaktivieren.
 
 import SwiftUI
 
@@ -15,11 +13,9 @@ struct CartRowView: View {
     }
 
     var body: some View {
+        // Der NavigationLink wurde entfernt. Die VStack ist wieder das Wurzelelement.
         VStack(spacing: 0) {
-            // ===================================================================
-            // **NEUE STRUKTUR: Ebene 1 - Informations-Anzeige**
-            // Dieser Teil ist nun visuell identisch mit der WishlistRowView.
-            // ===================================================================
+            // Informations-Teil
             HStack(alignment: .top, spacing: AppTheme.Layout.Spacing.medium) {
                 productImage
                     .frame(width: 90, height: 90)
@@ -31,7 +27,6 @@ struct CartRowView: View {
                         .foregroundColor(AppTheme.Colors.textHeadings)
                         .lineLimit(2)
                     
-                    // Zeigt ausgewählte Variationen an
                     if let variations = item.variation, !variations.isEmpty {
                         ForEach(variations, id: \.attribute) { variation in
                             Text("\(variation.attribute ?? ""): \(variation.value ?? "")")
@@ -42,9 +37,9 @@ struct CartRowView: View {
                     
                     Spacer()
                     
-                    Text(PriceFormatter.formatPrice(
-                        item.totals.line_total ?? "0.00",
-                        currencySymbol: item.prices?.currency_symbol ?? AppConfig.WooCommerce.defaultCurrencySymbol
+                    Text(PriceFormatter.formatPriceFromMinorUnit(
+                        value: item.totals.line_total ?? "0",
+                        minorUnit: cartManager.state.totals?.currency_minor_unit ?? 2
                     ))
                         .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.subheadline, weight: .bold))
                         .foregroundColor(AppTheme.Colors.price)
@@ -53,27 +48,20 @@ struct CartRowView: View {
             }
             .padding([.top, .leading, .trailing])
             
-            // ===================================================================
-            // **NEUE STRUKTUR: Ebene 2 - Interaktive Kontrollleiste**
-            // ===================================================================
+            // Kontroll-Leiste
             HStack {
                 if isUpdatingThisItem {
                     ProgressView().tint(AppTheme.Colors.primary)
                 } else {
-                    // Mengensteuerung
                     HStack(spacing: AppTheme.Layout.Spacing.medium) {
-                        Button(action: { updateQuantity(by: -1) }) {
-                            Image(systemName: "minus.circle.fill")
-                        }
-                        .disabled(item.quantity <= 1)
+                        Button(action: { updateQuantity(by: -1) }) { Image(systemName: "minus.circle.fill") }
+                            .disabled(item.quantity <= 1)
                         
                         Text("\(item.quantity)")
                             .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.title2, weight: .semibold))
                             .frame(minWidth: 30, alignment: .center)
                         
-                        Button(action: { updateQuantity(by: 1) }) {
-                            Image(systemName: "plus.circle.fill")
-                        }
+                        Button(action: { updateQuantity(by: 1) }) { Image(systemName: "plus.circle.fill") }
                     }
                     .font(.title2)
                     .foregroundColor(AppTheme.Colors.primaryDark)
@@ -81,7 +69,6 @@ struct CartRowView: View {
                 
                 Spacer()
                 
-                // Expliziter Löschen-Button
                 Button(role: .destructive) {
                     Task { await cartManager.removeItem(key: item.key) }
                 } label: {
@@ -105,16 +92,11 @@ struct CartRowView: View {
     private var productImage: some View {
         if let url = item.images.first?.thumbnail?.asURL() {
             AsyncImage(url: url) { phase in
-                if let image = phase.image {
-                    image.resizable().aspectRatio(contentMode: .fill)
-                } else {
-                    Rectangle().fill(AppTheme.Colors.backgroundLightGray)
-                       .overlay(Image(systemName: "photo.fill").font(.title).foregroundColor(AppTheme.Colors.borderLight))
-                }
+                if let image = phase.image { image.resizable().aspectRatio(contentMode: .fill) }
+                else { Rectangle().fill(AppTheme.Colors.backgroundLightGray).overlay(Image(systemName: "photo.fill").font(.title).foregroundColor(AppTheme.Colors.borderLight)) }
             }
         } else {
-            Rectangle().fill(AppTheme.Colors.backgroundLightGray)
-               .overlay(Image(systemName: "photo.fill").font(.title).foregroundColor(AppTheme.Colors.borderLight))
+            Rectangle().fill(AppTheme.Colors.backgroundLightGray).overlay(Image(systemName: "photo.fill").font(.title).foregroundColor(AppTheme.Colors.borderLight))
         }
     }
     
