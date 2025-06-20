@@ -1,6 +1,6 @@
 // DATEI: WooCommerceAPIManager.swift
 // PFAD: Services/WooCommerceAPIManager.swift
-// VERSION: FINAL - Alle Operationen integriert.
+// VERSION: DIAGNOSEMODUS 1.0 - OPERATION "GEISTERSIGNAL"
 
 import Foundation
 
@@ -83,6 +83,17 @@ class WooCommerceAPIManager {
         
         do {
             let (data, response) = try await session.data(for: request)
+
+            // --- BEGINN DIAGNOSE-SONDE FÜR OPERATION "GEISTERSIGNAL" ---
+            // Diese Sonde gibt den rohen JSON-String aus, bevor er dekodiert wird.
+            // Dies ist entscheidend, um alle von der API gesendeten Felder zu identifizieren.
+            if let jsonString = String(data: data, encoding: .utf8) {
+                print("\n\n--- 📡 OPERATION 'GEISTERSIGNAL': ROHDATEN-ABFANGPROTOKOLL FÜR \(url.path) 📡 ---")
+                print(jsonString)
+                print("--- 📡 ENDE DES ABFANGPROTOKOLLS 📡 ---\n\n")
+            }
+            // --- ENDE DIAGNOSE-SONDE ---
+
             guard let httpResponse = response as? HTTPURLResponse else { throw WooCommerceAPIError.underlying(NSError(domain: "network", code: 0, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server."])) }
             guard (200...299).contains(httpResponse.statusCode) else {
                 let (message, code) = parseWooCommerceError(from: data)

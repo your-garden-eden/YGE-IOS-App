@@ -1,6 +1,6 @@
 // DATEI: ProductDetailViewModel.swift
 // PFAD: Features/Products/ViewModels/Detail/ProductDetailViewModel.swift
-// VERSION: FINAL - Alle Operationen integriert.
+// VERSION: OPERATION "DOPPEL-AGENT" - Phase 2 (VOLLSTÄNDIG)
 
 import Foundation
 
@@ -12,8 +12,10 @@ class ProductDetailViewModel: ObservableObject {
     @Published var isLoadingVariations = false
     @Published var variationError: String?
 
-    @Published var crossSellProducts: [WooCommerceProduct] = []
-    @Published var isLoadingCrossSells = false
+    // --- BEGINN MODIFIKATION ---
+    @Published var recommendedProducts: [WooCommerceProduct] = []
+    @Published var isLoadingRecommendations = false
+    // --- ENDE MODIFIKATION ---
 
     private let api = WooCommerceAPIManager.shared
     private let logger = LogSentinel.shared
@@ -21,9 +23,10 @@ class ProductDetailViewModel: ObservableObject {
     func loadData(for product: WooCommerceProduct) async {
         logger.info("Lade Detaildaten für Produkt '\(product.name)' (ID: \(product.id)).")
         async let loadVariationsTask: () = loadVariations(for: product)
-        async let loadCrossSellsTask: () = loadCrossSells(for: product)
-        
-        _ = await [loadVariationsTask, loadCrossSellsTask]
+        // --- BEGINN MODIFIKATION ---
+        async let loadRecommendedProductsTask: () = loadRecommendedProducts(for: product)
+        _ = await [loadVariationsTask, loadRecommendedProductsTask]
+        // --- ENDE MODIFIKATION ---
         logger.info("Laden der Detaildaten für Produkt \(product.id) abgeschlossen.")
     }
     
@@ -54,26 +57,32 @@ class ProductDetailViewModel: ObservableObject {
         self.isLoadingVariations = false
     }
     
-    private func loadCrossSells(for product: WooCommerceProduct) async {
-        guard !product.safeCrossSellIDs.isEmpty else {
-            logger.debug("Produkt \(product.id) hat keine Cross-Sells, überspringe Ladevorgang.")
+    // --- BEGINN MODIFIKATION ---
+    private func loadRecommendedProducts(for product: WooCommerceProduct) async {
+        // Sammle IDs aus beiden Quellen und entferne Duplikate.
+        let combinedIDs = product.safeCrossSellIDs + product.safeRelatedIDs
+        let uniqueIDs = Array(Set(combinedIDs))
+        
+        guard !uniqueIDs.isEmpty else {
+            logger.debug("Produkt \(product.id) hat keine verknüpften Produkte (Cross-Sell/Related), überspringe Ladevorgang.")
             return
         }
         
-        self.isLoadingCrossSells = true
-        logger.info("Lade \(product.safeCrossSellIDs.count) Cross-Sell-Produkte für Produkt \(product.id)...")
+        self.isLoadingRecommendations = true
+        logger.info("Lade \(uniqueIDs.count) empfohlene Produkte für Produkt \(product.id)...")
         do {
             var params = ProductFilterParameters()
-            params.include = product.safeCrossSellIDs
+            params.include = uniqueIDs
             
             let response = try await api.fetchProducts(params: params)
-            self.crossSellProducts = response.products
-            logger.info("\(response.products.count) Cross-Sell-Produkte erfolgreich geladen.")
+            self.recommendedProducts = response.products
+            logger.info("\(response.products.count) empfohlene Produkte erfolgreich geladen.")
             
         } catch {
-            logger.warning("Fehler beim Laden der Cross-Sell-Produkte für Produkt \(product.id): \(error.localizedDescription). Dies wird ignoriert, um die UI nicht zu blockieren.")
-            self.crossSellProducts = []
+            logger.warning("Fehler beim Laden der empfohlenen Produkte für Produkt \(product.id): \(error.localizedDescription). Dies wird ignoriert, um die UI nicht zu blockieren.")
+            self.recommendedProducts = []
         }
-        self.isLoadingCrossSells = false
+        self.isLoadingRecommendations = false
     }
+    // --- ENDE MODIFIKATION ---
 }

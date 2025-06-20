@@ -1,6 +1,6 @@
 // DATEI: ProductDetailView.swift
 // PFAD: Features/Products/Views/Detail/ProductDetailView.swift
-// VERSION: 3.5 (UNVERÄNDERT & GEPRÜFT)
+// VERSION: OPERATION "DOPPEL-AGENT" - Phase 3 (VOLLSTÄNDIG)
 
 import SwiftUI
 
@@ -27,6 +27,11 @@ struct ProductDetailView: View {
                     }
                     Divider()
                     descriptionSection
+                    
+                    // --- BEGINN MODIFIKATION ---
+                    recommendedSection
+                    // --- ENDE MODIFIKATION ---
+                    
                     Spacer(minLength: 150)
                 }
             }
@@ -131,6 +136,25 @@ struct ProductDetailView: View {
             .padding(.horizontal)
         }
     }
+    
+    // --- BEGINN MODIFIKATION ---
+    @ViewBuilder
+    private var recommendedSection: some View {
+        if viewModel.isLoadingRecommendations {
+            ProgressView()
+                .frame(maxWidth: .infinity)
+                .padding(.vertical)
+        } else if !viewModel.recommendedProducts.isEmpty {
+            VStack {
+                Divider().padding(.horizontal)
+                RelatedProductsView(
+                    title: "Das könnte Ihnen auch gefallen",
+                    products: viewModel.recommendedProducts
+                )
+            }
+        }
+    }
+    // --- ENDE MODIFIKATION ---
     
     @ViewBuilder
     private var bottomActionSection: some View {

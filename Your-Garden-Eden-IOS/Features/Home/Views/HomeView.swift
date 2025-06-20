@@ -1,6 +1,6 @@
 // DATEI: HomeView.swift
 // PFAD: Features/Home/Views/HomeView.swift
-// VERSION: 2.4 (FINAL & KORRIGIERT)
+// VERSION: 2.6 (OPERATION "FRONTBEGRADIGUNG" - FINAL)
 
 import SwiftUI
 import AVKit
@@ -58,7 +58,6 @@ struct HomeView: View {
                 StatusIndicatorView.errorState(message: errorMessage)
                     .padding()
             } else {
-                // KORREKTUR: Umbau auf horizontale ScrollView mit Titel darüber.
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(alignment: .top, spacing: AppTheme.Layout.Spacing.medium) {
                         ForEach(viewModel.topLevelCategories) { category in
@@ -83,6 +82,7 @@ struct HomeView: View {
         }
     }
     
+    @ViewBuilder
     private var bestsellerSection: some View {
         Section {
             Text("Bestseller")
@@ -95,7 +95,11 @@ struct HomeView: View {
                 StatusIndicatorView.errorState(message: errorMessage)
                     .padding()
             } else {
-                RelatedProductsView(products: viewModel.bestsellerProducts.map { .init(product: $0) })
+                // --- BEGINN KORREKTURMASSNAHME ---
+                // Der Aufruf wurde an die neue, synchronisierte Schnittstelle von RelatedProductsView angepasst.
+                // Der Titel wird als leerer String übergeben, da die Sektion bereits eine eigene Überschrift hat.
+                RelatedProductsView(title: "", products: viewModel.bestsellerProducts)
+                // --- ENDE KORREKTURMASSNAHME ---
             }
         }
     }

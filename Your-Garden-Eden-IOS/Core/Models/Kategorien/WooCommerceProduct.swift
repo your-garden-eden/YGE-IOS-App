@@ -1,7 +1,6 @@
 // DATEI: ProductModels.swift
-// PFAD: Models/ProductModels.swift
-// ZWECK: Definiert die zentralen Datenmodelle für Produkte, Kategorien und deren
-//        Attribute, wie sie von der WooCommerce API geliefert werden.
+// PFAD: Core/Models/WooCommerceProduct/WooCommerceProduct.swift
+// VERSION: OPERATION "DOPPEL-AGENT" - Phase 1 (VOLLSTÄNDIG & KORRIGIERT)
 
 import Foundation
 
@@ -25,7 +24,6 @@ public struct WooCommerceProduct: Decodable, Identifiable, Hashable, Equatable {
     public let purchasable: Bool?
     public let total_sales: Int?
     public let stock_quantity: Int?
-    // Verwendet die nun global sichtbare `StockStatus`-Einheit.
     private let _stock_status: StockStatus?
     public let backorders_allowed: Bool?
     public let sold_individually: Bool?
@@ -34,6 +32,9 @@ public struct WooCommerceProduct: Decodable, Identifiable, Hashable, Equatable {
     public let attributes: [WooCommerceAttribute]?
     public let variations: [Int]?
     public let cross_sell_ids: [Int]
+    // --- BEGINN MODIFIKATION ---
+    public let related_ids: [Int]
+    // --- ENDE MODIFIKATION ---
     public let categories: [WooCommerceCategoryRef]?
     public var priceRangeDisplay: String? = nil
 
@@ -43,9 +44,11 @@ public struct WooCommerceProduct: Decodable, Identifiable, Hashable, Equatable {
         case _stock_status = "stock_status"
         case backorders_allowed, sold_individually, parent_id, images, attributes
         case cross_sell_ids
+        // --- BEGINN MODIFIKATION ---
+        case related_ids
+        // --- ENDE MODIFIKATION ---
     }
     
-    // Gehärteter Decoder, um den `total_sales` Typ-Konflikt zu lösen.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         
@@ -75,6 +78,9 @@ public struct WooCommerceProduct: Decodable, Identifiable, Hashable, Equatable {
         variations = try container.decodeIfPresent([Int].self, forKey: .variations)
         categories = try container.decodeIfPresent([WooCommerceCategoryRef].self, forKey: .categories)
         cross_sell_ids = try container.decodeIfPresent([Int].self, forKey: .cross_sell_ids) ?? []
+        // --- BEGINN MODIFIKATION ---
+        related_ids = try container.decodeIfPresent([Int].self, forKey: .related_ids) ?? []
+        // --- ENDE MODIFIKATION ---
         
         do {
             total_sales = try container.decodeIfPresent(Int.self, forKey: .total_sales)
@@ -94,6 +100,9 @@ public struct WooCommerceProduct: Decodable, Identifiable, Hashable, Equatable {
     public var safeImages: [WooCommerceImage] { images ?? [] }
     public var safeAttributes: [WooCommerceAttribute] { attributes ?? [] }
     public var safeCrossSellIDs: [Int] { cross_sell_ids }
+    // --- BEGINN MODIFIKATION ---
+    public var safeRelatedIDs: [Int] { related_ids }
+    // --- ENDE MODIFIKATION ---
     public var safeCategories: [WooCommerceCategoryRef] { categories ?? [] }
 }
 
@@ -128,7 +137,6 @@ public struct WooCommerceProductVariation: Codable, Identifiable, Hashable, Equa
     public let on_sale: Bool?
     public let purchasable: Bool?
     public let stock_quantity: Int?
-    // Verwendet die nun global sichtbare `StockStatus`-Einheit.
     private let _stock_status: StockStatus?
     public let image: WooCommerceImage?
     public let attributes: [VariationAttribute]?
