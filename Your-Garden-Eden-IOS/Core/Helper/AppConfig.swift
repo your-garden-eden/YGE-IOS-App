@@ -1,6 +1,7 @@
 // DATEI: AppConfig.swift
 // PFAD: Helper/AppConfig.swift
-// VERSION: PHOENIX 2.1 (OPERATION TABULA RASA INTEGRIERT)
+// VERSION: GUTSCHEIN 1.0
+// ÄNDERUNG: Die Endpunkte für Gutschein-Operationen wurden hinzugefügt.
 
 import Foundation
 
@@ -40,6 +41,12 @@ public enum AppConfig {
         public static let userAddresses = "\(base)/user/addresses"
         public static let orderDetails = "\(base)/order-details"
         public static let stageCartForCheckout = "\(base)/stage-cart-for-population"
+        
+        // === BEGINN MODIFIKATION ===
+        // NEU: Endpunkte für Gutschein-Operationen hinzugefügt.
+        public static let applyCoupon = "\(base)/cart/apply-coupon"
+        public static let removeCoupon = "\(base)/cart/remove-coupon"
+        // === ENDE MODIFIKATION ===
     }
 
     public struct Auth {

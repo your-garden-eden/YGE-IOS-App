@@ -1,7 +1,7 @@
 // DATEI: CartView.swift
 // PFAD: Features/Cart/Views/CartView.swift
-// VERSION: FINAL (OPERATION GLEICHSCHALTUNG 2.0)
-// ÄNDERUNG: Die Navigationslogik wurde an das neue, korrekte Mapping-System angepasst.
+// VERSION: GUTSCHEIN 1.0
+// ÄNDERUNG: Die 'cartTotalsView' wurde umfassend überarbeitet, um die Gutschein-UI zu integrieren.
 
 import SwiftUI
 
@@ -12,6 +12,7 @@ struct CartView: View {
     
     @State private var showingAuthSheet = false
     @State private var isShowingClearCartAlert = false
+    @State private var couponCode: String = ""
 
     var body: some View {
         ZStack {
@@ -68,17 +69,14 @@ struct CartView: View {
         ScrollView {
             LazyVStack(spacing: AppTheme.Layout.Spacing.medium) {
                 ForEach(cartManager.state.items) { item in
-                    // Ermittle die korrekte Hauptprodukt-ID.
                     let parentProductId = cartManager.state.variationToParentMap[item.id] ?? item.id
                     
-                    // Suche das Hauptprodukt im Cache.
                     if let product = cartManager.state.productDetails[parentProductId] {
                         NavigationLink(value: product) {
                             CartRowView(item: item)
                         }
                         .buttonStyle(.plain)
                     } else {
-                        // Zeige die Zeile ohne Link an, falls die Daten noch nicht da sind.
                         CartRowView(item: item)
                     }
                 }
@@ -143,29 +141,68 @@ struct CartView: View {
         }
     }
     
+    // === BEGINN MODIFIKATION ===
+    // UMFASSEND ÜBERARBEITET: cartTotalsView wurde für Gutscheinfunktionalität ertüchtigt.
     private func cartTotalsView(totals: Totals) -> some View {
         VStack(spacing: AppTheme.Layout.Spacing.small) {
+            // Fehlermeldung
             if let error = cartManager.state.errorMessage {
                 Text(error)
                     .font(.caption)
                     .foregroundColor(AppTheme.Colors.error)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .multilineTextAlignment(.center)
+                    .padding(.bottom, AppTheme.Layout.Spacing.xSmall)
             }
             
+            // "Warenkorb leeren" Button
             HStack {
                 Spacer()
-                Button(role: .destructive) {
-                    isShowingClearCartAlert = true
-                } label: {
+                Button(role: .destructive) { isShowingClearCartAlert = true } label: {
                     Label("Warenkorb leeren", systemImage: "trash")
                         .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.caption, weight: .semibold))
                 }
                 .tint(AppTheme.Colors.error)
-                .disabled(cartManager.state.isLoading || cartManager.state.updatingItemKey != nil)
+                .disabled(cartManager.state.isLoading)
             }
             .padding(.bottom, AppTheme.Layout.Spacing.xSmall)
+
+            // NEU: Angewendete Gutscheine und Rabattanzeige
+            if !(cartManager.state.coupons.isEmpty) || (totals.total_discount != nil && totals.total_discount != "0") {
+                VStack(spacing: AppTheme.Layout.Spacing.xSmall) {
+                    ForEach(cartManager.state.coupons) { coupon in
+                        HStack {
+                            Text("Gutschein \"\(coupon.code)\"")
+                                .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body, weight: .regular))
+                            
+                            Button(action: {
+                                Task { await cartManager.removeCoupon(code: coupon.code) }
+                            }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(AppTheme.Colors.textMuted)
+                            }
+                            
+                            Spacer()
+                        }
+                    }
+                    
+                    if let discount = totals.total_discount, discount != "0" {
+                         HStack {
+                            Text("Rabatt")
+                                .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.body, weight: .medium))
+                            Spacer()
+                            Text("- \(PriceFormatter.formatPriceFromMinorUnit(value: discount, minorUnit: totals.currency_minor_unit ?? 2))")
+                                .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body, weight: .bold))
+                                .foregroundColor(AppTheme.Colors.error)
+                        }
+                    }
+                }
+                .padding(.vertical, AppTheme.Layout.Spacing.small)
+                
+                Divider()
+            }
             
+            // Gesamtpreis
             HStack {
                 Text("Gesamt")
                     .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.headline, weight: .bold))
@@ -177,14 +214,35 @@ struct CartView: View {
                     .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.headline, weight: .bold))
             }
             .padding(.top, AppTheme.Layout.Spacing.xSmall)
+            
+            // NEU: Gutschein-Eingabefeld
+            HStack(spacing: AppTheme.Layout.Spacing.xSmall) {
+                TextField("Gutscheincode eingeben...", text: $couponCode)
+                    .textFieldStyle(AppTheme.PlainTextFieldStyle())
+                    .disabled(cartManager.state.isLoading)
+                
+                Button("Anwenden") {
+                    Task {
+                        await cartManager.applyCoupon(code: couponCode)
+                        couponCode = "" // Feld nach Versuch leeren
+                    }
+                }
+                .buttonStyle(AppTheme.SecondaryButtonStyle())
+                .disabled(couponCode.isEmpty || cartManager.state.isLoading)
+            }
+            .padding(.vertical, AppTheme.Layout.Spacing.small)
 
+            // "Zur Kasse" Button
             NavigationLink(value: AppDestination.checkout) {
                  Text("Zur Kasse")
             }
             .buttonStyle(AppTheme.PrimaryButtonStyle())
-            .disabled(cartManager.state.items.isEmpty)
+            .disabled(cartManager.state.items.isEmpty || cartManager.state.isLoading)
         }
         .padding()
         .background(.regularMaterial)
+        .animation(.default, value: cartManager.state.coupons)
+        .animation(.default, value: cartManager.state.totals)
     }
+    // === ENDE MODIFIKATION ===
 }

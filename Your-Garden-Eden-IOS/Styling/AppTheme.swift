@@ -1,8 +1,7 @@
 // DATEI: AppTheme.swift (KASERNE DER ÄSTHETIK)
-// VERSION: PHOENIX 1.1
+// VERSION: GUTSCHEIN 1.1 (OPERATION FRONTBEGRADIGUNG)
 // ZWECK: Zentralisiert alle Design-Konstanten und Stile der Anwendung.
-//        Dies ist die einzige Quelle der Wahrheit für Farben, Schriften,
-//        Abstände, Schatten und wiederverwendbare Komponentenstile.
+// ÄNDERUNG: PlainTextFieldStyle und SecondaryButtonStyle hinzugefügt, um Kompilierungsfehler in CartView zu beheben und die UI zu vereinheitlichen.
 
 import SwiftUI
 
@@ -124,9 +123,40 @@ public enum AppTheme {
         }
     }
     
-    // ===================================================================
-    // **NEUE EINHEIT INTEGRIERT**
-    // ===================================================================
+    // === BEGINN MODIFIKATION ===
+    // NEU: Definiert den Stil für sekundäre oder weniger prominente Buttons.
+    public struct SecondaryButtonStyle: ButtonStyle {
+        public func makeBody(configuration: Configuration) -> some View {
+            configuration.label
+                .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body, weight: .semibold))
+                .padding(.horizontal)
+                .frame(height: 44)
+                .background(configuration.isPressed ? AppTheme.Colors.backgroundLightGray : AppTheme.Colors.backgroundComponent)
+                .foregroundColor(AppTheme.Colors.primaryDark)
+                .cornerRadius(AppTheme.Layout.BorderRadius.medium)
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppTheme.Layout.BorderRadius.medium)
+                        .stroke(AppTheme.Colors.borderLight, lineWidth: 1)
+                )
+        }
+    }
+
+    // NEU: Definiert einen sauberen Stil für Texteingabefelder.
+    public struct PlainTextFieldStyle: TextFieldStyle {
+        public func _body(configuration: TextField<Self._Label>) -> some View {
+            configuration
+                .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body))
+                .padding(.horizontal, AppTheme.Layout.Spacing.medium)
+                .frame(height: 44)
+                .background(AppTheme.Colors.backgroundComponent)
+                .cornerRadius(AppTheme.Layout.BorderRadius.medium)
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppTheme.Layout.BorderRadius.medium)
+                        .stroke(AppTheme.Colors.borderLight, lineWidth: 1)
+                )
+        }
+    }
+    // === ENDE MODIFIKATION ===
     
     /// Definiert den Stil für kleine, runde Buttons zur Mengenänderung (z.B. im Warenkorb).
     public struct QuantityButtonStyle: ButtonStyle {

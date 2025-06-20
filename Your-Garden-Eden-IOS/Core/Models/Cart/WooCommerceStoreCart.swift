@@ -1,15 +1,7 @@
-//
-//  WooCommerceStoreCart.swift
-//  Your-Garden-Eden-IOS
-//
-//  Created by Josef Ewert on 18.06.25.
-//
-
-
-// DATEI: CartModels.swift
-// PFAD: Models/CartModels.swift
-// ZWECK: Definiert die komplexen Datenstrukturen für den Warenkorb (Cart),
-//        wie sie von der WooCommerce Store API geliefert werden.
+// DATEI: WooCommerceStoreCart.swift
+// PFAD: Models/Cart/WooCommerceStoreCart.swift
+// VERSION: GUTSCHEIN 1.0
+// ÄNDERUNG: Die WooCommerceStoreCoupon-Struktur wurde definiert, um Gutscheindaten zu speichern.
 
 import Foundation
 
@@ -58,7 +50,16 @@ public struct WooCommerceStoreCart: Decodable, Hashable {
 
 // MARK: - Cart Sub-Models
 
-public struct WooCommerceStoreCoupon: Decodable, Hashable {}
+// === BEGINN MODIFIKATION ===
+// NEU: Erweitert um 'code' und Identifiable-Konformität für die UI.
+public struct WooCommerceStoreCoupon: Decodable, Hashable, Identifiable {
+    public let code: String
+    
+    // Konformität für Identifiable, damit wir es in SwiftUI ForEach verwenden können.
+    public var id: String { code }
+}
+// === ENDE MODIFIKATION ===
+
 public struct WooCommerceStoreError: Decodable, Hashable {}
 public struct WooCommerceStoreFee: Decodable, Hashable {}
 

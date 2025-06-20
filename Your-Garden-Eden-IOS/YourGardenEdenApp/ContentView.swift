@@ -1,8 +1,8 @@
 // DATEI: ContentView.swift
 // PFAD: App/ContentView.swift
-// VERSION: 11.0 (OPERATION HORIZONT)
-// ZWECK: Der Haupteinstiegspunkt der Anwendung mit einer vollständig
-//        modernisierten und funktionalen Tab-Navigation.
+// VERSION: 11.1 (OPERATION GEISTERAKTION)
+// ZWECK: Neutralisierung der unautorisierten Warenkorb-Aktion durch
+//        Anpassung der Tab-Navigationslogik.
 
 import SwiftUI
 
@@ -13,7 +13,7 @@ struct ContentView: View {
     // Globale Zustands-Manager, die an die gesamte App weitergegeben werden.
     @StateObject private var authManager = AuthManager.shared
     @StateObject private var cartManager = CartAPIManager.shared
-    @StateObject private var wishlistState = WishlistState() // Behält die von Ihnen vorgegebene Initialisierung bei.
+    @StateObject private var wishlistState = WishlistState()
     
     @StateObject private var homeViewModel = HomeViewModel()
 
@@ -49,12 +49,10 @@ struct MainTabView: View {
         TabView(selection: tabSelectionBinding) {
             
             // --- TAB 1: HOME ---
-            // Verwendet den neuen Container, um den Pfad steuerbar zu machen.
             HomeTabView(path: $homePath)
                 .tabItem { Label("Home", systemImage: "house.fill") }.tag(0)
             
             // --- TAB 2: SHOP ---
-            // Verwendet den neuen Container, um den Pfad steuerbar zu machen.
             ShopTabView(path: $shopPath)
                 .tabItem { Label("Shop", systemImage: "bag.fill") }.tag(1)
             
@@ -64,7 +62,6 @@ struct MainTabView: View {
                     .withAppNavigation()
             }
             .tabItem { Label("Warenkorb", systemImage: "cart.fill") }.tag(2)
-            // ANPASSUNG: Badge für Warenkorb-Anzahl hinzugefügt.
             .badge(cartManager.state.itemCount)
             
             // --- TAB 4: WUNSCHLISTE ---
@@ -73,7 +70,6 @@ struct MainTabView: View {
                     .withAppNavigation()
             }
             .tabItem { Label("Wunschliste", systemImage: "heart.fill") }.tag(3)
-            // ANPASSUNG: Badge für Wunschlisten-Anzahl hinzugefügt.
             .badge(wishlistState.wishlistProductIds.count)
             
             // --- TAB 5: PROFIL ---
@@ -83,13 +79,13 @@ struct MainTabView: View {
             }
             .tabItem { Label("Profil", systemImage: "person.fill") }.tag(4)
         }
-        // ANPASSUNG: Farbschema für die gesamte Tab-Leiste festgelegt.
         .tint(AppTheme.Colors.primary)
-        .environment(\.selectedTab, $selectedTab) // Gibt die Auswahl weiterhin an untergeordnete Views weiter.
+        .environment(\.selectedTab, $selectedTab)
     }
     
-    /// Ein benutzerdefiniertes Binding, das die Standard-Logik erweitert,
-    /// um die Navigations-Anomalie zu beheben.
+    // === BEGINN MODIFIKATION ===
+    /// Ein benutzerdefiniertes Binding, das modifiziert wurde, um die unautorisierte
+    /// Warenkorb-Aktion ("Geisteraktion") zu unterbinden.
     private var tabSelectionBinding: Binding<Int> {
         Binding(
             get: {
@@ -97,12 +93,14 @@ struct MainTabView: View {
                 self.selectedTab
             },
             set: { newSelection in
+                // FRÜHERE LOGIK ZURÜCKGESTELLT: Die Prüfung, ob derselbe Tab erneut angetippt wurde,
+                // und das Zurücksetzen des Navigationspfades werden ausgesetzt.
+                // Dies ist die direkte Maßnahme zur Neutralisierung des Fehlers, da
+                // das programmatische Leeren des Pfades die Geisteraktion ausgelöst hat.
+                /*
                 if newSelection == self.selectedTab {
-                    // Der Benutzer hat denselben Tab erneut angetippt.
-                    // Setze den entsprechenden Navigationspfad zurück.
                     switch newSelection {
                     case 0:
-                        // Nur zurücksetzen, wenn der Pfad nicht bereits leer ist.
                         if !homePath.isEmpty {
                             homePath = NavigationPath()
                             LogSentinel.shared.info("Home-Tab erneut angetippt. Navigationspfad zurückgesetzt.")
@@ -113,15 +111,17 @@ struct MainTabView: View {
                             LogSentinel.shared.info("Shop-Tab erneut angetippt. Navigationspfad zurückgesetzt.")
                         }
                     default:
-                        // Für andere Tabs ist keine Reset-Logik erforderlich.
                         break
                     }
                 }
-                // Aktualisiere in jedem Fall den ausgewählten Tab.
+                */
+                
+                // Die Logik ist nun auf das reine Aktualisieren des Tabs reduziert.
                 self.selectedTab = newSelection
             }
         )
     }
+    // === ENDE MODIFIKATION ===
 }
 
 // ===================================================================

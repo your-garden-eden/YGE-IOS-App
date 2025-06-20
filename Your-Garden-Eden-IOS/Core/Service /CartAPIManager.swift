@@ -1,8 +1,7 @@
 // DATEI: CartAPIManager.swift
 // PFAD: Services/App/CartAPIManager.swift
-// VERSION: FINAL (OPERATION GLEICHSCHALTUNG 2.0)
-// ÄNDERUNG: Der Manager merkt sich nun die Beziehung zwischen Variation und Hauptprodukt,
-//           um eine korrekte Datenanreicherung und Navigation zu gewährleisten.
+// VERSION: GUTSCHEIN 1.0
+// ÄNDERUNG: Funktionen applyCoupon und removeCoupon implementiert; State für Gutscheine erweitert.
 
 import Foundation
 
@@ -11,12 +10,12 @@ final class CartAPIManager: ObservableObject {
     struct State {
         var items: [Item] = []
         var totals: Totals? = nil
+        var coupons: [WooCommerceStoreCoupon] = []
         var isLoading: Bool = false
         var errorMessage: String? = nil
         var updatingItemKey: String? = nil
         var itemCount: Int { items.reduce(0) { $0 + $1.quantity } }
         
-        // KARTOGRAFIE: Speichert [Variations-ID: Hauptprodukt-ID]
         var variationToParentMap: [Int: Int] = [:]
         var productDetails: [Int: WooCommerceProduct] = [:]
     }
@@ -114,6 +113,36 @@ final class CartAPIManager: ObservableObject {
         
         state.isLoading = false
     }
+
+    // === BEGINN MODIFIKATION ===
+    // NEU: Funktion zum Anwenden eines Gutscheincodes.
+    func applyCoupon(code: String) async {
+        guard !code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            logger.warning("OPERATION GUTSCHEIN: Versuch, einen leeren Gutscheincode anzuwenden, abgebrochen.")
+            return
+        }
+        
+        logger.info("OPERATION GUTSCHEIN: Versuche Gutschein '\(code)' anzuwenden.")
+        await performCartAction(isLoading: true) {
+            let body = ["code": code]
+            let cart = try await self.performRequest(endpoint: AppConfig.YGE.applyCoupon, httpMethod: "POST", body: body)
+            if let newCart = cart, let _ = newCart.errors?.first {
+                throw WooCommerceAPIError.serverError(statusCode: 200, message: "Gutschein ungültig oder nicht anwendbar.", errorCode: "coupon_invalid")
+            }
+            return cart
+        }
+    }
+
+    // NEU: Funktion zum Entfernen eines Gutscheincodes.
+    func removeCoupon(code: String) async {
+        logger.info("OPERATION GUTSCHEIN: Entferne Gutschein '\(code)'.")
+        await performCartAction(isLoading: true) {
+            let body = ["code": code]
+            let cart = try await self.performRequest(endpoint: AppConfig.YGE.removeCoupon, httpMethod: "POST", body: body)
+            return cart
+        }
+    }
+    // === ENDE MODIFIKATION ===
     
     private func fetchProductDetailsForCartItems(items: [Item]) async {
         var idsToFetch = Set<Int>()
@@ -157,6 +186,7 @@ final class CartAPIManager: ObservableObject {
             if let newCart = newCart {
                 state.items = newCart.safeItems
                 state.totals = newCart.totals
+                state.coupons = newCart.coupons ?? []
                 
                 let currentVariationIds = Set(state.items.map { $0.id })
                 state.variationToParentMap = state.variationToParentMap.filter { currentVariationIds.contains($0.key) }
@@ -164,6 +194,7 @@ final class CartAPIManager: ObservableObject {
             } else {
                 state.items = []
                 state.totals = nil
+                state.coupons = []
                 state.productDetails = [:]
                 state.variationToParentMap = [:]
             }
