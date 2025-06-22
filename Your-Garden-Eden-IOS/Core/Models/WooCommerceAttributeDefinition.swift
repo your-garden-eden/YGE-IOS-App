@@ -1,16 +1,7 @@
-//
-//  WooCommerceAttributeDefinition.swift
-//  Your-Garden-Eden-IOS
-//
-//  Created by Josef Ewert on 19.06.25.
-//
-
-
 // DATEI: AttributeModels.swift
 // PFAD: Models/AttributeModels.swift
-// VERSION: 1.0 (OPERATION PRÄZISIONSSCHLAG)
-// ZWECK: Definiert die Datenmodelle für globale Produktattribute und deren
-//        auswählbare Werte (Terms), wie sie von der WooCommerce API geliefert werden.
+// VERSION: 1.2 - FINALER FILTER-FIX
+// STATUS: MODIFIZIERT & STABILISIERT
 
 import Foundation
 
@@ -19,9 +10,9 @@ public struct WooCommerceAttributeDefinition: Decodable, Identifiable, Hashable,
     public let id: Int
     public let name: String
     public let slug: String
-    public let type: String // 'select' or 'text'
-    public let order_by: String // 'menu_order', 'name', 'name_num', 'id'
-    public let has_archives: Bool
+    public let type: String?
+    public let order_by: String?
+    public let has_archives: Bool?
     
     public static func == (lhs: WooCommerceAttributeDefinition, rhs: WooCommerceAttributeDefinition) -> Bool {
         return lhs.id == rhs.id
@@ -33,13 +24,16 @@ public struct WooCommerceAttributeDefinition: Decodable, Identifiable, Hashable,
 }
 
 /// Repräsentiert einen einzelnen auswählbaren Wert ("Term") für ein Attribut.
-/// Zum Beispiel "Blau" für das Attribut "Farbe".
 public struct WooCommerceAttributeTerm: Decodable, Identifiable, Hashable, Equatable {
     public let id: Int
     public let name: String
     public let slug: String
     public let description: String?
-    public let menu_order: Int
+    
+    // KORREKTUR: Die Eigenschaft wird als optional deklariert, da sie in der
+    // Server-Antwort für einige Terms fehlen kann.
+    public let menu_order: Int?
+    
     public let count: Int
     
     public static func == (lhs: WooCommerceAttributeTerm, rhs: WooCommerceAttributeTerm) -> Bool {

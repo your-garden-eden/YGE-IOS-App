@@ -1,7 +1,7 @@
 // DATEI: WooCommerceAPIManager.swift
-// PFAD: Services/WooCommerceAPIManager.swift
-// VERSION: IDENTITÄT 2.3 - FINAL KORRIGIERT
-// STATUS: GENERALÜBERHOLT & CONCURRENCY-SAFE
+// PFAD: Manager/WooCommerceAPIManager.swift
+// VERSION: STAMMDATEN 1.2 - STABILITÄTS-FIX
+// STATUS: MODIFIZIERT
 
 import Foundation
 
@@ -12,11 +12,8 @@ class WooCommerceAPIManager {
     private let authManager: AuthManager
     private let session: URLSession
 
-    // KORREKTUR: Der Initialisierer nimmt keine Parameter mehr an.
-    // Die Abhängigkeit wird sicher innerhalb des @MainActor-isolierten
-    // Initialisierers aufgelöst.
     private init() {
-        self.authManager = AuthManager.shared // Sicherer Zugriff
+        self.authManager = AuthManager.shared
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
         self.session = URLSession(configuration: config)
@@ -73,6 +70,12 @@ class WooCommerceAPIManager {
         return terms
     }
 
+    func performCustomAuthenticatedRequest<T: Decodable>(urlString: String, method: String, body: Data? = nil, responseType: T.Type) async throws -> T {
+        let url = URL(string: urlString)
+        let (decodedObject, _) = try await performRequest(url: url, httpMethod: method, body: body, decodingType: responseType)
+        return decodedObject
+    }
+
     private func performCoreRequest<T: Decodable>(path: String, queryItems: [URLQueryItem], decodingType: T.Type) async throws -> (T, HTTPURLResponse) {
         var components = URLComponents(string: AppConfig.API.WCProxy.base)!
         components.path += "/\(path)"
@@ -89,11 +92,10 @@ class WooCommerceAPIManager {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         headers.forEach { request.setValue($1, forHTTPHeaderField: $0) }
         
-        if let token = authManager.getAuthToken() {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        } else {
-            LogSentinel.shared.warning("API-Anfrage wird ohne Auth-Token ausgeführt: \(url.path)")
+        guard let token = authManager.getAuthToken() else {
+             throw WooCommerceAPIError.notAuthenticated
         }
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
         do {
             let (data, response) = try await session.data(for: request)
@@ -103,26 +105,32 @@ class WooCommerceAPIManager {
             }
             
             guard (200...299).contains(httpResponse.statusCode) else {
-                let (message, code) = parseWooCommerceError(from: data)
+                let (message, code) = WooCommerceAPIManager.parseWooCommerceError(from: data)
                 throw WooCommerceAPIError.serverError(statusCode: httpResponse.statusCode, message: message, errorCode: code)
             }
             
-            if data.isEmpty && T.self != String.self {
-                throw WooCommerceAPIError.noData
+            if data.isEmpty {
+                if T.self == SuccessResponse.self {
+                     let success = SuccessResponse(success: true, message: "Aktion erfolgreich ausgeführt.")
+                     return (success as! T, httpResponse)
+                } else if T.self != String.self {
+                    throw WooCommerceAPIError.noData
+                }
             }
             
-            let decodedObject = try JSONDecoder().decode(T.self, from: data)
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            let decodedObject = try decoder.decode(T.self, from: data)
             return (decodedObject, httpResponse)
             
         } catch let error as DecodingError {
-            LogSentinel.shared.error("DECODING ERROR for URL: \(url.absoluteString)\nDetails: \(error)")
             throw WooCommerceAPIError.decodingError(error)
         } catch {
             throw WooCommerceAPIError.underlying(error)
         }
     }
     
-    func parseWooCommerceError(from data: Data) -> (message: String?, code: String?) {
+    static func parseWooCommerceError(from data: Data) -> (message: String?, code: String?) {
         let error = try? JSONDecoder().decode(WooCommerceErrorResponse.self, from: data)
         return (error?.message, error?.code)
     }

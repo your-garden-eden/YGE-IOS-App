@@ -1,12 +1,13 @@
 // DATEI: CartAPIManager.swift
 // PFAD: Services/App/CartAPIManager.swift
-// VERSION: IDENTITÄT - FRONTBEGRADIGUNG 1.1
-// STATUS: KORRIGIERT & FINAL BEREINIGT
+// VERSION: ADLERKRALLE 1.0 (MODIFIZIERT)
 
 import Foundation
 import StoreKit
 import AppIntents
 import CoreTransferable
+import Combine
+
 @MainActor
 final class CartAPIManager: ObservableObject {
     struct State {
@@ -28,8 +29,38 @@ final class CartAPIManager: ObservableObject {
     private let cartAPI = AppConfig.API.WCStore.self
     private let wcAPI = WooCommerceAPIManager.shared
     private let logger = LogSentinel.shared
+    
+    private lazy var authManager = AuthManager.shared
+    private var cancellables = Set<AnyCancellable>()
 
-    private init() {}
+    private init() {
+        observeAuthenticationChanges()
+    }
+    
+    func prepareForLogout() {
+        logger.info("Bereite Warenkorb für Logout vor. Der aktuelle Warenkorb wird zur Gast-Sitzung.")
+        self.state = State()
+    }
+    
+    private func observeAuthenticationChanges() {
+        authManager.$authState
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] state in
+                self?.logger.info("CartAPIManager: Auth-Zustand hat sich geändert auf: \(state).")
+                Task {
+                    await self?.handleAuthChange(newState: state)
+                }
+            }
+            .store(in: &cancellables)
+    }
+
+    private func handleAuthChange(newState: AuthState) async {
+        if newState == .guest || newState == .authenticated {
+            logger.info("Synchronisiere Warenkorb aufgrund von Auth-Änderung.")
+            await getCart(showLoadingIndicator: true)
+        }
+    }
     
     func getCart(showLoadingIndicator: Bool = false) async {
         logger.info("Warenkorb wird vom Server abgerufen...")
@@ -216,6 +247,15 @@ final class CartAPIManager: ObservableObject {
         request.httpMethod = httpMethod
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
+        // --- BEGINN MODIFIKATION ---
+        // Fügt den Authentifizierungs-Header hinzu, wenn der Benutzer eingeloggt ist.
+        // Dies "kettet" den Warenkorb an das Benutzerkonto.
+        if let token = authManager.getAuthToken(), authManager.isLoggedIn {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            logger.debug("Führe Warenkorb-Anfrage als eingeloggter Benutzer aus.")
+        }
+        // --- ENDE MODIFIKATION ---
+        
         if let cartToken = KeychainService.getCartToken() {
             request.setValue(cartToken, forHTTPHeaderField: "Cart-Token")
             logger.debug("Verwende existierenden Warenkorb-Token.")
@@ -230,7 +270,6 @@ final class CartAPIManager: ObservableObject {
         guard let httpResponse = response as? HTTPURLResponse else { throw WooCommerceAPIError.underlying(NSError(domain: "network", code: 0)) }
         
         if let newCartToken = httpResponse.value(forHTTPHeaderField: "cart-token") {
-            // KORREKTUR: Überflüssiges `try?` entfernt, da die Funktion nicht mehr `throws`.
             KeychainService.saveCartToken(newCartToken)
             logger.info("Neuer Warenkorb-Token empfangen und gespeichert.")
         }

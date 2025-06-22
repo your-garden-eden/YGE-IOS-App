@@ -1,6 +1,6 @@
 // DATEI: ProductListViewModel.swift
 // PFAD: Features/Products/ViewModels/List/ProductListViewModel.swift
-// VERSION: FINAL - Alle Operationen integriert.
+// VERSION: DOPPELGÄNGER 1.0 (GEHÄRTET)
 
 import Foundation
 import Combine
@@ -105,7 +105,12 @@ class ProductListViewModel: ObservableObject {
             if currentPage == 1 {
                 self.products = fetchedProducts
             } else {
-                self.products.append(contentsOf: fetchedProducts)
+                // --- BEGINN MODIFIKATION ---
+                // Stellt sicher, dass keine Duplikate hinzugefügt werden, falls die API überlappende Ergebnisse liefert.
+                let existingIDs = Set(self.products.map { $0.id })
+                let uniqueProducts = fetchedProducts.filter { !existingIDs.contains($0.id) }
+                self.products.append(contentsOf: uniqueProducts)
+                // --- ENDE MODIFIKATION ---
             }
             
             self.totalPages = response.totalPages

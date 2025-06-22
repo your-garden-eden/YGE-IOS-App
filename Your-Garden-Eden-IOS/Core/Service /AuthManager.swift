@@ -1,10 +1,9 @@
 // DATEI: AuthManager.swift
 // PFAD: Services/App/AuthManager.swift
-// VERSION: ADLERAUGE 1.0 (REVIDIERT)
-// STATUS: ZURÜCKGESETZT
+// VERSION: GEDÄCHTNISLÜCKE 1.2 - STABILITÄTS-FIX
+// STATUS: MODIFIZIERT
 
 import Foundation
-// import GoogleSignIn <- ENTFERNT
 
 enum AuthState {
     case initializing
@@ -27,6 +26,9 @@ final class AuthManager: ObservableObject {
     
     private var guestAuthToken: String?
     private let logger = LogSentinel.shared
+    
+    private lazy var wishlistState = WishlistState.shared
+    private lazy var cartManager = CartAPIManager.shared
     
     private init() {
         Task {
@@ -62,10 +64,6 @@ final class AuthManager: ObservableObject {
         }
     }
 
-    // --- BEGINN RÜCKBAU ---
-    // Die Funktion signInWithGoogle wurde vollständig entfernt.
-    // --- ENDE RÜCKBAU ---
-
     func register(payload: RegistrationPayload) async throws -> SuccessResponse {
         self.isLoading = true
         self.authError = nil
@@ -94,14 +92,16 @@ final class AuthManager: ObservableObject {
             logger.info("Logout wird durchgeführt (kein Benutzerprofil vorhanden).")
         }
         
-        self.authState = .initializing
-        self.user = nil
-        self.guestAuthToken = nil
-        KeychainService.clearAllAuthData()
-        KeychainService.deleteCartToken()
-        logger.info("Alle Benutzerdaten aus dem Keychain entfernt.")
-        
         Task {
+            wishlistState.prepareForLogout()
+            cartManager.prepareForLogout()
+            
+            self.authState = .initializing
+            self.user = nil
+            self.guestAuthToken = nil
+            KeychainService.clearAllAuthData()
+            logger.info("Alle Benutzer-Authentifizierungsdaten aus dem Keychain entfernt.")
+            
             await fetchGuestToken()
             self.authState = .guest
         }
@@ -204,7 +204,7 @@ final class AuthManager: ObservableObject {
         guard let httpResponse = response as? HTTPURLResponse else { throw WooCommerceAPIError.invalidURL }
         
         guard (200...299).contains(httpResponse.statusCode) else {
-            let (message, code) = WooCommerceAPIManager.shared.parseWooCommerceError(from: data)
+            let (message, code) = WooCommerceAPIManager.parseWooCommerceError(from: data)
             throw WooCommerceAPIError.serverError(statusCode: httpResponse.statusCode, message: message, errorCode: code)
         }
         

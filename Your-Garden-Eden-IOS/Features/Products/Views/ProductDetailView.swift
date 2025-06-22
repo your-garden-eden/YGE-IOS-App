@@ -1,6 +1,6 @@
 // DATEI: ProductDetailView.swift
 // PFAD: Features/Products/Views/Detail/ProductDetailView.swift
-// VERSION: OPERATION "DOPPEL-AGENT" - Phase 3 (VOLLSTÄNDIG)
+// VERSION: KLARHEIT 1.1 (VOLLSTÄNDIG & KORRIGIERT)
 
 import SwiftUI
 
@@ -13,6 +13,12 @@ struct ProductDetailView: View {
     
     @State private var selectedQuantity: Int = 1
     @State private var showAddedToCartConfirmation = false
+
+    // Eine berechnete Eigenschaft für Klarheit und zur Vermeidung von Wiederholungen.
+    private var isProductPurchasable: Bool {
+        // KORREKTUR: Die Logik wurde angepasst, um nil als 'nicht kaufbar' zu behandeln.
+        product.purchasable == true
+    }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -28,9 +34,7 @@ struct ProductDetailView: View {
                     Divider()
                     descriptionSection
                     
-                    // --- BEGINN MODIFIKATION ---
                     recommendedSection
-                    // --- ENDE MODIFIKATION ---
                     
                     Spacer(minLength: 150)
                 }
@@ -59,33 +63,42 @@ struct ProductDetailView: View {
     
     @ViewBuilder
     private var productGallery: some View {
-        if product.safeImages.count > 1 {
-            TabView {
-                ForEach(product.safeImages) { image in
-                    AsyncImage(url: image.src.asURL()) { phase in
-                        switch phase {
-                        case .success(let img):
-                            img.resizable().scaledToFit()
-                        case .failure:
-                            Image(systemName: "photo.fill").font(.largeTitle).foregroundColor(AppTheme.Colors.textMuted)
-                        default:
-                            ShimmerView()
+        ZStack {
+            if product.safeImages.count > 1 {
+                TabView {
+                    ForEach(product.safeImages) { image in
+                        AsyncImage(url: image.src.asURL()) { phase in
+                            switch phase {
+                            case .success(let img):
+                                img.resizable().scaledToFit()
+                            case .failure:
+                                Image(systemName: "photo.fill").font(.largeTitle).foregroundColor(AppTheme.Colors.textMuted)
+                            default:
+                                ShimmerView()
+                            }
                         }
                     }
                 }
-            }
-            .tabViewStyle(.page(indexDisplayMode: .automatic))
-            .frame(height: 300)
-        } else {
-            AsyncImage(url: product.safeImages.first?.src.asURL()) { phase in
-                switch phase {
-                case .success(let image): image.resizable().scaledToFit()
-                case .failure: Image(systemName: "photo.fill").font(.largeTitle).foregroundColor(AppTheme.Colors.textMuted)
-                default: ShimmerView()
+                .tabViewStyle(.page(indexDisplayMode: .automatic))
+                .frame(height: 300)
+            } else {
+                AsyncImage(url: product.safeImages.first?.src.asURL()) { phase in
+                    switch phase {
+                    case .success(let image): image.resizable().scaledToFit()
+                    case .failure: Image(systemName: "photo.fill").font(.largeTitle).foregroundColor(AppTheme.Colors.textMuted)
+                    default: ShimmerView()
+                    }
                 }
+                .frame(maxWidth: .infinity, minHeight: 300)
+                .background(AppTheme.Colors.backgroundLightGray)
             }
-            .frame(maxWidth: .infinity, minHeight: 300)
-            .background(AppTheme.Colors.backgroundLightGray)
+            
+            // --- BEGINN KORREKTUR ---
+            // Nutzt nun die gehärtete 'isProductPurchasable'-Eigenschaft.
+            if !isProductPurchasable {
+                notAvailableOverlay
+            }
+            // --- ENDE KORREKTUR ---
         }
     }
     
@@ -137,7 +150,6 @@ struct ProductDetailView: View {
         }
     }
     
-    // --- BEGINN MODIFIKATION ---
     @ViewBuilder
     private var recommendedSection: some View {
         if viewModel.isLoadingRecommendations {
@@ -154,7 +166,6 @@ struct ProductDetailView: View {
             }
         }
     }
-    // --- ENDE MODIFIKATION ---
     
     @ViewBuilder
     private var bottomActionSection: some View {
@@ -174,6 +185,7 @@ struct ProductDetailView: View {
         if product.sold_individually == false {
             QuantitySelectorView(quantity: $selectedQuantity)
                 .padding(.horizontal)
+                .disabled(!isProductPurchasable)
         }
         
         Button(action: {
@@ -183,20 +195,21 @@ struct ProductDetailView: View {
         }) {
             HStack {
                 if cartManager.state.isLoading { ProgressView().tint(.white) }
-                else if !product.isPurchasable || product.stock_status != .instock { Text("Nicht verfügbar") }
+                else if !isProductPurchasable || product.stock_status != .instock { Text("Nicht verfügbar") }
                 else { Text("In den Warenkorb") }
             }
         }
         .buttonStyle(AppTheme.PrimaryButtonStyle())
-        .disabled(cartManager.state.isLoading || !product.isPurchasable || product.stock_status != .instock)
+        .disabled(cartManager.state.isLoading || !isProductPurchasable || product.stock_status != .instock)
     }
 
     @ViewBuilder
     private var variableProductActions: some View {
-        let isNavigationDisabled = viewModel.isLoadingVariations || viewModel.variationError != nil || viewModel.variations.isEmpty
+        let isNavigationDisabled = !isProductPurchasable || viewModel.isLoadingVariations || viewModel.variationError != nil || viewModel.variations.isEmpty
         
         NavigationLink(value: ProductVariationData(product: product, variations: viewModel.variations)) {
             if viewModel.isLoadingVariations { ProgressView().tint(.white) }
+            else if !isProductPurchasable { Text("Nicht verfügbar") }
             else { Text("Optionen auswählen") }
         }
         .buttonStyle(AppTheme.PrimaryButtonStyle())
@@ -218,5 +231,20 @@ struct ProductDetailView: View {
         .frame(maxHeight: .infinity, alignment: .top).padding(.top)
         .animation(.default, value: showAddedToCartConfirmation)
         .animation(.default, value: cartManager.state.errorMessage)
+    }
+
+    @ViewBuilder
+    private var notAvailableOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.6)
+
+            Text("Nicht verfügbar")
+                .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.h5, weight: .bold))
+                .foregroundColor(.white)
+                .padding(.horizontal, AppTheme.Layout.Spacing.medium)
+                .padding(.vertical, AppTheme.Layout.Spacing.small)
+                .background(Color.black.opacity(0.4))
+                .cornerRadius(AppTheme.Layout.BorderRadius.large)
+        }
     }
 }

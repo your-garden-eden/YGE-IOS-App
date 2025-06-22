@@ -1,21 +1,18 @@
 // DATEI: ContentView.swift
 // PFAD: App/ContentView.swift
-// VERSION: ADLERAUGE 1.0
-// STATUS: MODIFIZIERT
+// VERSION: EINHEITSKOMMANDO 1.0 (BEREINIGT)
 
 import SwiftUI
 
 struct ContentView: View {
     @StateObject private var authManager = AuthManager.shared
     @StateObject private var cartManager = CartAPIManager.shared
-    @StateObject private var wishlistState = WishlistState()
+    @StateObject private var wishlistState = WishlistState.shared
     @StateObject private var homeViewModel = HomeViewModel()
 
     var body: some View {
-        // MODIFIZIERT: Nutzt das neue AuthState-Enum für eine robuste Zustandsanzeige.
         switch authManager.authState {
         case .initializing:
-            // Zeigt einen Ladebildschirm, während der erste Token geladen wird.
             VStack {
                 ProgressView()
                 Text("Verbinde mit dem Shop...")
@@ -23,22 +20,24 @@ struct ContentView: View {
                     .padding()
             }
         case .guest, .authenticated:
-            // Zeigt die Haupt-App erst an, wenn ein stabiler Zustand erreicht ist.
             MainTabView()
                 .environmentObject(authManager)
                 .environmentObject(cartManager)
                 .environmentObject(wishlistState)
                 .environmentObject(homeViewModel)
                 .task {
-                    // Diese Aufgaben werden nun garantiert in einem sicheren Kontext ausgeführt.
+                    // --- BEGINN MODIFIKATION ---
+                    // Der redundante Aufruf zum Laden des Warenkorbs wird entfernt.
+                    // Diese Verantwortung liegt nun ausschließlich beim reaktiven
+                    // Beobachter im CartAPIManager, der auf Auth-Änderungen reagiert.
                     await homeViewModel.loadInitialData()
-                    await cartManager.getCart(showLoadingIndicator: false)
+                    // await cartManager.getCart(showLoadingIndicator: false) <- ENTFERNT
+                    // --- ENDE MODIFIKATION ---
                 }
         }
     }
 }
 
-// [Rest der Datei (MainTabView, etc.) bleibt unverändert]
 struct MainTabView: View {
     @EnvironmentObject private var cartManager: CartAPIManager
     @EnvironmentObject private var wishlistState: WishlistState

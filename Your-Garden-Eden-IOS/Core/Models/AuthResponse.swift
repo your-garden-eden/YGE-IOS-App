@@ -42,3 +42,6 @@ struct ErrorData: Decodable {
     let message: String
     let errorCode: Int
 }
+struct GuestTokenResponse: Decodable {
+    let token: String
+}

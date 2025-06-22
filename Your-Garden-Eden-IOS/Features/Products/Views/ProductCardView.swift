@@ -1,6 +1,6 @@
 // DATEI: ProductCardView.swift
 // PFAD: Features/Products/Views/Components/ProductCardView.swift
-// VERSION: FINAL - Alle Operationen integriert.
+// VERSION: KLARHEIT 1.1 (VOLLSTÄNDIG & KORRIGIERT)
 
 import SwiftUI
 
@@ -17,6 +17,14 @@ struct ProductCardView: View {
                     .frame(height: 150)
                     .frame(maxWidth: .infinity)
                     .clipped()
+                
+                // --- BEGINN KORREKTUR ---
+                // Die Bedingung wird gehärtet, um den optionalen Typ 'Bool?' korrekt zu behandeln.
+                // Ein Produkt gilt als nicht verfügbar, wenn 'purchasable' nicht explizit 'true' ist.
+                if product.purchasable != true {
+                    notAvailableOverlay
+                }
+                // --- ENDE KORREKTUR ---
                 
                 wishlistButton
                     .padding(AppTheme.Layout.Spacing.small)
@@ -84,6 +92,21 @@ struct ProductCardView: View {
                     .strikethrough()
                     .foregroundColor(AppTheme.Colors.textMuted)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var notAvailableOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.5)
+
+            Text("Nicht verfügbar")
+                .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.caption, weight: .bold))
+                .foregroundColor(.white)
+                .padding(.horizontal, AppTheme.Layout.Spacing.medium)
+                .padding(.vertical, AppTheme.Layout.Spacing.small)
+                .background(Color.black.opacity(0.4))
+                .cornerRadius(AppTheme.Layout.BorderRadius.large)
         }
     }
 }

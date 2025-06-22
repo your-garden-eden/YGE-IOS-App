@@ -1,19 +1,14 @@
-//
-//  YGEWishlist.swift
-//  Your-Garden-Eden-IOS
-//
-//  Created by Josef Ewert on 18.06.25.
-//
-
-
 // DATEI: WishlistModels.swift
 // PFAD: Models/WishlistModels.swift
-// ZWECK: Definiert die Datenstrukturen für die benutzerdefinierte Wunschliste (Wishlist).
+// VERSION: STAMMDATEN 1.0 - WISHLIST-FIX
+// STATUS: MODIFIZIERT & GEHÄRTET
 
 import Foundation
 
 public struct YGEWishlist: Codable, Hashable {
-    public let items: [YGEWishlistItem]
+    // KORREKTUR: Die 'items'-Eigenschaft ist nun optional, um leere Server-Antworten
+    // ohne einen 'DecodingError' verarbeiten zu können.
+    public let items: [YGEWishlistItem]?
 }
 
 public struct YGEWishlistItem: Codable, Hashable, Identifiable {
@@ -22,7 +17,11 @@ public struct YGEWishlistItem: Codable, Hashable, Identifiable {
     public let variationId: Int?
     public let addedAt: String
     
+    // KORREKTUR: Explizite Definition der CodingKeys, um eine robuste Dekodierung
+    // von der Snake-Case-Notation des Servers sicherzustellen.
     enum CodingKeys: String, CodingKey {
-        case productId, variationId, addedAt
+        case productId = "product_id"
+        case variationId = "variation_id"
+        case addedAt = "added_at"
     }
 }

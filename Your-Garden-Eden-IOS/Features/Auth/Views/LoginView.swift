@@ -1,7 +1,7 @@
 // DATEI: LoginView.swift
 // PFAD: Features/Auth/Views/LoginView.swift
-// VERSION: ADLERAUGE 1.0 (REVIDIERT)
-// STATUS: ZURÜCKGESETZT
+// VERSION: FEINSCHLIFF 1.1 (KOMPATIBILITÄTS-KORREKTUR)
+// STATUS: REVIDIERT
 
 import SwiftUI
 
@@ -12,32 +12,40 @@ struct LoginView: View {
     @State private var password = ""
 
     var body: some View {
-        VStack(spacing: AppTheme.Layout.Spacing.large) {
-            Text("Willkommen zurück!")
-                .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.h2, weight: .bold))
-                .foregroundColor(AppTheme.Colors.textHeadings)
+        // Die ScrollView bleibt erhalten, sie ist die korrekte Lösung für das
+        // ursprüngliche Problem der Auto-Layout-Warnungen.
+        ScrollView {
+            VStack(spacing: AppTheme.Layout.Spacing.large) {
+                Text("Willkommen zurück!")
+                    .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.h2, weight: .bold))
+                    .foregroundColor(AppTheme.Colors.textHeadings)
+                    .padding(.top, AppTheme.Layout.Spacing.large)
 
-            inputFields
+                inputFields
 
-            if let error = authManager.authError {
-                Text(error)
-                    .foregroundColor(AppTheme.Colors.error)
-                    .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.caption))
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
+                if let error = authManager.authError {
+                    Text(error)
+                        .foregroundColor(AppTheme.Colors.error)
+                        .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.caption))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+
+                Button(action: performSignIn) {
+                    if authManager.isLoading { ProgressView().tint(AppTheme.Colors.textOnPrimary) }
+                    else { Text("Anmelden") }
+                }
+                .buttonStyle(AppTheme.PrimaryButtonStyle())
+                .disabled(authManager.isLoading || username.isEmpty || password.isEmpty)
+
+                signUpPrompt
             }
-
-            Button(action: performSignIn) {
-                if authManager.isLoading { ProgressView().tint(AppTheme.Colors.textOnPrimary) }
-                else { Text("Anmelden") }
-            }
-            .buttonStyle(AppTheme.PrimaryButtonStyle())
-            .disabled(authManager.isLoading || username.isEmpty || password.isEmpty)
-
-            signUpPrompt
-            Spacer()
+            .padding()
         }
-        .padding()
+        // --- BEGINN KORREKTUR ---
+        // Der inkompatible Modifikator .keyboardDismissMode wurde entfernt,
+        // um die Kompilierung auf älteren iOS-Versionen sicherzustellen.
+        // --- ENDE KORREKTUR ---
         .background(AppTheme.Colors.backgroundPage.ignoresSafeArea())
         .navigationTitle("Anmelden")
         .navigationBarTitleDisplayMode(.inline)
@@ -95,8 +103,4 @@ struct LoginView: View {
             } catch {}
         }
     }
-    
-    // --- BEGINN RÜCKBAU ---
-    // Die Funktion performGoogleSignIn wurde vollständig entfernt.
-    // --- ENDE RÜCKBAU ---
 }

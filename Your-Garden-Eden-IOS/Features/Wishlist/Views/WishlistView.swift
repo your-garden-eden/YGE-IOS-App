@@ -1,6 +1,6 @@
 // DATEI: WishlistView.swift
 // PFAD: Features/Wishlist/Views/WishlistView.swift
-// VERSION: FINAL - Alle Operationen integriert.
+// VERSION: KEHRTWENDE 1.0 (ANGEPASST)
 
 import SwiftUI
 
@@ -81,22 +81,21 @@ struct WishlistView: View {
         List {
             ForEach(products) { product in
                 NavigationLink(value: product) {
-                    WishlistRowView(
-                        product: product,
-                        onDelete: {
-                            wishlistState.toggleWishlistStatus(for: product)
-                        }
-                    )
-                    .padding()
-                    .background(AppTheme.Colors.backgroundComponent)
-                    .cornerRadius(AppTheme.Layout.BorderRadius.large)
-                    .appShadow(AppTheme.Shadows.small)
+                    // --- BEGINN MODIFIKATION ---
+                    // Der Aufruf der WishlistRowView erfolgt nun ohne den onDelete-Parameter.
+                    WishlistRowView(product: product)
+                    // --- ENDE MODIFIKATION ---
+                        .padding()
+                        .background(AppTheme.Colors.backgroundComponent)
+                        .cornerRadius(AppTheme.Layout.BorderRadius.large)
+                        .appShadow(AppTheme.Shadows.small)
                 }
                 .buttonStyle(.plain)
                 .listRowBackground(AppTheme.Colors.backgroundPage)
                 .listRowSeparator(.hidden)
                 .listRowInsets(EdgeInsets(top: AppTheme.Layout.Spacing.small, leading: 0, bottom: AppTheme.Layout.Spacing.small, trailing: 0))
             }
+            .onDelete(perform: deleteItemsFromSwipe)
             
             Section {
                 Button(action: {
@@ -120,6 +119,24 @@ struct WishlistView: View {
         .padding(.horizontal, AppTheme.Layout.Spacing.medium)
         .id(wishlistState.sortOption)
     }
+    
+    // --- BEGINN MODIFIKATION ---
+    // Die 'delete(product:)' Funktion ist nun redundant und wird entfernt.
+    /*
+    private func delete(product: WooCommerceProduct) {
+        wishlistState.toggleWishlistStatus(for: product)
+    }
+    */
+    
+    /// Funktion, die durch die Wisch-Geste aufgerufen wird.
+    private func deleteItemsFromSwipe(at offsets: IndexSet) {
+        let productsToRemove = offsets.map { wishlistState.wishlistProducts[$0] }
+        for product in productsToRemove {
+            // Die Logik wird direkt hier aufgerufen.
+            wishlistState.toggleWishlistStatus(for: product)
+        }
+    }
+    // --- ENDE MODIFIKATION ---
 
     private var loadingView: some View {
         VStack(spacing: AppTheme.Layout.Spacing.medium) {
