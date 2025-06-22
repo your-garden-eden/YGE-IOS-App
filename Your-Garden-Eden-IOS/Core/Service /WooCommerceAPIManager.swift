@@ -1,17 +1,22 @@
 // DATEI: WooCommerceAPIManager.swift
 // PFAD: Services/WooCommerceAPIManager.swift
-// VERSION: DIAGNOSEMODUS 1.0 - OPERATION "GEISTERSIGNAL"
+// VERSION: IDENTITÄT 2.3 - FINAL KORRIGIERT
+// STATUS: GENERALÜBERHOLT & CONCURRENCY-SAFE
 
 import Foundation
 
+@MainActor
 class WooCommerceAPIManager {
     static let shared = WooCommerceAPIManager()
-
-    private let consumerKey = "ck_764caa58c2fd1cc7a0ad705630b3f8f2ea397dad"
-    private let consumerSecret = "cs_5ca3357f994013428fb5028baa3bfc8f33e4f969"
+    
+    private let authManager: AuthManager
     private let session: URLSession
 
+    // KORREKTUR: Der Initialisierer nimmt keine Parameter mehr an.
+    // Die Abhängigkeit wird sicher innerhalb des @MainActor-isolierten
+    // Initialisierers aufgelöst.
     private init() {
+        self.authManager = AuthManager.shared // Sicherer Zugriff
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
         self.session = URLSession(configuration: config)
@@ -69,53 +74,55 @@ class WooCommerceAPIManager {
     }
 
     private func performCoreRequest<T: Decodable>(path: String, queryItems: [URLQueryItem], decodingType: T.Type) async throws -> (T, HTTPURLResponse) {
-        var components = URLComponents(string: AppConfig.WooCommerce.CoreAPI.base + path)!
-        components.queryItems = addAuthQueryItems(to: queryItems)
+        var components = URLComponents(string: AppConfig.API.WCProxy.base)!
+        components.path += "/\(path)"
+        components.queryItems = queryItems
         return try await performRequest(url: components.url, httpMethod: "GET", decodingType: decodingType)
     }
 
     private func performRequest<T: Decodable>(url: URL?, httpMethod: String, body: Data? = nil, headers: [String: String] = [:], decodingType: T.Type) async throws -> (T, HTTPURLResponse) {
         guard let url = url else { throw WooCommerceAPIError.invalidURL }
+        
         var request = URLRequest(url: url)
         request.httpMethod = httpMethod
         request.httpBody = body
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         headers.forEach { request.setValue($1, forHTTPHeaderField: $0) }
+        
+        if let token = authManager.getAuthToken() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        } else {
+            LogSentinel.shared.warning("API-Anfrage wird ohne Auth-Token ausgeführt: \(url.path)")
+        }
         
         do {
             let (data, response) = try await session.data(for: request)
 
-            // --- BEGINN DIAGNOSE-SONDE FÜR OPERATION "GEISTERSIGNAL" ---
-            // Diese Sonde gibt den rohen JSON-String aus, bevor er dekodiert wird.
-            // Dies ist entscheidend, um alle von der API gesendeten Felder zu identifizieren.
-            if let jsonString = String(data: data, encoding: .utf8) {
-                print("\n\n--- 📡 OPERATION 'GEISTERSIGNAL': ROHDATEN-ABFANGPROTOKOLL FÜR \(url.path) 📡 ---")
-                print(jsonString)
-                print("--- 📡 ENDE DES ABFANGPROTOKOLLS 📡 ---\n\n")
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw WooCommerceAPIError.underlying(NSError(domain: "network", code: 0, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server."]))
             }
-            // --- ENDE DIAGNOSE-SONDE ---
-
-            guard let httpResponse = response as? HTTPURLResponse else { throw WooCommerceAPIError.underlying(NSError(domain: "network", code: 0, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server."])) }
+            
             guard (200...299).contains(httpResponse.statusCode) else {
                 let (message, code) = parseWooCommerceError(from: data)
                 throw WooCommerceAPIError.serverError(statusCode: httpResponse.statusCode, message: message, errorCode: code)
             }
-            if data.isEmpty && T.self != String.self { throw WooCommerceAPIError.noData }
+            
+            if data.isEmpty && T.self != String.self {
+                throw WooCommerceAPIError.noData
+            }
+            
             let decodedObject = try JSONDecoder().decode(T.self, from: data)
             return (decodedObject, httpResponse)
+            
         } catch let error as DecodingError {
             LogSentinel.shared.error("DECODING ERROR for URL: \(url.absoluteString)\nDetails: \(error)")
             throw WooCommerceAPIError.decodingError(error)
-        } catch { throw WooCommerceAPIError.underlying(error) }
+        } catch {
+            throw WooCommerceAPIError.underlying(error)
+        }
     }
     
-    private func addAuthQueryItems(to items: [URLQueryItem]) -> [URLQueryItem] {
-        var newItems = items
-        newItems.append(URLQueryItem(name: "consumer_key", value: self.consumerKey))
-        newItems.append(URLQueryItem(name: "consumer_secret", value: self.consumerSecret))
-        return newItems
-    }
-    
-    private func parseWooCommerceError(from data: Data) -> (message: String?, code: String?) {
+    func parseWooCommerceError(from data: Data) -> (message: String?, code: String?) {
         let error = try? JSONDecoder().decode(WooCommerceErrorResponse.self, from: data)
         return (error?.message, error?.code)
     }

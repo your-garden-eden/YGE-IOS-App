@@ -1,6 +1,7 @@
 // DATEI: WishlistState.swift
 // PFAD: Services/App/WishlistState.swift
-// VERSION: FINAL - Alle Operationen integriert.
+// VERSION: WUNSCHERFÜLLUNG 1.0
+// STATUS: KORRIGIERT & STABILISIERT
 
 import Foundation
 import Combine
@@ -25,14 +26,11 @@ final class WishlistState: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var fetchProductsTask: Task<Void, Never>?
     private let guestWishlistKey = "guestWishlistProductIDs_v2"
-    private let wishlistAPI = AppConfig.YGE.self
+    private let wishlistAPI = AppConfig.API.YGE.self
 
     init() {
         logger.info("WishlistState initialisiert.")
         observeAuthenticationChanges()
-        Task {
-            await handleAuthChange(isLoggedIn: authManager.isLoggedIn)
-        }
     }
 
     func isProductInWishlist(productId: Int) -> Bool {
@@ -68,7 +66,8 @@ final class WishlistState: ObservableObject {
             if authManager.isLoggedIn {
                 let variationId = (product.parent_id ?? 0) > 0 ? product.id : nil
                 do {
-                    _ = try await addToWishlistAPI(productId: idForWishlist, variationId: variationId)
+                    // MODIFIZIERT: Die Funktion gibt nun nichts mehr zurück.
+                    try await addToWishlistAPI(productId: idForWishlist, variationId: variationId)
                     await MainActor.run { logger.info("Produkt \(idForWishlist) erfolgreich zur Server-Wunschliste hinzugefügt.") }
                 } catch {
                     await MainActor.run {
@@ -90,7 +89,8 @@ final class WishlistState: ObservableObject {
         Task(priority: .background) {
             if authManager.isLoggedIn {
                 do {
-                    _ = try await removeFromWishlistAPI(productId: productId, variationId: nil)
+                    // MODIFIZIERT: Die Funktion gibt nun nichts mehr zurück.
+                    try await removeFromWishlistAPI(productId: productId, variationId: nil)
                     await MainActor.run { logger.info("Produkt \(productId) erfolgreich von Server-Wunschliste entfernt.") }
                 } catch {
                     await MainActor.run {
@@ -150,20 +150,27 @@ final class WishlistState: ObservableObject {
     }
     
     private func observeAuthenticationChanges() {
-        authManager.$isLoggedIn.dropFirst().receive(on: DispatchQueue.main).sink { [weak self] isLoggedIn in
-            self?.logger.info("Authentifizierungsstatus hat sich geändert auf: \(isLoggedIn). Behandle Wunschliste...")
-            Task {
-                await self?.handleAuthChange(isLoggedIn: isLoggedIn)
-            }
-        }.store(in: &cancellables)
+        authManager.$authState
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] state in
+                self?.logger.info("WishlistState: Auth-Zustand hat sich geändert auf: \(state).")
+                Task {
+                    await self?.handleAuthChange(newState: state)
+                }
+            }.store(in: &cancellables)
     }
     
-    private func handleAuthChange(isLoggedIn: Bool) async {
-        fetchProductsTask?.cancel()
-        self.wishlistProductIds.removeAll()
-        self._wishlistProducts.removeAll()
+    private func handleAuthChange(newState: AuthState) async {
+        guard newState != .initializing else {
+            logger.info("WishlistState: Auth-Zustand ist .initializing, pausiere alle Aktionen.")
+            fetchProductsTask?.cancel()
+            self.wishlistProductIds.removeAll()
+            self._wishlistProducts.removeAll()
+            return
+        }
         
-        if isLoggedIn {
+        if newState == .authenticated {
             logger.info("Benutzer ist eingeloggt. Migriere Gast-Wunschliste (falls vorhanden) und lade vom Server.")
             let guestIDs = UserDefaults.standard.array(forKey: guestWishlistKey) as? [Int] ?? []
             UserDefaults.standard.removeObject(forKey: guestWishlistKey)
@@ -175,29 +182,45 @@ final class WishlistState: ObservableObject {
                 logger.info("Füge \(missingIDs.count) Produkte aus der Gast-Wunschliste zur Server-Wunschliste hinzu.")
                 for productId in missingIDs {
                     Task(priority: .background) {
-                        _ = try? await self.addToWishlistAPI(productId: productId, variationId: nil)
+                        try? await self.addToWishlistAPI(productId: productId, variationId: nil)
                     }
                 }
                 self.wishlistProductIds.formUnion(missingIDs)
                 await fetchFullProducts()
             }
-        } else {
-            logger.info("Benutzer ist ausgeloggt. Lade Gast-Wunschliste aus UserDefaults.")
+        } else { // newState == .guest
+            logger.info("Benutzer ist Gast. Lade Gast-Wunschliste aus UserDefaults.")
             loadGuestWishlist()
         }
     }
     
-    private func addToWishlistAPI(productId: Int, variationId: Int?) async throws -> YGEWishlist {
+    // --- BEGINN MODIFIKATION ---
+    
+    /// Fügt ein Produkt zur Server-Wunschliste hinzu. Wirft nur im Fehlerfall.
+    private func addToWishlistAPI(productId: Int, variationId: Int?) async throws {
         let body: [String: Any?] = ["product_id": productId, "variation_id": variationId]
-        return try await performWishlistRequest(endpoint: wishlistAPI.addToWishlist, method: "POST", body: body, decodingType: YGEWishlist.self)
+        try await performWishlistRequest(endpoint: wishlistAPI.addToWishlist, method: "POST", body: body)
     }
     
-    private func removeFromWishlistAPI(productId: Int, variationId: Int?) async throws -> YGEWishlist {
+    /// Entfernt ein Produkt von der Server-Wunschliste. Wirft nur im Fehlerfall.
+    private func removeFromWishlistAPI(productId: Int, variationId: Int?) async throws {
         let body: [String: Any?] = ["product_id": productId, "variation_id": variationId]
-        return try await performWishlistRequest(endpoint: wishlistAPI.removeFromWishlist, method: "POST", body: body, decodingType: YGEWishlist.self)
+        try await performWishlistRequest(endpoint: wishlistAPI.removeFromWishlist, method: "POST", body: body)
     }
     
+    /// Führt eine Anfrage aus und dekodiert die Antwort in den erwarteten Typ.
     private func performWishlistRequest<T: Decodable>(endpoint: String, method: String, body: [String: Any?]? = nil, decodingType: T.Type) async throws -> T {
+        let (data, _) = try await performBaseWishlistRequest(endpoint: endpoint, method: method, body: body)
+        return try JSONDecoder().decode(T.self, from: data)
+    }
+    
+    /// Überladene Version für Anfragen, die keine Antwort-Daten benötigen (nur Erfolgs-Status).
+    private func performWishlistRequest(endpoint: String, method: String, body: [String: Any?]? = nil) async throws {
+        _ = try await performBaseWishlistRequest(endpoint: endpoint, method: method, body: body)
+    }
+    
+    /// Die Basis-Anfrage, die die Netzwerkkommunikation durchführt und die Rohdaten zurückgibt.
+    private func performBaseWishlistRequest(endpoint: String, method: String, body: [String: Any?]? = nil) async throws -> (Data, HTTPURLResponse) {
         guard let url = URL(string: endpoint) else { throw WooCommerceAPIError.invalidURL }
         var request = URLRequest(url: url)
         request.httpMethod = method
@@ -214,8 +237,10 @@ final class WishlistState: ObservableObject {
             logger.error("[API ERROR] Wishlist-Request fehlgeschlagen. Status: \((response as? HTTPURLResponse)?.statusCode ?? 500), Data: \(errorData)")
             throw WooCommerceAPIError.serverError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 500, message: "Wishlist API Error", errorCode: nil)
         }
-        return try JSONDecoder().decode(T.self, from: data)
+        return (data, httpResponse)
     }
+
+    // --- ENDE MODIFIKATION ---
     
     private func fetchFullProducts() async {
         fetchProductsTask?.cancel()

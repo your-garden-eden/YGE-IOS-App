@@ -1,15 +1,7 @@
-//
-//  AuthContainerView.swift
-//  Your-Garden-Eden-IOS
-//
-//  Created by Josef Ewert on 18.06.25.
-//
-
-
 // DATEI: AuthContainerView.swift
 // PFAD: Features/Auth/Views/AuthContainerView.swift
-// ZWECK: Dient als zentraler Einstiegspunkt und Navigations-Host für den
-//        gesamten Authentifizierungs-Flow (Login, Registrierung, etc.).
+// VERSION: ADLERAUGE 1.1
+// STATUS: KORRIGIERT & STABILISIERT
 
 import SwiftUI
 
@@ -24,11 +16,15 @@ struct AuthContainerView: View {
             LoginView()
         }
         .environmentObject(authManager)
-        .onReceive(authManager.$isLoggedIn) { isLoggedIn in
-            // Wenn der Benutzer sich erfolgreich einloggt, wird das gesamte Sheet geschlossen.
-            if isLoggedIn {
+        // --- BEGINN MODIFIKATION ---
+        // KORREKTUR: Beobachtet nun den korrekten Publisher `$authState`.
+        .onReceive(authManager.$authState) { newState in
+            // Wenn der Benutzer sich erfolgreich einloggt (Zustand wechselt zu .authenticated),
+            // wird das gesamte Sheet geschlossen.
+            if newState == .authenticated {
                 onDismiss()
             }
         }
+        // --- ENDE MODIFIKATION ---
     }
 }

@@ -1,24 +1,15 @@
-//
-//  LoginView.swift
-//  Your-Garden-Eden-IOS
-//
-//  Created by Josef Ewert on 18.06.25.
-//
-
-
 // DATEI: LoginView.swift
 // PFAD: Features/Auth/Views/LoginView.swift
-// ZWECK: Stellt die Benutzeroberfläche zur Eingabe von Anmeldedaten bereit.
-//        Diese View ist eine reine Komponente ohne eigene Navigationslogik.
+// VERSION: ADLERAUGE 1.0 (REVIDIERT)
+// STATUS: ZURÜCKGESETZT
 
 import SwiftUI
 
 struct LoginView: View {
     @EnvironmentObject var authManager: AuthManager
 
-    @State private var email = ""
+    @State private var username = ""
     @State private var password = ""
-    @State private var apiError: String?
 
     var body: some View {
         VStack(spacing: AppTheme.Layout.Spacing.large) {
@@ -28,7 +19,7 @@ struct LoginView: View {
 
             inputFields
 
-            if let error = apiError {
+            if let error = authManager.authError {
                 Text(error)
                     .foregroundColor(AppTheme.Colors.error)
                     .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.caption))
@@ -41,31 +32,45 @@ struct LoginView: View {
                 else { Text("Anmelden") }
             }
             .buttonStyle(AppTheme.PrimaryButtonStyle())
-            .disabled(authManager.isLoading)
+            .disabled(authManager.isLoading || username.isEmpty || password.isEmpty)
 
             signUpPrompt
-
             Spacer()
         }
         .padding()
         .background(AppTheme.Colors.backgroundPage.ignoresSafeArea())
         .navigationTitle("Anmelden")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            authManager.authError = nil
+        }
     }
     
     private var inputFields: some View {
         VStack(spacing: 0) {
-            TextField("E-Mail", text: $email)
+            TextField("Benutzername", text: $username)
                 .padding()
-                .keyboardType(.emailAddress)
+                .keyboardType(.default)
                 .autocapitalization(.none)
-                .textContentType(.emailAddress)
+                .textContentType(.username)
             
             Divider().background(AppTheme.Colors.borderLight)
             
-            SecureField("Passwort", text: $password)
-                .padding()
-                .textContentType(.password)
+            VStack(alignment: .trailing, spacing: AppTheme.Layout.Spacing.small) {
+                SecureField("Passwort", text: $password)
+                    .padding([.leading, .trailing, .top])
+                    .textContentType(.password)
+                
+                HStack {
+                    Spacer()
+                    NavigationLink("Passwort vergessen?") { ForgotPasswordView() }
+                    Text("|").foregroundColor(AppTheme.Colors.borderLight)
+                    NavigationLink("Benutzername vergessen?") { RequestUsernameView() }
+                }
+                .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.caption))
+                .padding(.horizontal)
+                .padding(.bottom, AppTheme.Layout.Spacing.small)
+            }
         }
         .background(AppTheme.Colors.backgroundComponent)
         .cornerRadius(AppTheme.Layout.BorderRadius.large)
@@ -75,33 +80,23 @@ struct LoginView: View {
     private var signUpPrompt: some View {
         HStack {
             Text("Noch kein Konto?")
-                .foregroundColor(AppTheme.Colors.textMuted)
-            
-            // Nutzt NavigationLink, um zur Registrierungs-View zu wechseln.
-            NavigationLink("Registrieren") {
-                SignUpView()
-            }
-            .tint(AppTheme.Colors.primary)
+            NavigationLink("Registrieren") { SignUpView() }
+                .tint(AppTheme.Colors.primary)
         }
         .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body))
         .padding(.top)
     }
     
     private func performSignIn() {
-        apiError = nil
-        let email = self.email.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !email.isEmpty, !password.isEmpty else {
-            apiError = "Bitte E-Mail und Passwort eingeben."
-            return
-        }
-        
+        let username = self.username.trimmingCharacters(in: .whitespacesAndNewlines)
         Task {
             do {
-                try await authManager.signInWithEmail(email: email, password: password)
-                // Der onDismiss-Aufruf wird vom Container gehandhabt.
-            } catch {
-                self.apiError = error.localizedDescription
-            }
+                _ = try await authManager.login(usernameOrEmail: username, password: password)
+            } catch {}
         }
     }
+    
+    // --- BEGINN RÜCKBAU ---
+    // Die Funktion performGoogleSignIn wurde vollständig entfernt.
+    // --- ENDE RÜCKBAU ---
 }

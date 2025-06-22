@@ -1,10 +1,12 @@
 // DATEI: CartAPIManager.swift
 // PFAD: Services/App/CartAPIManager.swift
-// VERSION: GUTSCHEIN 1.0
-// ÄNDERUNG: Funktionen applyCoupon und removeCoupon implementiert; State für Gutscheine erweitert.
+// VERSION: IDENTITÄT - FRONTBEGRADIGUNG 1.1
+// STATUS: KORRIGIERT & FINAL BEREINIGT
 
 import Foundation
-
+import StoreKit
+import AppIntents
+import CoreTransferable
 @MainActor
 final class CartAPIManager: ObservableObject {
     struct State {
@@ -23,7 +25,7 @@ final class CartAPIManager: ObservableObject {
     @Published private(set) var state = State()
 
     static let shared = CartAPIManager()
-    private let cartAPI = AppConfig.WooCommerce.StoreAPI.Cart.self
+    private let cartAPI = AppConfig.API.WCStore.self
     private let wcAPI = WooCommerceAPIManager.shared
     private let logger = LogSentinel.shared
 
@@ -32,7 +34,7 @@ final class CartAPIManager: ObservableObject {
     func getCart(showLoadingIndicator: Bool = false) async {
         logger.info("Warenkorb wird vom Server abgerufen...")
         await performCartAction(isLoading: showLoadingIndicator) {
-            let cart = try await self.performRequest(endpoint: self.cartAPI.get, httpMethod: "GET")
+            let cart = try await self.performRequest(endpoint: self.cartAPI.cart, httpMethod: "GET")
             if let cart = cart, !(cart.items?.isEmpty ?? true) {
                 await self.fetchProductDetailsForCartItems(items: cart.safeItems)
             }
@@ -50,7 +52,7 @@ final class CartAPIManager: ObservableObject {
         }
         
         await performCartAction(isLoading: true) {
-            let cart = try await self.performRequest(endpoint: self.cartAPI.addItem, httpMethod: "POST", body: ["id": id, "quantity": quantity])
+            let cart = try await self.performRequest(endpoint: self.cartAPI.cartAddItem, httpMethod: "POST", body: ["id": id, "quantity": quantity])
             if let cart = cart, !(cart.items?.isEmpty ?? true) {
                 await self.fetchProductDetailsForCartItems(items: cart.safeItems)
             }
@@ -61,7 +63,7 @@ final class CartAPIManager: ObservableObject {
     func updateQuantity(for itemKey: String, newQuantity: Int) async {
         logger.info("Aktualisiere Menge für Artikel-Key \(itemKey) auf \(newQuantity).")
         await performCartAction(updatingItemKey: itemKey) {
-            let cart = try await self.performRequest(endpoint: self.cartAPI.updateItem, httpMethod: "POST", body: ["key": itemKey, "quantity": newQuantity])
+            let cart = try await self.performRequest(endpoint: self.cartAPI.cartUpdateItem, httpMethod: "POST", body: ["key": itemKey, "quantity": newQuantity])
             if let cart = cart, !(cart.items?.isEmpty ?? true) {
                 await self.fetchProductDetailsForCartItems(items: cart.safeItems)
             }
@@ -72,7 +74,7 @@ final class CartAPIManager: ObservableObject {
     func removeItem(key: String) async {
         logger.info("Entferne Artikel mit Key \(key) aus dem Warenkorb.")
         await performCartAction(updatingItemKey: key) {
-            let cart = try await self.performRequest(endpoint: self.cartAPI.removeItem, httpMethod: "POST", body: ["key": key])
+            let cart = try await self.performRequest(endpoint: self.cartAPI.cartRemoveItem, httpMethod: "POST", body: ["key": key])
             if let cart = cart, !(cart.items?.isEmpty ?? true) {
                 await self.fetchProductDetailsForCartItems(items: cart.safeItems)
             }
@@ -95,7 +97,7 @@ final class CartAPIManager: ObservableObject {
             try await withThrowingTaskGroup(of: Void.self) { group in
                 for item in itemsToRemove {
                     group.addTask {
-                        _ = try await self.performRequest(endpoint: self.cartAPI.removeItem, httpMethod: "POST", body: ["key": item.key])
+                        _ = try await self.performRequest(endpoint: self.cartAPI.cartRemoveItem, httpMethod: "POST", body: ["key": item.key])
                         await self.logger.debug("Artikel \(item.key) erfolgreich aus Warenkorb entfernt.")
                     }
                 }
@@ -114,8 +116,6 @@ final class CartAPIManager: ObservableObject {
         state.isLoading = false
     }
 
-    // === BEGINN MODIFIKATION ===
-    // NEU: Funktion zum Anwenden eines Gutscheincodes.
     func applyCoupon(code: String) async {
         guard !code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             logger.warning("OPERATION GUTSCHEIN: Versuch, einen leeren Gutscheincode anzuwenden, abgebrochen.")
@@ -125,7 +125,7 @@ final class CartAPIManager: ObservableObject {
         logger.info("OPERATION GUTSCHEIN: Versuche Gutschein '\(code)' anzuwenden.")
         await performCartAction(isLoading: true) {
             let body = ["code": code]
-            let cart = try await self.performRequest(endpoint: AppConfig.YGE.applyCoupon, httpMethod: "POST", body: body)
+            let cart = try await self.performRequest(endpoint: self.cartAPI.cartApplyCoupon, httpMethod: "POST", body: body)
             if let newCart = cart, let _ = newCart.errors?.first {
                 throw WooCommerceAPIError.serverError(statusCode: 200, message: "Gutschein ungültig oder nicht anwendbar.", errorCode: "coupon_invalid")
             }
@@ -133,16 +133,14 @@ final class CartAPIManager: ObservableObject {
         }
     }
 
-    // NEU: Funktion zum Entfernen eines Gutscheincodes.
     func removeCoupon(code: String) async {
         logger.info("OPERATION GUTSCHEIN: Entferne Gutschein '\(code)'.")
         await performCartAction(isLoading: true) {
             let body = ["code": code]
-            let cart = try await self.performRequest(endpoint: AppConfig.YGE.removeCoupon, httpMethod: "POST", body: body)
+            let cart = try await self.performRequest(endpoint: self.cartAPI.cartRemoveCoupon, httpMethod: "POST", body: body)
             return cart
         }
     }
-    // === ENDE MODIFIKATION ===
     
     private func fetchProductDetailsForCartItems(items: [Item]) async {
         var idsToFetch = Set<Int>()
@@ -218,7 +216,7 @@ final class CartAPIManager: ObservableObject {
         request.httpMethod = httpMethod
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        if let cartToken = KeychainHelper.getCartToken() {
+        if let cartToken = KeychainService.getCartToken() {
             request.setValue(cartToken, forHTTPHeaderField: "Cart-Token")
             logger.debug("Verwende existierenden Warenkorb-Token.")
         }
@@ -232,7 +230,8 @@ final class CartAPIManager: ObservableObject {
         guard let httpResponse = response as? HTTPURLResponse else { throw WooCommerceAPIError.underlying(NSError(domain: "network", code: 0)) }
         
         if let newCartToken = httpResponse.value(forHTTPHeaderField: "cart-token") {
-            try? KeychainHelper.saveCartToken(newCartToken)
+            // KORREKTUR: Überflüssiges `try?` entfernt, da die Funktion nicht mehr `throws`.
+            KeychainService.saveCartToken(newCartToken)
             logger.info("Neuer Warenkorb-Token empfangen und gespeichert.")
         }
 

@@ -1,7 +1,7 @@
 // DATEI: AppConfig.swift
 // PFAD: Helper/AppConfig.swift
-// VERSION: GUTSCHEIN 1.0
-// ÄNDERUNG: Die Endpunkte für Gutschein-Operationen wurden hinzugefügt.
+// VERSION: ADLERAUGE 1.1 (REVIDIERT)
+// STATUS: ZURÜCKGESETZT
 
 import Foundation
 
@@ -9,51 +9,47 @@ public enum AppConfig {
     
     private static let baseURL = "https://your-garden-eden-4ujzpfm5qt.live-website.com"
     private static let baseAPIPath = "/wp-json"
+    private static let jwtAuthNamespace = "/jwt-auth/v1"
+    private static let ygeNamespace = "/your-garden-eden/v1"
     
-    public struct WooCommerce {
-        public struct CoreAPI {
-            public static let base = "\(baseURL)\(baseAPIPath)/wc/v3/"
+    public struct API {
+        public struct Auth {
+            public static let token = "\(baseURL)\(baseAPIPath)\(jwtAuthNamespace)/token"
+            // --- BEGINN RÜCKBAU ---
+            // Der Endpunkt für googleSignIn wurde entfernt.
+            // --- ENDE RÜCKBAU ---
+            public static let register = "\(baseURL)\(baseAPIPath)\(ygeNamespace)/register"
+            public static let requestPasswordReset = "\(baseURL)\(baseAPIPath)\(ygeNamespace)/users/request-password-reset"
+            public static let requestUsername = "\(baseURL)\(baseAPIPath)\(ygeNamespace)/users/request-username"
+            public static let setNewPassword = "\(baseURL)\(baseAPIPath)\(ygeNamespace)/users/set-new-password"
+            public static let changePassword = "\(baseURL)\(baseAPIPath)\(ygeNamespace)/user/change-password"
+            public static let guestToken = "\(baseURL)\(baseAPIPath)\(ygeNamespace)/guest-token"
         }
         
-        public struct StoreAPI {
-            private static let base = "\(baseURL)\(baseAPIPath)/wc/store/v1/"
-            
-            public struct Cart {
-                private static let cartBase = "\(StoreAPI.base)cart"
-                
-                public static let get = cartBase
-                public static let addItem = "\(cartBase)/add-item"
-                public static let updateItem = "\(cartBase)/update-item"
-                public static let removeItem = "\(cartBase)/remove-item"
-                public static let clear = "\(cartBase)/clear"
-            }
+        public struct WCProxy {
+             public static let base = "\(baseURL)\(baseAPIPath)\(ygeNamespace)/wc-proxy"
+             public static let products = "\(base)/products"
+             public static let categories = "\(base)/products/categories"
+             public static let attributes = "\(base)/products/attributes"
         }
         
-        public static let defaultCurrencySymbol = "€"
+        public struct WCStore {
+            private static let base = "\(baseURL)\(baseAPIPath)/wc/store/v1"
+            public static let cart = "\(base)/cart"
+            public static let cartAddItem = "\(base)/cart/add-item"
+            public static let cartUpdateItem = "\(base)/cart/update-item"
+            public static let cartRemoveItem = "\(base)/cart/remove-item"
+            public static let cartApplyCoupon = "\(base)/cart/apply-coupon"
+            public static let cartRemoveCoupon = "\(base)/cart/remove-coupon"
+        }
+        
+        public struct YGE {
+             public static let userAddresses = "\(baseURL)\(baseAPIPath)\(ygeNamespace)/user/addresses"
+             public static let wishlist = "\(baseURL)\(baseAPIPath)\(ygeNamespace)/wishlist"
+             public static let addToWishlist = "\(baseURL)\(baseAPIPath)\(ygeNamespace)/wishlist/item/add"
+             public static let removeFromWishlist = "\(baseURL)\(baseAPIPath)\(ygeNamespace)/wishlist/item/remove"
+        }
     }
     
-    public struct YGE {
-        private static let base = "\(baseURL)\(baseAPIPath)/your-garden-eden/v1"
-        
-        public static let wishlist = "\(base)/wishlist"
-        public static let addToWishlist = "\(base)/wishlist/item/add"
-        public static let removeFromWishlist = "\(base)/wishlist/item/remove"
-        public static let userAddresses = "\(base)/user/addresses"
-        public static let orderDetails = "\(base)/order-details"
-        public static let stageCartForCheckout = "\(base)/stage-cart-for-population"
-        
-        // === BEGINN MODIFIKATION ===
-        // NEU: Endpunkte für Gutschein-Operationen hinzugefügt.
-        public static let applyCoupon = "\(base)/cart/apply-coupon"
-        public static let removeCoupon = "\(base)/cart/remove-coupon"
-        // === ENDE MODIFIKATION ===
-    }
-
-    public struct Auth {
-        private static let base = "\(baseURL)\(baseAPIPath)/simple-jwt-login/v1"
-        
-        public static let login = "\(base)/auth"
-        public static let register = "\(base)/users"
-        public static let registrationKey = "YGE-app-register-user"
-    }
+    public static let defaultCurrencySymbol = "€"
 }

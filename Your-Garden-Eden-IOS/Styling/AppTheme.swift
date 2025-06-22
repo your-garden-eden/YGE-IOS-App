@@ -1,15 +1,12 @@
-// DATEI: AppTheme.swift (KASERNE DER ÄSTHETIK)
-// VERSION: GUTSCHEIN 1.1 (OPERATION FRONTBEGRADIGUNG)
-// ZWECK: Zentralisiert alle Design-Konstanten und Stile der Anwendung.
-// ÄNDERUNG: PlainTextFieldStyle und SecondaryButtonStyle hinzugefügt, um Kompilierungsfehler in CartView zu beheben und die UI zu vereinheitlichen.
+// DATEI: AppTheme.swift
+// PFAD: Styling/AppTheme.swift
+// VERSION: ADLERAUGE 2.1
+// STATUS: MODIFIZIERT
 
 import SwiftUI
 
-/// Dient als zentraler Namespace für alle Design-Elemente der App, um eine klare Struktur und einfache Handhabung zu gewährleisten.
 public enum AppTheme {
 
-    // MARK: - Farben (Farbpalette)
-    /// Definiert die gesamte Farbpalette der Anwendung. Jede Farbe hat einen spezifischen semantischen Zweck.
     public struct Colors {
         public static let primary: Color = Color(hex: "#A1B48A")
         public static let primaryDark: Color = Color(hex: "#798C67")
@@ -33,8 +30,6 @@ public enum AppTheme {
         public static let borderLight: Color = Color(hex: "#eeeeee")
     }
 
-    // MARK: - Schriften (Typografie-Kodex)
-    /// Definiert die typografischen Regeln der Anwendung, einschließlich Schriftfamilien, -gewichten, -größen und Helferfunktionen.
     public struct Fonts {
         public struct Family {
             public static let montserrat = "Montserrat"
@@ -71,10 +66,7 @@ public enum AppTheme {
         }
     }
     
-    // MARK: - Layout (Strukturvorgaben)
-    /// Definiert Standardwerte für Layout-Elemente wie Abstände und Eckenradien.
     public struct Layout {
-        /// Standardisierte Abstände für Padding und Margins in der gesamten App.
         public struct Spacing {
             public static let xSmall: CGFloat = 4
             public static let small: CGFloat = 8
@@ -84,7 +76,6 @@ public enum AppTheme {
             public static let xxLarge: CGFloat = 32
         }
 
-        /// Standardisierte Eckenradien für UI-Elemente wie Buttons und Karten.
         public struct BorderRadius {
             public static let small: CGFloat = 4
             public static let medium: CGFloat = 8
@@ -92,13 +83,10 @@ public enum AppTheme {
         }
     }
 
-    // MARK: - Schatten (Tiefenwirkung)
-    /// Definiert vordefinierte Schattenstile für eine konsistente Tiefenwirkung der Benutzeroberfläche.
     public struct Shadows {
         public static let small = ShadowStyle(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
         public static let medium = ShadowStyle(color: Color.black.opacity(0.1), radius: 6, x: 0, y: 4)
         
-        /// Beschreibt die Eigenschaften eines einzelnen Schattenstils.
         public struct ShadowStyle {
             let color: Color
             let radius: CGFloat
@@ -109,7 +97,6 @@ public enum AppTheme {
     
     // MARK: - Komponenten-Stile (Uniformen)
     
-    /// Definiert den Standard-Stil für primäre Aktions-Buttons in der App.
     public struct PrimaryButtonStyle: ButtonStyle {
         public func makeBody(configuration: Configuration) -> some View {
             configuration.label
@@ -122,9 +109,26 @@ public enum AppTheme {
                 .appShadow(AppTheme.Shadows.small)
         }
     }
+
+    // --- BEGINN MODIFIKATION ---
+    /// Definiert den Stil für den "Mit Google anmelden"-Button.
+    public struct GoogleSignInButtonStyle: ButtonStyle {
+        public func makeBody(configuration: Configuration) -> some View {
+            configuration.label
+                .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body, weight: .bold))
+                .frame(height: 50)
+                .frame(maxWidth: .infinity)
+                .background(configuration.isPressed ? AppTheme.Colors.backgroundLightGray : AppTheme.Colors.backgroundComponent)
+                .foregroundColor(AppTheme.Colors.textBase)
+                .cornerRadius(AppTheme.Layout.BorderRadius.large)
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppTheme.Layout.BorderRadius.large)
+                        .stroke(AppTheme.Colors.borderLight, lineWidth: 2)
+                )
+        }
+    }
+    // --- ENDE MODIFIKATION ---
     
-    // === BEGINN MODIFIKATION ===
-    // NEU: Definiert den Stil für sekundäre oder weniger prominente Buttons.
     public struct SecondaryButtonStyle: ButtonStyle {
         public func makeBody(configuration: Configuration) -> some View {
             configuration.label
@@ -141,13 +145,13 @@ public enum AppTheme {
         }
     }
 
-    // NEU: Definiert einen sauberen Stil für Texteingabefelder.
     public struct PlainTextFieldStyle: TextFieldStyle {
         public func _body(configuration: TextField<Self._Label>) -> some View {
             configuration
                 .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body))
                 .padding(.horizontal, AppTheme.Layout.Spacing.medium)
-                .frame(height: 44)
+                .padding(.vertical, AppTheme.Layout.Spacing.small)
+                .frame(minHeight: 44)
                 .background(AppTheme.Colors.backgroundComponent)
                 .cornerRadius(AppTheme.Layout.BorderRadius.medium)
                 .overlay(
@@ -156,9 +160,7 @@ public enum AppTheme {
                 )
         }
     }
-    // === ENDE MODIFIKATION ===
     
-    /// Definiert den Stil für kleine, runde Buttons zur Mengenänderung (z.B. im Warenkorb).
     public struct QuantityButtonStyle: ButtonStyle {
         public func makeBody(configuration: Configuration) -> some View {
             configuration.label
@@ -171,16 +173,12 @@ public enum AppTheme {
     }
 }
 
-// MARK: - Hilfserweiterungen (Werkzeuge)
-
-/// Eine Erweiterung für `View`, um das Anwenden von vordefinierten Schatten zu vereinfachen.
 public extension View {
     func appShadow(_ style: AppTheme.Shadows.ShadowStyle) -> some View {
         self.shadow(color: style.color, radius: style.radius, x: style.x, y: style.y)
     }
 }
 
-/// Eine Erweiterung für `Color`, um die Initialisierung mit Hex-Farbwerten zu ermöglichen.
 public extension Color {
     init(hex: String) {
         let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
