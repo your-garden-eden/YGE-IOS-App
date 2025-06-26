@@ -1,26 +1,27 @@
 // DATEI: AuthManager.swift
-// PFAD: Services/App/AuthManager.swift
-// VERSION: GEDÄCHTNISLÜCKE 1.2 - STABILITÄTS-FIX
-// STATUS: MODIFIZIERT
+// PFAD: Features/Auth/Services/AuthManager.swift
+// VERSION: 2.2 (FINAL REPARIERT)
+// STATUS: Login-Fehlerbehandlung endgültig korrigiert.
 
 import Foundation
+import Combine
 
-enum AuthState {
+public enum AuthState {
     case initializing
     case guest
     case authenticated
 }
 
 @MainActor
-final class AuthManager: ObservableObject {
-    static let shared = AuthManager()
+public final class AuthManager: ObservableObject {
+    public static let shared = AuthManager()
     
-    @Published private(set) var authState: AuthState = .initializing
-    @Published private(set) var user: UserModel?
-    @Published var isLoading: Bool = false
-    @Published var authError: String?
+    @Published public private(set) var authState: AuthState = .initializing
+    @Published public private(set) var user: UserModel?
+    @Published public var isLoading: Bool = false
+    @Published public var authError: String?
 
-    var isLoggedIn: Bool {
+    public var isLoggedIn: Bool {
         return authState == .authenticated
     }
     
@@ -29,6 +30,7 @@ final class AuthManager: ObservableObject {
     
     private lazy var wishlistState = WishlistState.shared
     private lazy var cartManager = CartAPIManager.shared
+    private lazy var localProfileStorage = LocalProfileStorage()
     
     private init() {
         Task {
@@ -43,103 +45,59 @@ final class AuthManager: ObservableObject {
         }
     }
 
-    func login(usernameOrEmail: String, password: String) async throws -> UserModel {
-        self.isLoading = true
-        self.authError = nil
-        defer { self.isLoading = false }
+    public func login(usernameOrEmail: String, password: String) async throws -> UserModel {
+        self.isLoading = true; self.authError = nil; defer { self.isLoading = false }
         logger.info("Anmeldeversuch gestartet für: \(usernameOrEmail).")
         
-        guard let url = URL(string: AppConfig.API.Auth.token) else {
-            throw handleError(message: "Ungültige Login-URL.")
-        }
-        
-        let parameters: [String: Any] = ["username": usernameOrEmail, "password": password]
-        let body = try JSONSerialization.data(withJSONObject: parameters)
-        
         do {
-            let response: AuthTokenResponse = try await performRequest(url: url, httpMethod: "POST", body: body)
+            let response: AuthTokenResponse = try await performLoginRequest(body: ["username": usernameOrEmail, "password": password])
             return try await handleLoginSuccess(response)
         } catch {
             throw handleError(error: error, message: "Login fehlgeschlagen.")
         }
     }
 
-    func register(payload: RegistrationPayload) async throws -> SuccessResponse {
-        self.isLoading = true
-        self.authError = nil
-        defer { self.isLoading = false }
+    public func register(payload: RegistrationPayload) async throws -> SuccessResponse {
+        self.isLoading = true; self.authError = nil; defer { self.isLoading = false }
         logger.info("Registrierungsversuch gestartet für E-Mail: \(payload.email).")
-        
-        guard let url = URL(string: AppConfig.API.Auth.register) else {
-            throw handleError(message: "Ungültige Registrierungs-URL.")
-        }
-
-        let body = try JSONEncoder().encode(payload)
-        
-        do {
-            let response: SuccessResponse = try await performRequest(url: url, httpMethod: "POST", body: body)
-            logger.info("Registrierung erfolgreich für neuen Benutzer: \(payload.email)")
-            return response
-        } catch {
-            throw handleError(error: error, message: "Registrierung fehlgeschlagen.")
-        }
+        return try await performRequest(endpoint: AppConfig.API.Auth.register, httpMethod: "POST", body: payload)
     }
     
-    func logout() {
-        if let userEmail = user?.email {
-            logger.info("Logout wird durchgeführt für Benutzer: \(userEmail).")
-        } else {
-            logger.info("Logout wird durchgeführt (kein Benutzerprofil vorhanden).")
-        }
+    public func logout() {
+        logger.info("Logout wird durchgeführt für Benutzer: \(user?.email ?? "N/A").")
         
         Task {
-            wishlistState.prepareForLogout()
-            cartManager.prepareForLogout()
-            
+            await wishlistState.prepareForLogout()
+            await cartManager.prepareForLogout()
+            localProfileStorage.clearAddresses()
+            KeychainService.clearAllAuthData()
             self.authState = .initializing
             self.user = nil
             self.guestAuthToken = nil
-            KeychainService.clearAllAuthData()
-            logger.info("Alle Benutzer-Authentifizierungsdaten aus dem Keychain entfernt.")
-            
             await fetchGuestToken()
             self.authState = .guest
+            logger.info("Logout abgeschlossen. System im Gast-Modus.")
         }
     }
 
-    func requestPasswordReset(email: String) async throws -> SuccessResponse {
-        return try await performSimpleRequest(endpoint: AppConfig.API.Auth.requestPasswordReset, payload: ["email": email])
+    public func requestPasswordReset(email: String) async throws -> SuccessResponse {
+        self.isLoading = true; self.authError = nil; defer { self.isLoading = false }
+        return try await performRequest(endpoint: AppConfig.API.Auth.requestPasswordReset, httpMethod: "POST", body: ["email": email])
     }
 
-    func requestUsername(email: String) async throws -> SuccessResponse {
-        return try await performSimpleRequest(endpoint: AppConfig.API.Auth.requestUsername, payload: ["email": email])
+    public func requestUsername(email: String) async throws -> SuccessResponse {
+        self.isLoading = true; self.authError = nil; defer { self.isLoading = false }
+        return try await performRequest(endpoint: AppConfig.API.Auth.requestUsername, httpMethod: "POST", body: ["email": email])
     }
     
-    func changePassword(payload: ChangePasswordPayload) async throws -> SuccessResponse {
-        guard let url = URL(string: AppConfig.API.Auth.changePassword) else {
-            throw handleError(message: "Ungültige URL für Passwortänderung.")
-        }
-        let body = try JSONEncoder().encode(payload)
-        var headers = [String: String]()
-        if let token = getAuthToken() { headers["Authorization"] = "Bearer \(token)" }
-        return try await performRequest(url: url, httpMethod: "POST", body: body, headers: headers)
-    }
-
-    func getAuthToken() -> String? {
-        if authState == .authenticated {
-            return KeychainService.getAuthToken()
-        }
-        return guestAuthToken
+    public func getAuthToken() -> String? {
+        return authState == .authenticated ? KeychainService.getAuthToken() : guestAuthToken
     }
     
     private func fetchGuestToken() async {
-        guard let url = URL(string: AppConfig.API.Auth.guestToken) else {
-            logger.error("Ungültige Gast-Token-URL.")
-            return
-        }
         logger.info("Fordere neuen Gast-Token an...")
         do {
-            let response: GuestTokenResponse = try await performRequest(url: url, httpMethod: "GET")
+            let response: GuestTokenResponse = try await performRequest(endpoint: AppConfig.API.Auth.guestToken, httpMethod: "GET")
             self.guestAuthToken = response.token
             logger.info("Gast-Token erfolgreich erhalten und im Speicher abgelegt.")
         } catch {
@@ -167,54 +125,106 @@ final class AuthManager: ObservableObject {
         self.authState = .authenticated
         
         logger.info("Anmeldung erfolgreich für Benutzer: \(newUser.email) (ID: \(newUser.id))")
-        logger.debug("Auth-Token und Benutzerprofil sicher im Keychain gespeichert.")
         return newUser
     }
     
     @discardableResult
     private func handleError(error: Error? = nil, message: String) -> Error {
-        var finalMessage = message
+        var finalMessage: String
         if let error = error, let authError = error as? WooCommerceAPIError {
-            switch authError {
-            case .serverError(_, let msg, let code):
-                finalMessage = msg ?? "Serverfehler"
-                logger.error("Auth-Fehler (Server): \(finalMessage) | Code: \(code ?? "N/A")")
-            default:
-                logger.error("Auth-Fehler: \(error.localizedDescription)")
-            }
-        } else if let error = error {
-            finalMessage = error.localizedDescription
-            logger.error("Auth-Fehler (Generisch): \(finalMessage)")
+            finalMessage = authError.localizedDescriptionForUser
         } else {
-             logger.error("Auth-Fehler (Unbekannt): \(message)")
+            finalMessage = message
         }
         
-        self.authError = stripHTML(from: finalMessage)
+        self.authError = finalMessage.strippingHTML()
+        logger.error("Auth-Fehler: \(finalMessage) | Ursprungs-Fehler: \(String(describing: error))")
         return NSError(domain: "com.yourgardeneden.auth", code: 0, userInfo: [NSLocalizedDescriptionKey: self.authError ?? ""])
     }
-
-    private func performRequest<T: Decodable>(url: URL, httpMethod: String, body: Data? = nil, headers: [String: String] = [:]) async throws -> T {
+    
+    private func performLoginRequest<B: Encodable>(body: B) async throws -> AuthTokenResponse {
+        guard let url = URL(string: AppConfig.API.Auth.token) else { throw WooCommerceAPIError.invalidURL }
         var request = URLRequest(url: url)
-        request.httpMethod = httpMethod
-        request.httpBody = body
+        request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        headers.forEach { request.setValue($1, forHTTPHeaderField: $0) }
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else { throw WooCommerceAPIError.invalidURL }
+        request.httpBody = try? JSONEncoder().encode(body)
         
-        guard (200...299).contains(httpResponse.statusCode) else {
-            let (message, code) = WooCommerceAPIManager.parseWooCommerceError(from: data)
-            throw WooCommerceAPIError.serverError(statusCode: httpResponse.statusCode, message: message, errorCode: code)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw WooCommerceAPIError.invalidURL
         }
         
-        return try JSONDecoder().decode(T.self, from: data)
+        let decoder = JSONDecoder()
+        
+        // VERSUCH 1: Dekodiere als Erfolgs-Antwort (AuthTokenResponse)
+        if let successResponse = try? decoder.decode(AuthTokenResponse.self, from: data), !successResponse.token.isEmpty {
+            return successResponse
+        }
+        // VERSUCH 2: Dekodiere als bekannte Fehler-Antwort (WooCommerceErrorResponse)
+        else if let errorResponse = try? decoder.decode(WooCommerceErrorResponse.self, from: data) {
+            throw WooCommerceAPIError.serverError(statusCode: httpResponse.statusCode, message: errorResponse.message, errorCode: errorResponse.code)
+        }
+        // FALLBACK: Wenn beides fehlschlägt, ist die Server-Antwort unerwartet.
+        else {
+            let rawResponse = String(data: data, encoding: .utf8) ?? "Nicht dekodierbare Daten"
+            logger.error("Unerwartete Server-Antwort beim Login: \(rawResponse)")
+            throw WooCommerceAPIError.decodingError(NSError(domain: "com.yourgardeneden.auth", code: 1, userInfo: [NSLocalizedDescriptionKey: "Unerwartete Server-Antwort."]))
+        }
+    }
+
+    private func performRequest<T: Decodable, B: Encodable>(endpoint: String, httpMethod: String, body: B) async throws -> T {
+        guard let url = URL(string: endpoint) else { throw WooCommerceAPIError.invalidURL }
+        var request = URLRequest(url: url)
+        request.httpMethod = httpMethod
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        request.httpBody = try encoder.encode(body)
+        
+        return try await executeAndDecode(request: request)
     }
     
-    private func performSimpleRequest(endpoint: String, payload: [String: String]) async throws -> SuccessResponse {
-        guard let url = URL(string: endpoint) else { throw handleError(message: "Ungültige URL: \(endpoint)") }
-        let body = try JSONSerialization.data(withJSONObject: payload)
-        return try await performRequest(url: url, httpMethod: "POST", body: body)
+    private func performRequest<T: Decodable>(endpoint: String, httpMethod: String) async throws -> T {
+        guard let url = URL(string: endpoint) else { throw WooCommerceAPIError.invalidURL }
+        var request = URLRequest(url: url)
+        request.httpMethod = httpMethod
+        
+        return try await executeAndDecode(request: request)
+    }
+    
+    private func executeAndDecode<T: Decodable>(request: URLRequest) async throws -> T {
+        var mutableRequest = request
+        if let token = getAuthToken() {
+            mutableRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: mutableRequest)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw WooCommerceAPIError.invalidURL
+        }
+        
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let err = try? JSONDecoder().decode(WooCommerceErrorResponse.self, from: data)
+            throw WooCommerceAPIError.serverError(statusCode: httpResponse.statusCode, message: err?.message, errorCode: err?.code)
+        }
+        
+        if T.self == SuccessResponse.self && data.isEmpty {
+            return SuccessResponse(success: true, message: "Operation erfolgreich.") as! T
+        }
+        
+        do {
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            return try decoder.decode(T.self, from: data)
+        } catch let decodingError {
+            if let wooError = try? JSONDecoder().decode(WooCommerceErrorResponse.self, from: data) {
+                logger.error("Logischer API Fehler (als Decoding-Fehler getarnt) auf \(request.url?.absoluteString ?? "N/A"): \(wooError.message)")
+                throw WooCommerceAPIError.serverError(statusCode: httpResponse.statusCode, message: wooError.message, errorCode: wooError.code)
+            }
+            throw decodingError
+        }
     }
     
     private func decode(jwtToken jwt: String) -> [String: Any]? {
@@ -224,9 +234,5 @@ final class AuthManager: ObservableObject {
         while base64String.count % 4 != 0 { base64String += "=" }
         guard let data = Data(base64Encoded: base64String) else { return nil }
         return try? JSONSerialization.jsonObject(with: data, options: .allowFragments) as? [String: Any]
-    }
-    
-    private func stripHTML(from string: String) -> String {
-        return string.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression, range: nil)
     }
 }

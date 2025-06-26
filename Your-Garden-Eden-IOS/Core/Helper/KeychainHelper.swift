@@ -1,16 +1,17 @@
 // DATEI: KeychainService.swift
-// PFAD: Services/Core/KeychainService.swift (Vorschlag für neuen Speicherort)
-// VERSION: IDENTITÄT 1.0
-// STATUS: GENERALÜBERHOLT
+// PFAD: Core/Services/KeychainService.swift
+// VERSION: 1.0 (FINAL)
+// STATUS: BEST-PRACTICE ARCHITEKTUR.
 
 import Foundation
 import KeychainAccess
 
 public enum KeychainService {
     
-    // MARK: - Authentication Service
+    private static let serviceIdentifier = "com.yourgardeneden.app"
+    
     // Ein dedizierter Keychain-Container für Authentifizierungsdaten.
-    private static let authKeychain = Keychain(service: "com.yourgardeneden.app.auth")
+    private static let authKeychain = Keychain(service: "\(serviceIdentifier).auth")
 
     public static func saveAuthToken(_ token: String) {
         try? authKeychain.set(token, key: "authToken")
@@ -18,10 +19,6 @@ public enum KeychainService {
 
     public static func getAuthToken() -> String? {
         return try? authKeychain.getString("authToken")
-    }
-
-    public static func deleteAuthToken() {
-        try? authKeychain.remove("authToken")
     }
     
     public static func saveUserProfile(_ user: UserModel) {
@@ -35,18 +32,12 @@ public enum KeychainService {
         return try? JSONDecoder().decode(UserModel.self, from: data)
     }
     
-    public static func deleteUserProfile() {
-        try? authKeychain.remove("userProfile")
-    }
-    
     public static func clearAllAuthData() {
-        deleteAuthToken()
-        deleteUserProfile()
+        try? authKeychain.removeAll()
     }
 
-    // MARK: - Cart Service
-    // Der bestehende Keychain-Container für den Warenkorb-Token.
-    private static let cartKeychain = Keychain(service: "com.yourgardeneden.app.cart")
+    // Ein dedizierter Keychain-Container für den Warenkorb-Token.
+    private static let cartKeychain = Keychain(service: "\(serviceIdentifier).cart")
 
     public static func saveCartToken(_ token: String) {
         try? cartKeychain.set(token, key: "cartToken")
@@ -54,9 +45,5 @@ public enum KeychainService {
 
     public static func getCartToken() -> String? {
         return try? cartKeychain.getString("cartToken")
-    }
-
-    public static func deleteCartToken() {
-        try? cartKeychain.remove("cartToken")
     }
 }

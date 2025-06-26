@@ -1,6 +1,7 @@
+
 // DATEI: CartRowView.swift
 // PFAD: Features/Cart/Views/Components/CartRowView.swift
-// VERSION: KEHRTWENDE 1.0 (UMSTRUKTURIERT)
+// VERSION: 1.1 (SYNCHRONISIERT)
 
 import SwiftUI
 
@@ -54,9 +55,6 @@ struct CartRowView: View {
 
             Spacer()
             
-            // --- BEGINN MODIFIKATION ---
-            // Die Kontroll-Leiste wird wieder auf die Mengenänderung ausgerichtet.
-            // Der explizite Lösch-Button wird entfernt.
             VStack {
                  Spacer()
                  HStack(spacing: AppTheme.Layout.Spacing.medium) {
@@ -78,7 +76,6 @@ struct CartRowView: View {
                  .foregroundColor(AppTheme.Colors.primaryDark)
                  Spacer()
             }
-            // --- ENDE MODIFIKATION ---
         }
         .padding(AppTheme.Layout.Spacing.small)
         .background(AppTheme.Colors.backgroundComponent)
@@ -96,7 +93,9 @@ struct CartRowView: View {
     @ViewBuilder
     private var productImage: some View {
         ZStack {
-            if let url = item.images.first?.thumbnail?.asURL() {
+            // KORREKTUR: Das Feld 'thumbnail' existiert im gehärteten 'WooCommerceImage'-Modell nicht mehr.
+            // Der Zugriff erfolgt nun auf das zuverlässige 'src'-Feld.
+            if let url = item.images.first?.src.asURL() {
                 AsyncImage(url: url) { phase in
                     if let image = phase.image {
                         image.resizable().aspectRatio(contentMode: .fill)
@@ -112,8 +111,6 @@ struct CartRowView: View {
         .clipped()
     }
     
-    // --- BEGINN MODIFIKATION ---
-    // Die updateQuantity-Funktion wird wieder reaktiviert.
     private func updateQuantity(by amount: Int) {
         let newQuantity = item.quantity + amount
         guard newQuantity > 0 else { return }
@@ -121,10 +118,10 @@ struct CartRowView: View {
             await cartManager.updateQuantity(for: item.key, newQuantity: newQuantity)
         }
     }
-    // --- ENDE MODIFIKATION ---
     
     private func getProductDetails() -> WooCommerceProduct? {
         let parentProductId = cartManager.state.variationToParentMap[item.id] ?? item.id
         return cartManager.state.productDetails[parentProductId]
     }
 }
+

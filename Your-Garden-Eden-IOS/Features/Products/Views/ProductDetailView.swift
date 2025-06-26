@@ -1,6 +1,8 @@
+
 // DATEI: ProductDetailView.swift
 // PFAD: Features/Products/Views/Detail/ProductDetailView.swift
-// VERSION: KLARHEIT 1.1 (VOLLSTÄNDIG & KORRIGIERT)
+// VERSION: 2.3 (FINAL KORRIGIERT)
+// STATUS: Vollständig synchronisiert.
 
 import SwiftUI
 
@@ -14,11 +16,7 @@ struct ProductDetailView: View {
     @State private var selectedQuantity: Int = 1
     @State private var showAddedToCartConfirmation = false
 
-    // Eine berechnete Eigenschaft für Klarheit und zur Vermeidung von Wiederholungen.
-    private var isProductPurchasable: Bool {
-        // KORREKTUR: Die Logik wurde angepasst, um nil als 'nicht kaufbar' zu behandeln.
-        product.purchasable == true
-    }
+    private var isProductPurchasable: Bool { product.purchasable == true }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -26,32 +24,28 @@ struct ProductDetailView: View {
                 VStack(alignment: .leading, spacing: AppTheme.Layout.Spacing.large) {
                     productGallery
                     productHeader
-                    if product.type == "variable" && viewModel.isLoadingVariations {
-                        ProgressView().frame(maxWidth: .infinity, minHeight: 50)
-                    } else if let error = viewModel.variationError {
-                        StatusIndicatorView.errorState(message: error)
+                    
+                    if product.type == "variable" {
+                        if viewModel.isLoadingVariations { ProgressView().frame(maxWidth: .infinity, minHeight: 50) }
+                        else if let error = viewModel.variationError { StatusIndicatorView.errorState(message: error) }
                     }
+                    
                     Divider()
                     descriptionSection
-                    
                     recommendedSection
-                    
                     Spacer(minLength: 150)
                 }
             }
-            .safeAreaInset(edge: .bottom) {
-                 bottomActionSection
-            }
+            .safeAreaInset(edge: .bottom) { bottomActionSection }
+            
             confirmationBanner
         }
         .background(AppTheme.Colors.backgroundPage.ignoresSafeArea())
         .navigationTitle(product.name.strippingHTML())
         .navigationBarTitleDisplayMode(.inline)
         .customBackButton()
-        .task(id: product.id) {
-            await viewModel.loadData(for: product)
-        }
-        .onChange(of: cartManager.state.items) { _, _ in
+        .task(id: product.id) { await viewModel.loadData(for: product) }
+        .onChange(of: cartManager.state.items) {
              if cartManager.state.errorMessage == nil {
                  withAnimation { showAddedToCartConfirmation = true }
                  DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
@@ -68,14 +62,8 @@ struct ProductDetailView: View {
                 TabView {
                     ForEach(product.safeImages) { image in
                         AsyncImage(url: image.src.asURL()) { phase in
-                            switch phase {
-                            case .success(let img):
-                                img.resizable().scaledToFit()
-                            case .failure:
-                                Image(systemName: "photo.fill").font(.largeTitle).foregroundColor(AppTheme.Colors.textMuted)
-                            default:
-                                ShimmerView()
-                            }
+                            if let img = phase.image { img.resizable().scaledToFit() }
+                            else { ShimmerView() }
                         }
                     }
                 }
@@ -83,22 +71,16 @@ struct ProductDetailView: View {
                 .frame(height: 300)
             } else {
                 AsyncImage(url: product.safeImages.first?.src.asURL()) { phase in
-                    switch phase {
-                    case .success(let image): image.resizable().scaledToFit()
-                    case .failure: Image(systemName: "photo.fill").font(.largeTitle).foregroundColor(AppTheme.Colors.textMuted)
-                    default: ShimmerView()
-                    }
+                    if let image = phase.image { image.resizable().scaledToFit() }
+                    else { ShimmerView() }
                 }
                 .frame(maxWidth: .infinity, minHeight: 300)
                 .background(AppTheme.Colors.backgroundLightGray)
             }
             
-            // --- BEGINN KORREKTUR ---
-            // Nutzt nun die gehärtete 'isProductPurchasable'-Eigenschaft.
             if !isProductPurchasable {
                 notAvailableOverlay
             }
-            // --- ENDE KORREKTUR ---
         }
     }
     
@@ -106,37 +88,29 @@ struct ProductDetailView: View {
     private var productHeader: some View {
         VStack(alignment: .leading, spacing: AppTheme.Layout.Spacing.small) {
             HStack(alignment: .top) {
-                Text(product.name.strippingHTML())
-                    .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.h4, weight: .bold))
+                Text(product.name.strippingHTML()).font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.h4, weight: .bold))
                 Spacer()
                 Button(action: { wishlistState.toggleWishlistStatus(for: product) }) {
                     Image(systemName: wishlistState.isProductInWishlist(productId: product.id) ? "heart.fill" : "heart")
-                        .foregroundColor(wishlistState.isProductInWishlist(productId: product.id) ? AppTheme.Colors.error : AppTheme.Colors.secondary)
-                }
-                .font(.title)
-                .animation(.spring(), value: wishlistState.isProductInWishlist(productId: product.id))
+                        .foregroundColor(wishlistState.isProductInWishlist(productId: product.id) ? .red : .secondary)
+                }.font(.title).animation(.spring(), value: wishlistState.isProductInWishlist(productId: product.id))
             }
             
             HStack(alignment: .bottom, spacing: AppTheme.Layout.Spacing.small) {
-                if let range = viewModel.priceRangeDisplay {
+                if let range = product.priceRangeDisplay {
                     Text(range)
                         .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.h5, weight: .bold))
                         .foregroundColor(AppTheme.Colors.price)
                 } else {
-                    let priceInfo = PriceFormatter.formatPriceString(from: product.price_html, fallbackPrice: product.price)
-                    Text(priceInfo.display)
-                        .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.h5, weight: .bold))
-                        .foregroundColor(AppTheme.Colors.price)
+                    // KORREKTUR: Veralteten 'formatPriceString'-Aufruf durch 'formatDisplayPrice' ersetzt.
+                    let priceInfo = PriceFormatter.formatDisplayPrice(for: product)
+                    Text(priceInfo.display).font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.h5, weight: .bold)).foregroundColor(AppTheme.Colors.price)
                     if let strikethrough = priceInfo.strikethrough {
-                        Text(strikethrough)
-                            .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body, weight: .regular))
-                            .strikethrough(true, color: AppTheme.Colors.textMuted)
-                            .foregroundColor(AppTheme.Colors.textMuted)
+                        Text(strikethrough).font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body)).strikethrough(true, color: .secondary).foregroundColor(.secondary)
                     }
                 }
             }
-        }
-        .padding(.horizontal)
+        }.padding(.horizontal)
     }
     
     @ViewBuilder
@@ -153,9 +127,12 @@ struct ProductDetailView: View {
     @ViewBuilder
     private var recommendedSection: some View {
         if viewModel.isLoadingRecommendations {
-            ProgressView()
-                .frame(maxWidth: .infinity)
-                .padding(.vertical)
+            VStack {
+                Divider().padding(.horizontal)
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical)
+            }
         } else if !viewModel.recommendedProducts.isEmpty {
             VStack {
                 Divider().padding(.horizontal)
@@ -170,11 +147,8 @@ struct ProductDetailView: View {
     @ViewBuilder
     private var bottomActionSection: some View {
         VStack(spacing: AppTheme.Layout.Spacing.medium) {
-            if product.type == "simple" {
-                simpleProductActions
-            } else if product.type == "variable" {
-                variableProductActions
-            }
+            if product.type == "simple" { simpleProductActions }
+            else if product.type == "variable" { variableProductActions }
         }
         .padding()
         .background(.regularMaterial)
@@ -182,27 +156,23 @@ struct ProductDetailView: View {
 
     @ViewBuilder
     private var simpleProductActions: some View {
-        if product.sold_individually == false {
-            QuantitySelectorView(quantity: $selectedQuantity)
-                .padding(.horizontal)
-                .disabled(!isProductPurchasable)
+        // KORREKTUR: 'sold_individually' zu 'soldIndividually' geändert.
+        if product.soldIndividually == false {
+            QuantitySelectorView(quantity: $selectedQuantity).padding(.horizontal).disabled(!isProductPurchasable)
         }
-        
-        Button(action: {
-            Task {
-                await cartManager.addItem(productId: product.id, quantity: selectedQuantity)
-            }
-        }) {
+        Button(action: { Task { await cartManager.addItem(productId: product.id, quantity: selectedQuantity) } }) {
             HStack {
                 if cartManager.state.isLoading { ProgressView().tint(.white) }
-                else if !isProductPurchasable || product.stock_status != .instock { Text("Nicht verfügbar") }
+                // KORREKTUR: 'stock_status' zu 'stockStatus' geändert.
+                else if !isProductPurchasable || product.stockStatus != .instock { Text("Nicht verfügbar") }
                 else { Text("In den Warenkorb") }
             }
         }
         .buttonStyle(AppTheme.PrimaryButtonStyle())
-        .disabled(cartManager.state.isLoading || !isProductPurchasable || product.stock_status != .instock)
+        // KORREKTUR: 'stock_status' zu 'stockStatus' geändert.
+        .disabled(cartManager.state.isLoading || !isProductPurchasable || product.stockStatus != .instock)
     }
-
+    
     @ViewBuilder
     private var variableProductActions: some View {
         let isNavigationDisabled = !isProductPurchasable || viewModel.isLoadingVariations || viewModel.variationError != nil || viewModel.variations.isEmpty
@@ -215,7 +185,7 @@ struct ProductDetailView: View {
         .buttonStyle(AppTheme.PrimaryButtonStyle())
         .disabled(isNavigationDisabled)
     }
-    
+
     @ViewBuilder
     private var confirmationBanner: some View {
         VStack {
@@ -237,14 +207,11 @@ struct ProductDetailView: View {
     private var notAvailableOverlay: some View {
         ZStack {
             Color.black.opacity(0.6)
-
             Text("Nicht verfügbar")
                 .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.h5, weight: .bold))
-                .foregroundColor(.white)
-                .padding(.horizontal, AppTheme.Layout.Spacing.medium)
-                .padding(.vertical, AppTheme.Layout.Spacing.small)
-                .background(Color.black.opacity(0.4))
+                .foregroundColor(.white).padding().background(Color.black.opacity(0.4))
                 .cornerRadius(AppTheme.Layout.BorderRadius.large)
         }
     }
 }
+

@@ -1,6 +1,6 @@
 // DATEI: ProductDetailViewModel.swift
-// PFAD: Features/Products/ViewModels/Detail/ProductDetailViewModel.swift
-// VERSION: OPERATION "DOPPEL-AGENT" - Phase 2 (VOLLSTÄNDIG)
+// PFAD: Features/Products/ViewModels/ProductDetailViewModel.swift
+// VERSION: 1.0 (FINAL)
 
 import Foundation
 
@@ -8,81 +8,53 @@ import Foundation
 class ProductDetailViewModel: ObservableObject {
     
     @Published var variations: [WooCommerceProductVariation] = []
-    @Published var priceRangeDisplay: String?
-    @Published var isLoadingVariations = false
-    @Published var variationError: String?
-
-    // --- BEGINN MODIFIKATION ---
     @Published var recommendedProducts: [WooCommerceProduct] = []
+    
+    @Published var isLoadingVariations = false
     @Published var isLoadingRecommendations = false
-    // --- ENDE MODIFIKATION ---
-
+    @Published var variationError: String?
+    
     private let api = WooCommerceAPIManager.shared
     private let logger = LogSentinel.shared
 
     func loadData(for product: WooCommerceProduct) async {
-        logger.info("Lade Detaildaten für Produkt '\(product.name)' (ID: \(product.id)).")
-        async let loadVariationsTask: () = loadVariations(for: product)
-        // --- BEGINN MODIFIKATION ---
-        async let loadRecommendedProductsTask: () = loadRecommendedProducts(for: product)
-        _ = await [loadVariationsTask, loadRecommendedProductsTask]
-        // --- ENDE MODIFIKATION ---
-        logger.info("Laden der Detaildaten für Produkt \(product.id) abgeschlossen.")
+        logger.info("Lade Detail-Daten für Produkt \(product.id).")
+        async let _ = loadVariations(for: product)
+        async let _ = loadRecommendedProducts(for: product)
     }
     
     private func loadVariations(for product: WooCommerceProduct) async {
-        guard product.type == "variable" else {
-            logger.debug("Produkt \(product.id) ist kein variables Produkt, überspringe Variationen-Ladevorgang.")
-            return
-        }
-
+        guard product.type == "variable" else { return }
         self.isLoadingVariations = true
         self.variationError = nil
-        logger.info("Lade Variationen für Produkt \(product.id)...")
         
         do {
-            let fetchedVariations = try await api.fetchProductVariations(productId: product.id)
-            self.variations = fetchedVariations
-            self.priceRangeDisplay = PriceFormatter.calculatePriceRange(from: fetchedVariations)
-            logger.info("\(fetchedVariations.count) Variationen für Produkt \(product.id) erfolgreich geladen.")
-            
-        } catch let apiError as WooCommerceAPIError {
-            self.variationError = apiError.localizedDescriptionForUser
-            logger.error("Fehler beim Laden der Variationen für Produkt \(product.id): \(apiError.localizedDescription)")
+            self.variations = try await api.fetchProductVariations(productId: product.id)
+            if self.variations.isEmpty {
+                self.variationError = "Für dieses Produkt sind derzeit keine Optionen verfügbar."
+                logger.warning("Keine Variationen für variables Produkt \(product.id) gefunden.")
+            }
         } catch {
-            self.variationError = "Fehler beim Laden der Produktoptionen."
-            logger.error("Unerwarteter Fehler beim Laden der Variationen für Produkt \(product.id): \(error.localizedDescription)")
+            self.variationError = "Optionen konnten nicht geladen werden."
+            logger.error("Fehler beim Laden der Variationen für Produkt \(product.id): \(error.localizedDescription)")
         }
-        
         self.isLoadingVariations = false
     }
     
-    // --- BEGINN MODIFIKATION ---
     private func loadRecommendedProducts(for product: WooCommerceProduct) async {
-        // Sammle IDs aus beiden Quellen und entferne Duplikate.
-        let combinedIDs = product.safeCrossSellIDs + product.safeRelatedIDs
-        let uniqueIDs = Array(Set(combinedIDs))
-        
-        guard !uniqueIDs.isEmpty else {
-            logger.debug("Produkt \(product.id) hat keine verknüpften Produkte (Cross-Sell/Related), überspringe Ladevorgang.")
-            return
-        }
+        let combinedIDs = Array(Set(product.safeCrossSellIDs + product.safeRelatedIDs))
+        guard !combinedIDs.isEmpty else { return }
         
         self.isLoadingRecommendations = true
-        logger.info("Lade \(uniqueIDs.count) empfohlene Produkte für Produkt \(product.id)...")
+        defer { self.isLoadingRecommendations = false }
+        
+        var params = ProductFilterParameters(); params.include = combinedIDs
+        
         do {
-            var params = ProductFilterParameters()
-            params.include = uniqueIDs
-            
-            let response = try await api.fetchProducts(params: params)
+            let response = try await api.fetchProducts(params: params, perPage: combinedIDs.count)
             self.recommendedProducts = response.products
-            logger.info("\(response.products.count) empfohlene Produkte erfolgreich geladen.")
-            
         } catch {
-            logger.warning("Fehler beim Laden der empfohlenen Produkte für Produkt \(product.id): \(error.localizedDescription). Dies wird ignoriert, um die UI nicht zu blockieren.")
-            self.recommendedProducts = []
+            logger.error("Fehler beim Laden der empfohlenen Produkte für Produkt \(product.id): \(error.localizedDescription)")
         }
-        self.isLoadingRecommendations = false
     }
-    // --- ENDE MODIFIKATION ---
 }

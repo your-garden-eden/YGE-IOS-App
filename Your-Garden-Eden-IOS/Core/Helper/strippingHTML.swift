@@ -1,6 +1,6 @@
 // DATEI: String+Utilities.swift
-// PFAD: Helper/String+Utilities.swift
-// VERSION: FINAL - Alle Operationen integriert.
+// PFAD: Core/Utilities/Extensions/String+Utilities.swift
+// STATUS: GEPRÜFT & BESTÄTIGT
 
 import Foundation
 import RegexBuilder
@@ -8,12 +8,14 @@ import RegexBuilder
 public extension String {
     
     func strippingHTML() -> String {
-        let cleanedString = self
-            .replacingOccurrences(of: " ", with: " ")
-            .replacingOccurrences(of: "€", with: "€")
-        
-        let htmlTagRegex = /<.*?>/
-        return cleanedString.replacing(htmlTagRegex, with: "")
+        guard !self.isEmpty else { return "" }
+        let cleanedString = self.replacingOccurrences(of: " ", with: " ")
+        if #available(iOS 16.0, *) {
+            let htmlTagRegex = /<[^>]+>/
+            return cleanedString.replacing(htmlTagRegex, with: "")
+        } else {
+            return cleanedString.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression, range: nil)
+        }
     }
     
     func asURL() -> URL? {
@@ -21,16 +23,18 @@ public extension String {
     }
     
     func slugify() -> String {
-        let baseString = self.folding(options: .diacriticInsensitive, locale: .current)
-            .lowercased()
-
-        let invalidCharsRegex = /[^a-z0-9-]+/
-        let spacesToDashRegex = /\s+/
-        
-        let processedString = baseString
-            .replacing(spacesToDashRegex, with: "-")
-            .replacing(invalidCharsRegex, with: "")
-            
-        return processedString
+        let baseString = self.folding(options: .diacriticInsensitive, locale: .current).lowercased()
+        if #available(iOS 16.0, *) {
+            let invalidCharsRegex = /[^a-z0-9-]+/
+            let spacesToDashRegex = /\s+/
+            return baseString
+                .replacing(spacesToDashRegex, with: "-")
+                .replacing(invalidCharsRegex, with: "")
+        } else {
+            let invalidChars = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789-").inverted
+            return baseString
+                .components(separatedBy: .whitespacesAndNewlines).joined(separator: "-")
+                .components(separatedBy: invalidChars).joined()
+        }
     }
 }

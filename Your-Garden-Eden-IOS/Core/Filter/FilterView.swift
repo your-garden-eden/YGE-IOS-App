@@ -1,6 +1,7 @@
 // DATEI: FilterView.swift
 // PFAD: Views/FilterView.swift
-// VERSION: FINAL - Alle Operationen integriert.
+// VERSION: 1.1 (REPARIERT)
+// STATUS: Einsatzbereit.
 
 import SwiftUI
 
@@ -121,15 +122,22 @@ struct FilterView: View {
                     }
                 }
             }
+        // ===================================================================
+        // === BEGINN KORREKTUR #11                                        ===
+        // ===================================================================
+        // ANPASSUNG: Der Aufruf von .localizedDescription wurde entfernt.
         case .failed(let error):
             Section(header: Text("Optionen")) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Fehler beim Laden").foregroundColor(AppTheme.Colors.error)
-                    Text(error.localizedDescription).font(.caption).foregroundColor(.secondary)
+                    Text(error).font(.caption).foregroundColor(.secondary) // 'error' ist bereits ein String
                     Button("Erneut versuchen") { Task { await filterState.loadAvailableAttributes() } }.tint(AppTheme.Colors.primary)
                 }
                 .padding(.vertical, 4)
             }
+        // ===================================================================
+        // === ENDE KORREKTUR #11                                          ===
+        // ===================================================================
         case .idle:
             EmptyView()
         }

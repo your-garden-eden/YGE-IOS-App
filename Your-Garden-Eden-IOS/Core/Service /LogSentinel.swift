@@ -1,6 +1,7 @@
 // DATEI: LogSentinel.swift
-// PFAD: Services/Logging/LogSentinel.swift
-// ZWECK: Die zentrale, hochpräzise Protokollierungs-Engine "LogSentinel".
+// PFAD: Core/Services/LogSentinel.swift
+// VERSION: 1.0 (FINAL)
+// STATUS: GEPRÜFT & BESTÄTIGT
 
 import Foundation
 
@@ -8,7 +9,7 @@ public final class LogSentinel {
     
     public static let shared = LogSentinel()
     
-    private let logQueue = DispatchQueue(label: "com.yourgardeneden.logsentinel.queue")
+    private let logQueue = DispatchQueue(label: "com.yourgardeneden.logsentinel.queue", qos: .background)
     
     private let dateFormatter: DateFormatter
     
@@ -24,11 +25,9 @@ public final class LogSentinel {
         let logMessage = "\(timestamp) \(level.icon) [\(fileName):\(line) \(function)] > \(message)"
         
         logQueue.async {
-            if level == .fatal {
-                fatalError(logMessage)
-            } else {
-                print(logMessage)
-            }
+            #if DEBUG
+            print(logMessage)
+            #endif
         }
     }
     
@@ -50,9 +49,5 @@ public final class LogSentinel {
     
     public func error(_ message: String, file: String = #file, function: String = #function, line: UInt = #line) {
         log(level: .error, message: message, file: file, function: function, line: line)
-    }
-    
-    public func fatal(_ message: String, file: String = #file, function: String = #function, line: UInt = #line) {
-        log(level: .fatal, message: message, file: file, function: function, line: line)
     }
 }

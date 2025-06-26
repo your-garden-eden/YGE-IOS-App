@@ -1,128 +1,114 @@
 // DATEI: ProductFilterState.swift
-// PFAD: Services/App/ProductFilterState.swift
-// VERSION: FINAL - Alle Operationen integriert.
+// PFAD: Features/Products/Services/ProductFilterState.swift
+// VERSION: 1.2 (SYNTAX KORRIGIERT)
+// STATUS: Einsatzbereit.
 
 import SwiftUI
 
-@MainActor
-class ProductFilterState: ObservableObject {
+public enum AttributeLoadingState: Equatable {
+    case idle
+    case loading
+    case success
+    case failed(String)
+}
 
-    @Published var selectedSortOption: ProductSortOption = .newest
-    let absolutePriceRange: ClosedRange<Double> = 0...2000
-    @Published var minPrice: Double
-    @Published var maxPrice: Double
-    @Published var showOnlyAvailable: Bool = true
-    @Published var selectedProductType: ProductTypeFilterOption = .all
+@MainActor
+public class ProductFilterState: ObservableObject {
     
-    struct FilterableAttribute: Identifiable, Hashable {
+    public struct FilterableAttribute: Identifiable, Hashable, Equatable {
         let definition: WooCommerceAttributeDefinition
         let terms: [WooCommerceAttributeTerm]
-        var id: Int { definition.id }
+        public var id: Int { definition.id }
     }
     
-    @Published var availableAttributes: [FilterableAttribute] = []
-    @Published var selectedAttributeTerms: [String: Set<String>] = [:]
-    @Published var attributeLoadingState: AttributeLoadingState = .idle
-
+    @Published public var selectedSortOption: ProductSortOption = .newest
+    @Published public var showOnlyAvailable: Bool = false
+    @Published public var selectedProductType: ProductTypeFilterOption = .all
+    @Published public var minPrice: Double = 0
+    @Published public var maxPrice: Double = 5000
+    @Published public var selectedAttributeTerms: [String: Set<String>] = [:]
+    
+    @Published public var availableAttributes: [FilterableAttribute] = []
+    @Published public var attributeLoadingState: AttributeLoadingState = .idle
+    
+    private let apiManager = WooCommerceAPIManager.shared
     private let logger = LogSentinel.shared
-
-    var isPristine: Bool {
-        selectedSortOption == .newest &&
-        minPrice == absolutePriceRange.lowerBound &&
-        maxPrice == absolutePriceRange.upperBound &&
-        showOnlyAvailable == true &&
-        selectedProductType == .all &&
-        selectedAttributeTerms.isEmpty
-    }
-
-    init() {
-        self.minPrice = absolutePriceRange.lowerBound
-        self.maxPrice = absolutePriceRange.upperBound
-    }
-
-    func reset() {
-        selectedSortOption = .newest
-        minPrice = absolutePriceRange.lowerBound
-        maxPrice = absolutePriceRange.upperBound
-        showOnlyAvailable = true
-        selectedProductType = .all
-        selectedAttributeTerms.removeAll()
-        logger.info("Filterzustand wurde zurückgesetzt.")
-    }
+    public let absolutePriceRange: ClosedRange<Double> = 0...5000
     
-    func loadAvailableAttributes() async {
+    public func loadAvailableAttributes() async {
+        // ===================================================================
+        // === BEGINN KORREKTUR #10                                        ===
+        // ===================================================================
+        // Ersetzt die fehlerhafte 'guard'-Bedingung durch eine korrekte Prüfung.
+        
         switch attributeLoadingState {
         case .loading, .success:
+            // Wenn bereits geladen wird oder erfolgreich geladen wurde, abbrechen.
             return
         case .idle, .failed:
+            // In den Zuständen .idle oder .failed, den Ladevorgang starten.
             break
         }
         
+        // ===================================================================
+        // === ENDE KORREKTUR #10                                          ===
+        // ===================================================================
+        
+        logger.info("Lade verfügbare Filter-Attribute...")
         self.attributeLoadingState = .loading
-        logger.info("Laden der verfügbaren Filter-Attribute gestartet.")
         
         do {
-            let apiManager = WooCommerceAPIManager.shared
             let definitions = try await apiManager.fetchAttributeDefinitions()
+            let filteredDefinitions = definitions.filter { $0.type == "select" }
             
-            let allowedAttributeSlugs: Set<String> = ["pa_farbe", "pa_material"]
-            logger.info("Filter-Fokus aktiv. Erlaube nur Attribute: \(allowedAttributeSlugs).")
-
-            let filteredDefinitions = definitions.filter { allowedAttributeSlugs.contains($0.slug) }
-            logger.info("\(definitions.count) Attribute vom Server empfangen, \(filteredDefinitions.count) nach Fokus-Filterung übrig.")
-
-            let results: [FilterableAttribute] = try await withThrowingTaskGroup(of: FilterableAttribute?.self, returning: [FilterableAttribute].self) { group in
+            var results: [FilterableAttribute] = []
+            try await withThrowingTaskGroup(of: FilterableAttribute?.self) { group in
                 for definition in filteredDefinitions {
-                    guard definition.type == "select" else { continue }
-                    
                     group.addTask {
-                        do {
-                            let terms = try await apiManager.fetchAttributeTerms(for: definition.id)
+                        if let terms = try? await self.apiManager.fetchAttributeTerms(for: definition.id), !terms.isEmpty {
                             return FilterableAttribute(definition: definition, terms: terms)
-                        } catch {
-                            await self.logger.error("Fehler beim Laden der Terms für Attribut \(definition.name): \(error)")
-                            return nil
                         }
+                        return nil
                     }
                 }
-                
-                var collected: [FilterableAttribute] = []
                 for try await result in group {
-                    if let attribute = result, !attribute.terms.isEmpty {
-                        collected.append(attribute)
-                    }
+                    if let attribute = result { results.append(attribute) }
                 }
-                return collected
             }
-            
             self.availableAttributes = results.sorted { $0.definition.name < $1.definition.name }
             self.attributeLoadingState = .success
-            logger.info("Verfügbare Filter-Attribute erfolgreich geladen und verarbeitet.")
+            logger.info("\(self.availableAttributes.count) Filter-Attribute erfolgreich geladen.")
             
         } catch {
-            logger.error("Schwerwiegender Fehler beim Laden der Attribute: \(error.localizedDescription)")
-            self.attributeLoadingState = .failed(error)
+            let errorMessage = "Filteroptionen konnten nicht geladen werden."
+            self.attributeLoadingState = .failed(errorMessage)
+            logger.error("Fehler beim Laden der Filter-Attribute: \(error.localizedDescription)")
         }
     }
     
-    func toggleSelection(forAttributeSlug attributeSlug: String, termSlug: String) {
-        var selections = selectedAttributeTerms[attributeSlug] ?? Set<String>()
-        
-        if selections.contains(termSlug) {
-            selections.remove(termSlug)
+    public func toggleSelection(forAttributeSlug attrSlug: String, termSlug: String) {
+        if var selections = selectedAttributeTerms[attrSlug] {
+            if selections.contains(termSlug) {
+                selections.remove(termSlug)
+            } else {
+                selections.insert(termSlug)
+            }
+            selectedAttributeTerms[attrSlug] = selections.isEmpty ? nil : selections
         } else {
-            selections.insert(termSlug)
+            selectedAttributeTerms[attrSlug] = [termSlug]
         }
-        
-        if selections.isEmpty {
-            selectedAttributeTerms.removeValue(forKey: attributeSlug)
-        } else {
-            selectedAttributeTerms[attributeSlug] = selections
-        }
-        logger.debug("Filterauswahl aktualisiert: \(selectedAttributeTerms)")
     }
     
-    func isTermSelected(forAttributeSlug attributeSlug: String, termSlug: String) -> Bool {
-        return selectedAttributeTerms[attributeSlug]?.contains(termSlug) ?? false
+    public func isTermSelected(forAttributeSlug attrSlug: String, termSlug: String) -> Bool {
+        return selectedAttributeTerms[attrSlug]?.contains(termSlug) ?? false
+    }
+    
+    public func reset() {
+        selectedSortOption = .newest
+        showOnlyAvailable = false
+        selectedProductType = .all
+        minPrice = absolutePriceRange.lowerBound
+        maxPrice = absolutePriceRange.upperBound
+        selectedAttributeTerms.removeAll()
     }
 }

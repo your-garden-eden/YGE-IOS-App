@@ -1,7 +1,7 @@
 // DATEI: AppConfig.swift
-// PFAD: Helper/AppConfig.swift
-// VERSION: ADLERAUGE 1.1 (REVIDIERT)
-// STATUS: ZURÜCKGESETZT
+// PFAD: Core/Configuration/AppConfig.swift
+// VERSION: 1.6 (ERWEITERT)
+// STATUS: Neuer Endpunkt für Benutzer-Bestellungen hinzugefügt.
 
 import Foundation
 
@@ -11,13 +11,11 @@ public enum AppConfig {
     private static let baseAPIPath = "/wp-json"
     private static let jwtAuthNamespace = "/jwt-auth/v1"
     private static let ygeNamespace = "/your-garden-eden/v1"
+    private static let wcStoreNamespace = "/wc/store/v1"
     
     public struct API {
         public struct Auth {
             public static let token = "\(baseURL)\(baseAPIPath)\(jwtAuthNamespace)/token"
-            // --- BEGINN RÜCKBAU ---
-            // Der Endpunkt für googleSignIn wurde entfernt.
-            // --- ENDE RÜCKBAU ---
             public static let register = "\(baseURL)\(baseAPIPath)\(ygeNamespace)/register"
             public static let requestPasswordReset = "\(baseURL)\(baseAPIPath)\(ygeNamespace)/users/request-password-reset"
             public static let requestUsername = "\(baseURL)\(baseAPIPath)\(ygeNamespace)/users/request-username"
@@ -31,10 +29,11 @@ public enum AppConfig {
              public static let products = "\(base)/products"
              public static let categories = "\(base)/products/categories"
              public static let attributes = "\(base)/products/attributes"
+             public static let orders = "\(base)/orders"
         }
         
         public struct WCStore {
-            private static let base = "\(baseURL)\(baseAPIPath)/wc/store/v1"
+            private static let base = "\(baseURL)\(baseAPIPath)\(wcStoreNamespace)"
             public static let cart = "\(base)/cart"
             public static let cartAddItem = "\(base)/cart/add-item"
             public static let cartUpdateItem = "\(base)/cart/update-item"
@@ -48,8 +47,12 @@ public enum AppConfig {
              public static let wishlist = "\(baseURL)\(baseAPIPath)\(ygeNamespace)/wishlist"
              public static let addToWishlist = "\(baseURL)\(baseAPIPath)\(ygeNamespace)/wishlist/item/add"
              public static let removeFromWishlist = "\(baseURL)\(baseAPIPath)\(ygeNamespace)/wishlist/item/remove"
+             public static let stageCartForPopulation = "\(baseURL)\(baseAPIPath)\(ygeNamespace)/stage-cart-for-population"
+             // HINZUGEFÜGT: Der neue, sichere Endpunkt für die Bestellhistorie des Benutzers.
+             public static let userOrders = "\(baseURL)\(baseAPIPath)\(ygeNamespace)/user/orders"
         }
     }
     
     public static let defaultCurrencySymbol = "€"
+    public static let defaultCurrencyMinorUnit = 2
 }

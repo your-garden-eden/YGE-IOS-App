@@ -1,7 +1,7 @@
 // DATEI: ProfileViewModel.swift
 // PFAD: Features/Profile/ViewModels/ProfileViewModel.swift
-// VERSION: STAMMDATEN 1.0
-// STATUS: NEU
+// VERSION: 3.5 (VERBESSERT)
+// STATUS: Erfolgsmeldung blendet sich nach 10 Sekunden automatisch aus.
 
 import Foundation
 import Combine
@@ -9,101 +9,88 @@ import Combine
 @MainActor
 class ProfileViewModel: ObservableObject {
     
-    // MARK: - Published Properties for UI Binding
     @Published var billingAddress = UserAddress()
     @Published var shippingAddress = UserAddress()
-    @Published var copyBillingToShipping = false {
-        didSet {
-            if copyBillingToShipping {
-                shippingAddress = billingAddress
-            }
-        }
-    }
     
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var successMessage: String?
 
-    // MARK: - Private Properties
     private let profileAPIManager = ProfileAPIManager.shared
-    private var originalAddresses: UserAddressesResponse?
-    private var cancellables = Set<AnyCancellable>()
+    private let localProfileStorage = LocalProfileStorage()
+    private let logger = LogSentinel.shared
+    
+    // Task, der die Erfolgsmeldung nach einer Verzögerung ausblendet.
+    private var clearSuccessMessageTask: Task<Void, Never>?
 
-    // MARK: - Computed Properties
-    var hasChanges: Bool {
-        guard let original = originalAddresses else { return false }
-        let current = UserAddressesResponse(billing: billingAddress, shipping: shippingAddress)
-        return original != current
-    }
-
-    // MARK: - Initialization
     init() {
-        setupAddressSync()
-    }
-    
-    // Synchronisiert die Lieferadresse mit der Rechnungsadresse, wenn der Schalter aktiv ist.
-    private func setupAddressSync() {
-        $billingAddress
-            .debounce(for: .milliseconds(300), scheduler: RunLoop.main)
-            .sink { [weak self] newBillingAddress in
-                guard let self = self, self.copyBillingToShipping else { return }
-                self.shippingAddress = newBillingAddress
-            }
-            .store(in: &cancellables)
+        if let localAddresses = localProfileStorage.loadAddresses() {
+            self.billingAddress = localAddresses.billing
+            self.shippingAddress = localAddresses.shipping
+        }
     }
 
-    // MARK: - Public Methods
-    
-    /// Lädt die Profil- und Adressdaten vom Server.
-    func fetchProfileData() async {
-        isLoading = true
-        errorMessage = nil
-        successMessage = nil
+    func fetchProfileDataIfNeeded() async {
+        // Nur laden, wenn die Adressen leer sind (z.B. bei der ersten Anmeldung)
+        guard billingAddress.firstName?.isEmpty ?? true else { return }
+        
+        isLoading = true; errorMessage = nil; successMessage = nil; defer { isLoading = false }
+        logger.info("Keine lokalen Adressdaten. Beginne Abruf vom Server.")
         
         do {
-            let addresses = try await profileAPIManager.fetchProfileAndAddresses()
-            self.billingAddress = addresses.billing
-            self.shippingAddress = addresses.shipping
-            self.originalAddresses = addresses // Speichert den Originalzustand für den "hasChanges"-Vergleich.
-        } catch let apiError as WooCommerceAPIError {
-            errorMessage = apiError.localizedDescriptionForUser
+            let serverAddresses = try await profileAPIManager.fetchProfileAndAddresses()
+            self.billingAddress = serverAddresses.billing
+            self.shippingAddress = serverAddresses.shipping
+            localProfileStorage.saveAddresses(serverAddresses)
+            logger.info("Profil- und Adressdaten erfolgreich vom Server geladen.")
         } catch {
-            errorMessage = "Ein unerwarteter Fehler ist aufgetreten: \(error.localizedDescription)"
+            errorMessage = "Adressdaten konnten nicht geladen werden."
+            logger.error("Fehler beim Abrufen der Adressdaten: \(error.localizedDescription)")
         }
-        
-        isLoading = false
     }
     
-    /// Speichert die geänderten Daten auf dem Server.
-    func saveChanges() async {
-        guard hasChanges else {
-            successMessage = "Keine Änderungen zum Speichern vorhanden."
-            // Nachricht nach kurzer Zeit ausblenden
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                if self.successMessage == "Keine Änderungen zum Speichern vorhanden." {
-                    self.successMessage = nil
-                }
-            }
-            return
-        }
-        
+    // Vereinfachte Speicherfunktion, die die neuen Daten von der View erhält.
+    func updateAddresses(billing: UserAddress, shipping: UserAddress) async {
         isLoading = true
+        // Breche einen alten Task zum Ausblenden ab, falls vorhanden.
+        clearSuccessMessageTask?.cancel()
         errorMessage = nil
         successMessage = nil
+        defer { isLoading = false }
         
-        let payload = UserAddressesResponse(billing: billingAddress, shipping: shippingAddress)
+        let payload = UserAddressesResponse(billing: billing, shipping: shipping)
+        
+        // Lokal speichern für Offline-Verfügbarkeit
+        localProfileStorage.saveAddresses(payload)
         
         do {
             let response = try await profileAPIManager.updateProfileAndAddresses(payload: payload)
-            // Nach erfolgreichem Speichern den neuen Zustand als "original" setzen.
-            self.originalAddresses = payload
+            
+            // Nach erfolgreichem Server-Sync die Properties des ViewModels aktualisieren.
+            self.billingAddress = billing
+            self.shippingAddress = shipping
+            
             self.successMessage = response.message
-        } catch let apiError as WooCommerceAPIError {
-            errorMessage = apiError.localizedDescriptionForUser
+            logger.info("Server-Sync erfolgreich: \(response.message)")
+            
+            // Starte einen neuen Task, um die Nachricht nach 10 Sekunden auszublenden.
+            clearSuccessMessageTask = Task {
+                do {
+                    try await Task.sleep(for: .seconds(10))
+                    // Stelle sicher, dass die Aktualisierung auf dem Main-Thread geschieht.
+                    await MainActor.run {
+                        self.successMessage = nil
+                    }
+                } catch {
+                    // Der Task wurde abgebrochen (z.B. durch einen neuen Speicherversuch),
+                    // also tun wir nichts.
+                    logger.info("Task zum Ausblenden der Erfolgsmeldung wurde abgebrochen.")
+                }
+            }
+            
         } catch {
-            errorMessage = "Ein unerwarteter Fehler ist aufgetreten: \(error.localizedDescription)"
+            errorMessage = "Lokal gespeichert, aber Server-Sync fehlgeschlagen. Bitte versuchen Sie es erneut."
+            logger.error("Fehler bei der Adress-Synchronisation: \(error.localizedDescription)")
         }
-        
-        isLoading = false
     }
 }

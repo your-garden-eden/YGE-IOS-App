@@ -1,6 +1,6 @@
 // DATEI: ProductListViewModel.swift
-// PFAD: Features/Products/ViewModels/List/ProductListViewModel.swift
-// VERSION: DOPPELGÄNGER 1.0 (GEHÄRTET)
+// PFAD: Features/Products/ViewModels/ProductListViewModel.swift
+// VERSION: 1.1 (FINAL)
 
 import Foundation
 import Combine
@@ -12,7 +12,7 @@ class ProductListViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var isLoadingMore: Bool = false
     @Published var errorMessage: String?
-    @Published var filterState = ProductFilterState()
+    @Published var filterState: ProductFilterState
     @Published private(set) var context: ProductListContext
     
     var headline: String?
@@ -21,113 +21,85 @@ class ProductListViewModel: ObservableObject {
     private var totalPages: Int?
     private let api = WooCommerceAPIManager.shared
     private let logger = LogSentinel.shared
-    private var cancellables = Set<AnyCancellable>()
-    private let searchQuerySubject = PassthroughSubject<String, Never>()
+    private var fetchTask: Task<Void, Never>?
 
     var canLoadMore: Bool {
-        guard let totalPages = totalPages, !isLoading, !isLoadingMore, filterState.isPristine else { return false }
+        guard let totalPages = totalPages, !isLoading, !isLoadingMore else { return false }
         return currentPage <= totalPages
     }
 
     init(context: ProductListContext, headline: String? = nil) {
         self.context = context
         self.headline = headline
-        setupSearchDebouncing()
-        logger.info("ProductListViewModel initialisiert mit Kontext: \(context).")
+        self.filterState = ProductFilterState()
     }
     
     func search(for query: String) {
-        logger.debug("Suchanfrage empfangen: '\(query)'. Weiterleitung an Debouncer.")
-        searchQuerySubject.send(query)
+        let trimmedQuery = query.trimmingCharacters(in: .whitespaces)
+        self.context = trimmedQuery.isEmpty ? .categoryId(0) : .search(trimmedQuery) // Simplified context switch
+        resetAndReload()
     }
-    
+
     func applyFilters() {
-        logger.info("Filter werden angewendet.")
         resetAndReload()
     }
     
     func resetFilters() {
-        logger.info("Filter werden zurückgesetzt.")
         filterState.reset()
         resetAndReload()
     }
 
     func loadProducts() async {
         guard !isLoading else { return }
+        fetchTask?.cancel()
+        
         isLoading = true
         await fetchProductData()
         isLoading = false
     }
-    
+
     func loadMoreProducts() async {
         guard canLoadMore else { return }
-        logger.info("Lade mehr Produkte (Seite \(currentPage))...")
+        
         isLoadingMore = true
         await fetchProductData()
         isLoadingMore = false
     }
     
     private func resetAndReload() {
-        logger.info("Ladezustand wird zurückgesetzt und Daten werden neu geladen.")
         currentPage = 1
-        products = []
+        totalPages = nil
+        products.removeAll()
         Task { await loadProducts() }
-    }
-    
-    private func setupSearchDebouncing() {
-        searchQuerySubject
-            .debounce(for: .milliseconds(500), scheduler: DispatchQueue.main)
-            .removeDuplicates()
-            .sink { [weak self] searchQuery in
-                guard let self = self else { return }
-                
-                let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespaces)
-                self.logger.info("Debounced Suche wird ausgeführt für: '\(trimmedQuery)'.")
-                self.context = trimmedQuery.isEmpty ? .categoryId(0) : .search(trimmedQuery)
-                self.resetAndReload()
-            }
-            .store(in: &cancellables)
     }
     
     private func fetchProductData() async {
         errorMessage = nil
-        logger.info("Starte Produkt-API-Abruf für Seite \(currentPage) mit Kontext \(context).")
         
         do {
             let params = buildFilterParameters()
-            let response = try await api.fetchProducts(params: params, page: currentPage)
+            let response = try await api.fetchProducts(params: params, page: currentPage, perPage: 10)
             
-            logger.info("\(response.products.count) Produkte auf Seite \(currentPage) von \(response.totalPages) empfangen.")
+            guard !Task.isCancelled else { return }
             
             var fetchedProducts = response.products
             try await processProductVariations(for: &fetchedProducts)
             
-            if currentPage == 1 {
-                self.products = fetchedProducts
-            } else {
-                // --- BEGINN MODIFIKATION ---
-                // Stellt sicher, dass keine Duplikate hinzugefügt werden, falls die API überlappende Ergebnisse liefert.
-                let existingIDs = Set(self.products.map { $0.id })
-                let uniqueProducts = fetchedProducts.filter { !existingIDs.contains($0.id) }
-                self.products.append(contentsOf: uniqueProducts)
-                // --- ENDE MODIFIKATION ---
-            }
+            if currentPage == 1 { products = fetchedProducts }
+            else { products.append(contentsOf: fetchedProducts) }
             
             self.totalPages = response.totalPages
             self.currentPage += 1
             
-        } catch let apiError as WooCommerceAPIError {
-            self.errorMessage = apiError.localizedDescriptionForUser
-            logger.error("Fehler beim Abrufen der Produktdaten: \(apiError.localizedDescription)")
+        } catch is CancellationError {
+            logger.notice("Task abgebrochen.")
         } catch {
-            self.errorMessage = "Ein unerwarteter Fehler ist aufgetreten."
-            logger.error("Unerwarteter Fehler beim Abrufen der Produktdaten: \(error.localizedDescription)")
+            if !Task.isCancelled { self.errorMessage = "Produkte konnten nicht geladen werden." }
         }
     }
     
     private func buildFilterParameters() -> ProductFilterParameters {
         var params = ProductFilterParameters()
-        
         switch context {
             case .categoryId(let id): if id != 0 { params.categoryId = id }
             case .onSale: params.onSale = true
@@ -136,15 +108,11 @@ class ProductListViewModel: ObservableObject {
             case .search(let query): params.searchQuery = query
         }
         
-        if filterState.showOnlyAvailable { params.stockStatus = .instock }
-        if filterState.selectedProductType != .all { params.productType = filterState.selectedProductType.apiValue }
-        if filterState.minPrice > filterState.absolutePriceRange.lowerBound { params.minPrice = String(format: "%.2f", filterState.minPrice) }
-        if filterState.maxPrice < filterState.absolutePriceRange.upperBound { params.maxPrice = String(format: "%.2f", filterState.maxPrice) }
-        
+        params.stockStatus = filterState.showOnlyAvailable ? .instock : nil
+        params.productType = filterState.selectedProductType.apiValue
         params.orderBy = filterState.selectedSortOption.apiValue.orderBy
         params.order = filterState.selectedSortOption.apiValue.order
         
-        logger.debug("Erstelle API-Parameter.")
         return params
     }
     
@@ -152,7 +120,6 @@ class ProductListViewModel: ObservableObject {
         let variableProducts = products.filter { $0.type == "variable" }
         guard !variableProducts.isEmpty else { return }
         
-        logger.info("Verarbeite Preisspannen für \(variableProducts.count) variable Produkte...")
         try await withThrowingTaskGroup(of: (productId: Int, range: String?).self) { group in
             for product in variableProducts {
                 group.addTask {
@@ -162,14 +129,12 @@ class ProductListViewModel: ObservableObject {
                 }
             }
             
-            var processedCount = 0
             for try await (productId, range) in group {
+                if Task.isCancelled { break }
                 if let range = range, let index = products.firstIndex(where: { $0.id == productId }) {
                     products[index].priceRangeDisplay = range
-                    processedCount += 1
                 }
             }
-            logger.info("Preisspannen-Verarbeitung abgeschlossen. \(processedCount) Produkte aktualisiert.")
         }
     }
 }

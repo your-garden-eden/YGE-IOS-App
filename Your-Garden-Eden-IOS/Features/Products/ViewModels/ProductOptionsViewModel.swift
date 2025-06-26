@@ -1,6 +1,8 @@
+
 // DATEI: ProductOptionsViewModel.swift
 // PFAD: Features/Products/ViewModels/Options/ProductOptionsViewModel.swift
-// STATUS: UNVERÄNDERT - Profitiert direkt von der Korrektur im PriceFormatter.
+// VERSION: 1.2 (SYNCHRONISIERT)
+// STATUS: Einsatzbereit.
 
 import SwiftUI
 import Combine
@@ -35,12 +37,15 @@ final class ProductOptionsViewModel: ObservableObject {
         selectedVariation?.image ?? product.safeImages.first
     }
 
+    // --- KORRIGIERTE PREISLOGIK ---
     var displayPrice: PriceFormatter.FormattedPrice {
-        // Diese Logik ist korrekt. Sie ruft den nun gehärteten PriceFormatter auf.
         if let variation = selectedVariation {
-            return PriceFormatter.formatPriceString(from: variation.price_html, fallbackPrice: variation.price)
+            // KORREKTUR: Variationen werden mit einer dedizierten Funktion im PriceFormatter formatiert.
+            // Sie haben kein 'price_html'.
+            return PriceFormatter.formatVariationPrice(variation)
         }
-        return PriceFormatter.formatPriceString(from: product.price_html, fallbackPrice: product.price)
+        // KORREKTUR: Für das Hauptprodukt wird die neue, robuste formatDisplayPrice-Funktion verwendet.
+        return PriceFormatter.formatDisplayPrice(for: product)
     }
     
     var stockStatusMessage: (text: String, color: Color) {
@@ -62,10 +67,10 @@ final class ProductOptionsViewModel: ObservableObject {
         self.product = product
         self.purchasableVariations = variations.filter { $0.isPurchasable && $0.isInStock }
         
-        self.displayableAttributes = product.safeAttributes.compactMap { attr in
-            guard attr.variation else { return nil }
+        self.displayableAttributes = product.safeAttributes.compactMap { (attr: WooCommerceAttribute) -> DisplayableAttribute? in
+            guard attr.variation, let attrName = attr.name else { return nil }
             let options = attr.options.map { DisplayableAttribute.Option(name: $0, slug: $0.slugify()) }
-            return DisplayableAttribute(name: attr.name, slug: attr.name.slugify(), options: options)
+            return DisplayableAttribute(name: attrName, slug: attrName.slugify(), options: options)
         }
         
         setupBindings()
@@ -144,3 +149,4 @@ extension ProductOptionsViewModel {
         }
     }
 }
+

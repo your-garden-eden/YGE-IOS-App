@@ -1,6 +1,7 @@
 // DATEI: ContentView.swift
 // PFAD: App/ContentView.swift
-// VERSION: EINHEITSKOMMANDO 1.0 (BEREINIGT)
+// VERSION: 1.1 (FINAL)
+// STATUS: Synchronisiert mit neuer AuthManager- und CartManager-Logik.
 
 import SwiftUI
 
@@ -26,13 +27,9 @@ struct ContentView: View {
                 .environmentObject(wishlistState)
                 .environmentObject(homeViewModel)
                 .task {
-                    // --- BEGINN MODIFIKATION ---
-                    // Der redundante Aufruf zum Laden des Warenkorbs wird entfernt.
-                    // Diese Verantwortung liegt nun ausschließlich beim reaktiven
-                    // Beobachter im CartAPIManager, der auf Auth-Änderungen reagiert.
+                    // Der Ladebefehl wird nur einmal zentral hier ausgegeben.
+                    // Die untergeordneten Systeme reagieren darauf.
                     await homeViewModel.loadInitialData()
-                    // await cartManager.getCart(showLoadingIndicator: false) <- ENTFERNT
-                    // --- ENDE MODIFIKATION ---
                 }
         }
     }
@@ -43,26 +40,36 @@ struct MainTabView: View {
     @EnvironmentObject private var wishlistState: WishlistState
 
     @State private var selectedTab: Int = 0
+    
+    // Dedizierte Navigationspfade für jeden Tab, um Zustand zu erhalten.
     @State private var homePath = NavigationPath()
     @State private var shopPath = NavigationPath()
     
     var body: some View {
-        TabView(selection: tabSelectionBinding) {
-            HomeTabView(path: $homePath).tabItem { Label("Home", systemImage: "house.fill") }.tag(0)
-            ShopTabView(path: $shopPath).tabItem { Label("Shop", systemImage: "bag.fill") }.tag(1)
-            NavigationStack { CartView().withAppNavigation() }.tabItem { Label("Warenkorb", systemImage: "cart.fill") }.tag(2).badge(cartManager.state.itemCount)
-            NavigationStack { WishlistView().withAppNavigation() }.tabItem { Label("Wunschliste", systemImage: "heart.fill") }.tag(3).badge(wishlistState.wishlistProductIds.count)
-            NavigationStack { ProfilView().withAppNavigation() }.tabItem { Label("Profil", systemImage: "person.fill") }.tag(4)
+        TabView(selection: $selectedTab) {
+            HomeTabView(path: $homePath)
+                .tabItem { Label("Home", systemImage: "house.fill") }.tag(0)
+            
+            ShopTabView(path: $shopPath)
+                .tabItem { Label("Shop", systemImage: "bag.fill") }.tag(1)
+            
+            NavigationStack { CartView().withAppNavigation() }
+                .tabItem { Label("Warenkorb", systemImage: "cart.fill") }.tag(2)
+                .badge(cartManager.state.totals?.itemCount ?? 0)
+
+            NavigationStack { WishlistView().withAppNavigation() }
+                .tabItem { Label("Wunschliste", systemImage: "heart.fill") }.tag(3)
+                .badge(wishlistState.wishlistProductIds.count)
+            
+            NavigationStack { ProfilView().withAppNavigation() }
+                .tabItem { Label("Profil", systemImage: "person.fill") }.tag(4)
         }
         .tint(AppTheme.Colors.primary)
         .environment(\.selectedTab, $selectedTab)
     }
-    
-    private var tabSelectionBinding: Binding<Int> {
-        Binding( get: { self.selectedTab }, set: { newSelection in self.selectedTab = newSelection })
-    }
 }
 
+// EnvironmentKey, um den Tab-Wechsel von innen heraus zu ermöglichen.
 private struct SelectedTabKey: EnvironmentKey {
     static let defaultValue: Binding<Int> = .constant(0)
 }

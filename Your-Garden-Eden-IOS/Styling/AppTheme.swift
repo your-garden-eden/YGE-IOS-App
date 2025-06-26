@@ -1,7 +1,7 @@
 // DATEI: AppTheme.swift
-// PFAD: Styling/AppTheme.swift
-// VERSION: ADLERAUGE 2.1
-// STATUS: MODIFIZIERT
+// PFAD: Core/UI/AppTheme.swift
+// VERSION: 1.4 (ANGEPASST)
+// STATUS: Fehlender Button-Stil hinzugefügt.
 
 import SwiftUI
 
@@ -95,8 +95,6 @@ public enum AppTheme {
         }
     }
     
-    // MARK: - Komponenten-Stile (Uniformen)
-    
     public struct PrimaryButtonStyle: ButtonStyle {
         public func makeBody(configuration: Configuration) -> some View {
             configuration.label
@@ -109,66 +107,37 @@ public enum AppTheme {
                 .appShadow(AppTheme.Shadows.small)
         }
     }
-
-    // --- BEGINN MODIFIKATION ---
-    /// Definiert den Stil für den "Mit Google anmelden"-Button.
-    public struct GoogleSignInButtonStyle: ButtonStyle {
-        public func makeBody(configuration: Configuration) -> some View {
-            configuration.label
-                .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body, weight: .bold))
-                .frame(height: 50)
-                .frame(maxWidth: .infinity)
-                .background(configuration.isPressed ? AppTheme.Colors.backgroundLightGray : AppTheme.Colors.backgroundComponent)
-                .foregroundColor(AppTheme.Colors.textBase)
-                .cornerRadius(AppTheme.Layout.BorderRadius.large)
-                .overlay(
-                    RoundedRectangle(cornerRadius: AppTheme.Layout.BorderRadius.large)
-                        .stroke(AppTheme.Colors.borderLight, lineWidth: 2)
-                )
-        }
-    }
-    // --- ENDE MODIFIKATION ---
     
+    // ===================================================================
+    // === BEGINN KORREKTUR #8                                         ===
+    // ===================================================================
+    // HINZUGEFÜGT: Fehlender ButtonStyle für den Gutschein-Button.
     public struct SecondaryButtonStyle: ButtonStyle {
         public func makeBody(configuration: Configuration) -> some View {
             configuration.label
                 .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body, weight: .semibold))
-                .padding(.horizontal)
+                .padding(.horizontal, AppTheme.Layout.Spacing.large)
                 .frame(height: 44)
-                .background(configuration.isPressed ? AppTheme.Colors.backgroundLightGray : AppTheme.Colors.backgroundComponent)
+                .background(configuration.isPressed ? AppTheme.Colors.primary.opacity(0.2) : AppTheme.Colors.primary.opacity(0.1))
                 .foregroundColor(AppTheme.Colors.primaryDark)
                 .cornerRadius(AppTheme.Layout.BorderRadius.medium)
-                .overlay(
-                    RoundedRectangle(cornerRadius: AppTheme.Layout.BorderRadius.medium)
-                        .stroke(AppTheme.Colors.borderLight, lineWidth: 1)
-                )
         }
     }
-
+    // ===================================================================
+    // === ENDE KORREKTUR #8                                           ===
+    // ===================================================================
+   
     public struct PlainTextFieldStyle: TextFieldStyle {
         public func _body(configuration: TextField<Self._Label>) -> some View {
             configuration
-                .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body))
-                .padding(.horizontal, AppTheme.Layout.Spacing.medium)
-                .padding(.vertical, AppTheme.Layout.Spacing.small)
-                .frame(minHeight: 44)
-                .background(AppTheme.Colors.backgroundComponent)
-                .cornerRadius(AppTheme.Layout.BorderRadius.medium)
+                .padding()
+                .background(Colors.backgroundComponent)
+                .cornerRadius(Layout.BorderRadius.large)
+                .shadow(color: Shadows.small.color, radius: Shadows.small.radius, x: Shadows.small.x, y: Shadows.small.y)
                 .overlay(
-                    RoundedRectangle(cornerRadius: AppTheme.Layout.BorderRadius.medium)
-                        .stroke(AppTheme.Colors.borderLight, lineWidth: 1)
+                    RoundedRectangle(cornerRadius: Layout.BorderRadius.large)
+                        .stroke(Colors.borderLight, lineWidth: 1)
                 )
-        }
-    }
-    
-    public struct QuantityButtonStyle: ButtonStyle {
-        public func makeBody(configuration: Configuration) -> some View {
-            configuration.label
-                .font(.system(size: 14, weight: .bold))
-                .foregroundColor(AppTheme.Colors.primary)
-                .frame(width: 30, height: 30)
-                .background(AppTheme.Colors.primary.opacity(configuration.isPressed ? 0.2 : 0.1))
-                .clipShape(Circle())
         }
     }
 }
@@ -186,14 +155,10 @@ public extension Color {
         Scanner(string: hex).scanHexInt64(&int)
         let a, r, g, b: UInt64
         switch hex.count {
-        case 3: // RGB (12-bit)
-            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
-        case 6: // RGB (24-bit)
-            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
-        case 8: // ARGB (32-bit)
-            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
-        default:
-            (a, r, g, b) = (255, 0, 0, 0)
+        case 3: (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6: (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8: (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default: (a, r, g, b) = (255, 0, 0, 0)
         }
         self.init(.sRGB, red: Double(r) / 255, green: Double(g) / 255, blue: Double(b) / 255, opacity: Double(a) / 255)
     }

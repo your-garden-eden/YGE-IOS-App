@@ -1,46 +1,89 @@
 // DATEI: WishlistState.swift
-// PFAD: Services/App/WishlistState.swift
-// VERSION: STAMMDATEN 1.4 - FINALER STABILITÄTS-FIX
-// STATUS: MODIFIZIERT & STABILISIERT
+// PFAD: Features/Wishlist/Services/WishlistState.swift
+// VERSION: 2.4 (REPARIERT)
+// STATUS: Fehlerbehandlung bei Server-Fehler 500 hinzugefügt.
 
 import Foundation
 import Combine
 
 @MainActor
-final class WishlistState: ObservableObject {
+public final class WishlistState: ObservableObject {
     
-    static let shared = WishlistState()
+    public static let shared = WishlistState()
     
-    @Published private(set) var wishlistProductIds: Set<Int> = []
     @Published private var _wishlistProducts: [WooCommerceProduct] = []
-    @Published var sortOption: WishlistSortOption = .dateAdded
+    @Published public private(set) var wishlistProductIds: Set<Int> = []
     
-    var wishlistProducts: [WooCommerceProduct] {
-        sortProducts(_wishlistProducts)
+    public var wishlistProducts: [WooCommerceProduct] {
+        return sortProducts(_wishlistProducts)
     }
     
-    @Published private(set) var isLoading: Bool = false
-    @Published var errorMessage: String?
+    @Published public var sortOption: WishlistSortOption = .dateAdded {
+        didSet { logger.info("Sortieroption geändert auf: \(sortOption.rawValue)") }
+    }
+    
+    @Published public private(set) var isLoading: Bool = false
+    @Published public var errorMessage: String?
     
     private lazy var authManager = AuthManager.shared
     private let wcApi = WooCommerceAPIManager.shared
     private let logger = LogSentinel.shared
     private var cancellables = Set<AnyCancellable>()
     private var fetchProductsTask: Task<Void, Never>?
-    private let guestWishlistKey = "guestWishlistProductIDs_v2"
-    private let wishlistAPI = AppConfig.API.YGE.self
+    private let guestWishlistKey = "guestWishlistProductIDs"
+    private let ygeAPI = AppConfig.API.YGE.self
 
     private init() {
         logger.info("WishlistState initialisiert.")
         observeAuthenticationChanges()
     }
 
-    func isProductInWishlist(productId: Int) -> Bool {
+    public func fetchWishlistFromServer() async {
+        guard authManager.isLoggedIn, !isLoading else { return }
+        isLoading = true; errorMessage = nil; defer { isLoading = false }
+        
+        do {
+            let wishlistResponse: YGEWishlist = try await performWishlistRequest(endpoint: ygeAPI.wishlist, method: "GET")
+            let serverIDs = Set((wishlistResponse.items ?? []).map { $0.productId })
+            
+            if self.wishlistProductIds != serverIDs {
+                self.wishlistProductIds = serverIDs
+                await fetchFullProducts()
+            }
+        } catch {
+            errorMessage = "Wunschliste konnte nicht geladen werden."
+            logger.error("Fehler beim Laden der Server-Wunschliste: \(error.localizedDescription)")
+            // KORREKTUR: Bei einem Serverfehler wird die lokale Wunschliste nun explizit geleert,
+            // um einen inkonsistenten Zustand zu verhindern.
+            self.wishlistProductIds = []
+            self._wishlistProducts = []
+        }
+    }
+    
+    public func clearWishlist() {
+        let idsToRemove = Array(wishlistProductIds)
+        wishlistProductIds.removeAll()
+        _wishlistProducts.removeAll()
+        
+        Task(priority: .background) {
+            if authManager.isLoggedIn {
+                logger.info("Server-seitige Wunschliste wird geleert für \(idsToRemove.count) Produkte.")
+                for productId in idsToRemove {
+                    try? await updateWishlistOnServer(productId: productId, variationId: nil, add: false)
+                }
+            } else {
+                saveGuestWishlist()
+                logger.info("Gast-Wunschliste geleert.")
+            }
+        }
+    }
+    
+    public func isProductInWishlist(productId: Int) -> Bool {
         return wishlistProductIds.contains(productId)
     }
     
-    func toggleWishlistStatus(for product: WooCommerceProduct) {
-        let idForWishlist = (product.parent_id ?? 0) > 0 ? product.parent_id! : product.id
+    public func toggleWishlistStatus(for product: WooCommerceProduct) {
+        let idForWishlist = product.parentID ?? product.id
         if isProductInWishlist(productId: idForWishlist) {
             removeProduct(productId: idForWishlist)
         } else {
@@ -48,17 +91,8 @@ final class WishlistState: ObservableObject {
         }
     }
     
-    func clearWishlist() {
-        logger.info("Lösche komplette Wunschliste...")
-        let idsToRemove = Array(wishlistProductIds)
-        for id in idsToRemove {
-            removeProduct(productId: id)
-        }
-        logger.info("\(idsToRemove.count) Löschoperationen für Wunschliste eingeleitet.")
-    }
-
-    func prepareForLogout() {
-        logger.info("Bereite Wunschliste für Logout vor. Speichere \(wishlistProductIds.count) Artikel für Gast-Sitzung.")
+    public func prepareForLogout() async {
+        fetchProductsTask?.cancel()
         saveGuestWishlist()
         self.wishlistProductIds.removeAll()
         self._wishlistProducts.removeAll()
@@ -66,49 +100,39 @@ final class WishlistState: ObservableObject {
 
     private func addProduct(product: WooCommerceProduct, idForWishlist: Int) {
         guard !wishlistProductIds.contains(idForWishlist) else { return }
-        logger.info("Füge Produkt \(idForWishlist) zur Wunschliste hinzu.")
+        
         wishlistProductIds.insert(idForWishlist)
-        if !_wishlistProducts.contains(where: { (($0.parent_id ?? 0) > 0 ? $0.parent_id! : $0.id) == idForWishlist }) {
+        if !_wishlistProducts.contains(where: { ($0.parentID ?? $0.id) == idForWishlist }) {
             _wishlistProducts.insert(product, at: 0)
         }
+        
         Task(priority: .background) {
             if authManager.isLoggedIn {
-                let variationId = (product.parent_id ?? 0) > 0 ? product.id : nil
+                let variationId = product.parentID != nil ? product.id : nil
                 do {
-                    try await addToWishlistAPI(productId: idForWishlist, variationId: variationId)
-                    await MainActor.run { logger.info("Produkt \(idForWishlist) erfolgreich zur Server-Wunschliste hinzugefügt.") }
+                    try await updateWishlistOnServer(productId: idForWishlist, variationId: variationId, add: true)
                 } catch {
-                    await MainActor.run {
-                        logger.error("Fehler beim Hinzufügen von Produkt \(idForWishlist) zur Server-Wunschliste. Mache lokalen Zustand rückgängig. Fehler: \(error.localizedDescription)")
-                        removeProductFromLocalState(productId: idForWishlist)
-                    }
+                    logger.error("Fehler beim Hinzufügen zur Server-Wunschliste: \(error.localizedDescription)")
                 }
             } else {
                 saveGuestWishlist()
-                await MainActor.run { logger.info("Produkt \(idForWishlist) zur Gast-Wunschliste hinzugefügt.") }
             }
         }
     }
     
     private func removeProduct(productId: Int) {
-        logger.info("Entferne Produkt \(productId) von der Wunschliste.")
-        let originalProducts = self._wishlistProducts
-        removeProductFromLocalState(productId: productId)
+        wishlistProductIds.remove(productId)
+        _wishlistProducts.removeAll { ($0.parentID ?? $0.id) == productId }
+        
         Task(priority: .background) {
             if authManager.isLoggedIn {
                 do {
-                    try await removeFromWishlistAPI(productId: productId, variationId: nil)
-                    await MainActor.run { logger.info("Produkt \(productId) erfolgreich von Server-Wunschliste entfernt.") }
+                    try await updateWishlistOnServer(productId: productId, variationId: nil, add: false)
                 } catch {
-                    await MainActor.run {
-                        logger.error("Fehler beim Entfernen von Produkt \(productId) von der Server-Wunschliste. Mache lokalen Zustand rückgängig. Fehler: \(error.localizedDescription)")
-                        self.wishlistProductIds.insert(productId)
-                        self._wishlistProducts = originalProducts
-                    }
+                    logger.error("Fehler beim Entfernen von der Server-Wunschliste: \(error.localizedDescription)")
                 }
             } else {
                 saveGuestWishlist()
-                await MainActor.run { logger.info("Produkt \(productId) von Gast-Wunschliste entfernt.") }
             }
         }
     }
@@ -118,52 +142,12 @@ final class WishlistState: ObservableObject {
         case .dateAdded:
             return products
         case .priceAscending:
-            return products.sorted { Double($0.price) ?? 0.0 < Double($1.price) ?? 0.0 }
+            return products.sorted { $0.priceValue < $1.priceValue }
         case .priceDescending:
-            return products.sorted { Double($0.price) ?? 0.0 > Double($1.price) ?? 0.0 }
+            return products.sorted { $0.priceValue > $1.priceValue }
         case .nameAscending:
             return products.sorted { $0.name.lowercased() < $1.name.lowercased() }
         }
-    }
-    
-    private func removeProductFromLocalState(productId: Int) {
-        wishlistProductIds.remove(productId)
-        _wishlistProducts.removeAll { product in
-            let idToRemove = (product.parent_id ?? 0) > 0 ? product.parent_id! : product.id
-            return idToRemove == productId
-        }
-    }
-    
-    func fetchWishlistFromServer() async {
-        guard authManager.isLoggedIn, !isLoading else { return }
-        isLoading = true
-        errorMessage = nil
-        logger.info("Beginne Abruf der Wunschliste vom Server.")
-        
-        let wishlistResponse: YGEWishlist
-        do {
-            // Primärer Versuch, die Wunschliste abzurufen und zu dekodieren.
-            wishlistResponse = try await performWishlistRequest(endpoint: wishlistAPI.wishlist, method: "GET", decodingType: YGEWishlist.self)
-        } catch {
-            // --- BEGINN FINALE KORREKTUR ---
-            // Wenn der obige Versuch fehlschlägt (insbesondere bei einem DecodingError),
-            // behandeln wir dies als den erwarteten Fall einer leeren/invaliden Server-Antwort.
-            // Wir loggen die Warnung und erstellen manuell ein leeres, gültiges Objekt,
-            // anstatt den Fehler an die UI weiterzugeben.
-            logger.warning("Abruf der Wunschliste fehlgeschlagen (wahrscheinlich leer oder invalid). Gebe leeres Objekt als Fallback zurück. Fehler: \(error.localizedDescription)")
-            wishlistResponse = YGEWishlist(items: [])
-            // --- ENDE FINALE KORREKTUR ---
-        }
-
-        // Die weitere Verarbeitung erfolgt nun immer mit einem gültigen (wenn auch eventuell leeren) Objekt.
-        let serverIDs = Set((wishlistResponse.items ?? []).map { $0.productId })
-        logger.info("\(serverIDs.count) Wunschlisten-IDs vom Server empfangen.")
-        if serverIDs != self.wishlistProductIds {
-            self.wishlistProductIds = serverIDs
-            await fetchFullProducts()
-        }
-        
-        isLoading = false
     }
     
     private func observeAuthenticationChanges() {
@@ -171,107 +155,108 @@ final class WishlistState: ObservableObject {
             .dropFirst()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] state in
-                self?.logger.info("WishlistState: Auth-Zustand hat sich geändert auf: \(state).")
+                guard let self = self else { return }
                 Task {
-                    await self?.handleAuthChange(newState: state)
+                    await self.handleAuthChange(newState: state)
                 }
-            }.store(in: &cancellables)
+            }
+            .store(in: &cancellables)
     }
     
     private func handleAuthChange(newState: AuthState) async {
-        if newState == .initializing {
-            logger.info("WishlistState: Auth-Zustand ist .initializing, pausiere alle Aktionen.")
-            fetchProductsTask?.cancel()
-            return
-        }
-        
+        fetchProductsTask?.cancel()
+
         if newState == .authenticated {
-            logger.info("Benutzer ist eingeloggt. Migriere Gast-Wunschliste (falls vorhanden) und lade vom Server.")
-            let guestIDs = UserDefaults.standard.array(forKey: guestWishlistKey) as? [Int] ?? []
+            let guestIDs = Set(UserDefaults.standard.array(forKey: guestWishlistKey) as? [Int] ?? [])
             UserDefaults.standard.removeObject(forKey: guestWishlistKey)
             
             await fetchWishlistFromServer()
             
-            let missingIDs = guestIDs.filter { !self.wishlistProductIds.contains($0) }
+            let currentServerIDs = self.wishlistProductIds
+            let missingIDs = guestIDs.filter { !currentServerIDs.contains($0) }
+            
             if !missingIDs.isEmpty {
-                logger.info("Füge \(missingIDs.count) Produkte aus der Gast-Wunschliste zur Server-Wunschliste hinzu.")
+                logger.info("Synchronisiere \(missingIDs.count) Gast-Wunschlisten-Produkte mit dem Server.")
                 for productId in missingIDs {
                     Task(priority: .background) {
-                        try? await self.addToWishlistAPI(productId: productId, variationId: nil)
+                        try? await self.updateWishlistOnServer(productId: productId, variationId: nil, add: true)
                     }
                 }
                 self.wishlistProductIds.formUnion(missingIDs)
                 await fetchFullProducts()
             }
-        } else { // newState == .guest
-            logger.info("Benutzer ist Gast. Lade Gast-Wunschliste aus UserDefaults.")
+        } else if newState == .guest {
             loadGuestWishlist()
         }
     }
     
-    private func addToWishlistAPI(productId: Int, variationId: Int?) async throws {
+    private func updateWishlistOnServer(productId: Int, variationId: Int?, add: Bool) async throws {
+        let endpoint = add ? ygeAPI.addToWishlist : ygeAPI.removeFromWishlist
         let body: [String: Any?] = ["product_id": productId, "variation_id": variationId]
-        try await performWishlistRequest(endpoint: wishlistAPI.addToWishlist, method: "POST", body: body)
+        _ = try await baseWishlistRequest(endpoint: endpoint, method: "POST", body: body)
+        logger.info("Wunschliste auf dem Server für Produkt-ID \(productId) aktualisiert (Hinzufügen: \(add)).")
     }
     
-    private func removeFromWishlistAPI(productId: Int, variationId: Int?) async throws {
-        let body: [String: Any?] = ["product_id": productId, "variation_id": variationId]
-        try await performWishlistRequest(endpoint: wishlistAPI.removeFromWishlist, method: "POST", body: body)
-    }
-    
-    private func performWishlistRequest<T: Decodable>(endpoint: String, method: String, body: [String: Any?]? = nil, decodingType: T.Type) async throws -> T {
-        let (data, _) = try await performBaseWishlistRequest(endpoint: endpoint, method: method, body: body)
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
+    private func performWishlistRequest<T: Decodable>(endpoint: String, method: String) async throws -> T {
+        let (data, _) = try await baseWishlistRequest(endpoint: endpoint, method: method, body: nil)
+        let decoder = JSONDecoder(); decoder.keyDecodingStrategy = .convertFromSnakeCase
         return try decoder.decode(T.self, from: data)
     }
     
-    private func performWishlistRequest(endpoint: String, method: String, body: [String: Any?]? = nil) async throws {
-        _ = try await performBaseWishlistRequest(endpoint: endpoint, method: method, body: body)
-    }
-    
-    private func performBaseWishlistRequest(endpoint: String, method: String, body: [String: Any?]? = nil) async throws -> (Data, HTTPURLResponse) {
+    private func baseWishlistRequest(endpoint: String, method: String, body: [String: Any?]?) async throws -> (Data, HTTPURLResponse) {
         guard let url = URL(string: endpoint) else { throw WooCommerceAPIError.invalidURL }
         var request = URLRequest(url: url)
         request.httpMethod = method
-        if let token = authManager.getAuthToken() {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        guard let token = authManager.getAuthToken() else {
+            throw WooCommerceAPIError.notAuthenticated
         }
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
         if let body = body {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try? JSONSerialization.data(withJSONObject: body.compactMapValues { $0 })
         }
+        
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-            let errorData = String(data: data, encoding: .utf8) ?? "No error data"
-            logger.error("[API ERROR] Wishlist-Request fehlgeschlagen. Status: \((response as? HTTPURLResponse)?.statusCode ?? 500), Data: \(errorData)")
-            throw WooCommerceAPIError.serverError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 500, message: "Wishlist API Error", errorCode: nil)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw WooCommerceAPIError.invalidURL
         }
+        
+        guard (200...299).contains(httpResponse.statusCode) else {
+            logger.error("Wishlist API Fehler: Status \(httpResponse.statusCode)")
+            throw WooCommerceAPIError.serverError(statusCode: httpResponse.statusCode, message: "Wishlist API Error", errorCode: nil)
+        }
+        
         return (data, httpResponse)
     }
 
     private func fetchFullProducts() async {
         fetchProductsTask?.cancel()
+        
         let idsToFetch = Array(wishlistProductIds)
         guard !idsToFetch.isEmpty else {
-            self._wishlistProducts = []
+            if _wishlistProducts.isEmpty == false { _wishlistProducts = [] }
             return
         }
-        logger.info("Lade vollständige Produktdaten für \(idsToFetch.count) Wunschlisten-IDs.")
+        
+        logger.info("Lade \(idsToFetch.count) vollständige Produkte für die Wunschliste.")
+        
         self.fetchProductsTask = Task {
+            var params = ProductFilterParameters()
+            params.include = idsToFetch
+            
             do {
-                var params = ProductFilterParameters()
-                params.include = idsToFetch
-                let responseContainer = try await wcApi.fetchProducts(params: params, perPage: idsToFetch.count)
+                let response = try await wcApi.fetchProducts(params: params, perPage: idsToFetch.count)
                 if !Task.isCancelled {
-                    let productMap = Dictionary(uniqueKeysWithValues: responseContainer.products.map { ($0.id, $0) })
-                    self._wishlistProducts = idsToFetch.compactMap { productMap[$0] }
-                    logger.info("Wunschlisten-Produktdaten erfolgreich geladen.")
+                    self._wishlistProducts = response.products
+                    logger.info("Erfolgreich \(response.products.count) Produkte für die Wunschliste geladen.")
                 }
             } catch {
                 if !Task.isCancelled {
                     self.errorMessage = "Produktdetails der Wunschliste konnten nicht geladen werden."
-                    logger.error("Fehler beim Laden der Wunschlisten-Produktdaten: \(error.localizedDescription)")
+                    logger.error("Fehler beim Laden der Wunschlisten-Produktdetails: \(error.localizedDescription)")
                 }
             }
         }
@@ -279,14 +264,23 @@ final class WishlistState: ObservableObject {
     }
     
     private func loadGuestWishlist() {
-        let guestIDs = UserDefaults.standard.array(forKey: guestWishlistKey) as? [Int] ?? []
-        self.wishlistProductIds = Set(guestIDs)
-        Task {
-            await fetchFullProducts()
-        }
+        self.wishlistProductIds = Set(UserDefaults.standard.array(forKey: guestWishlistKey) as? [Int] ?? [])
+        logger.info("Gast-Wunschliste mit \(self.wishlistProductIds.count) IDs geladen.")
+        Task { await fetchFullProducts() }
     }
     
     private func saveGuestWishlist() {
+        guard !authManager.isLoggedIn else { return }
         UserDefaults.standard.set(Array(self.wishlistProductIds), forKey: guestWishlistKey)
+        logger.info("\(self.wishlistProductIds.count) IDs in Gast-Wunschliste gespeichert.")
     }
+}
+
+struct YGEWishlist: Decodable {
+    let items: [YGEWishlistItem]?
+}
+
+struct YGEWishlistItem: Decodable {
+    let productId: Int
+    let variationId: Int?
 }

@@ -1,8 +1,8 @@
+
 // DATEI: PriceFormatter.swift
-// PFAD: Helper/PriceFormatter.swift
-// VERSION: PHOENIX 5.1 (PREIS-UPDATE)
-// ÄNDERUNG: Die Funktion `formatPriceString` wurde fundamental überarbeitet,
-//           um flexibel einen oder zwei Preise aus dem HTML-String zu extrahieren.
+// PFAD: Core/Utilities/PriceFormatter.swift
+// VERSION: 2.2 (FINAL KORRIGIERT & VOLLSTÄNDIG)
+// STATUS: Fehlende Funktion wiederhergestellt.
 
 import Foundation
 
@@ -13,80 +13,74 @@ public struct PriceFormatter {
         public let strikethrough: String?
     }
     
-    public static func formatPriceFromMinorUnit(value: String, minorUnit: Int) -> String {
-        guard let decimalValue = Decimal(string: value) else {
-            return formatCurrency("0")
-        }
-        let divisor = pow(Decimal(10), minorUnit)
-        let actualValue = decimalValue / divisor
-        return formatCurrency(String(describing: actualValue))
-    }
-
     public static func formatDisplayPrice(for product: WooCommerceProduct) -> FormattedPrice {
-        if let range = product.priceRangeDisplay {
-            let components = range.components(separatedBy: "-")
-            if components.count == 2, let min = Double(components[0]), let max = Double(components[1]) {
-                let minFormatted = String(format: "%.2f €", min)
-                let maxFormatted = String(format: "%.2f €", max)
-                return FormattedPrice(display: "\(minFormatted) - \(maxFormatted)", strikethrough: nil)
-            }
+        if product.onSale == true, let saleValue = Double(product.salePrice), saleValue > 0, let regularValue = Double(product.regularPrice), regularValue > saleValue {
+            return FormattedPrice(display: formatCurrency(value: saleValue), strikethrough: formatCurrency(value: regularValue))
         }
-        return formatPriceString(from: product.price_html, fallbackPrice: product.price)
+        if let priceValue = Double(product.price), priceValue > 0 {
+            return FormattedPrice(display: formatCurrency(value: priceValue), strikethrough: nil)
+        }
+        if let priceHtml = product.priceHTML, !priceHtml.isEmpty {
+            return formatPriceStringFromHtml(html: priceHtml)
+        }
+        return FormattedPrice(display: "Auf Anfrage", strikethrough: nil)
     }
 
-    // ===================================================================
-    // **BEGINN OPERATION "PREIS-UPDATE"**
-    // ===================================================================
-    public static func formatPriceString(from htmlString: String?, fallbackPrice: String, currencySymbol: String = "€") -> FormattedPrice {
-        let cleanHtml = (htmlString ?? "").strippingHTML()
-        
-        // Eine robustere Regex, die jede Zahl (mit optionalen Komma/Punkt-Dezimalen) findet.
-        let priceRegex = /([0-9]+(?:[.,][0-9]+)?)/
-        let matches = cleanHtml.matches(of: priceRegex)
-        
-        // Konvertiere alle gefundenen Übereinstimmungen in Double-Werte.
-        let prices = matches.compactMap { Double(String($0.output.1).replacingOccurrences(of: ",", with: ".")) }
-        
-        var displayPrice: Double?
-        var strikethroughPrice: Double?
-        
-        switch prices.count {
-        case 2:
-            // Wenn zwei Preise gefunden werden, ist es ein Sale.
-            displayPrice = prices.min()
-            strikethroughPrice = prices.max()
-        case 1:
-            // Wenn ein Preis gefunden wird, ist es der Standardpreis.
-            displayPrice = prices.first
-        default:
-            // Wenn keine Preise im HTML gefunden werden, versuche, den Fallback-Preis zu verwenden.
-            displayPrice = Double(fallbackPrice.replacingOccurrences(of: ",", with: "."))
+    public static func formatVariationPrice(_ variation: WooCommerceProductVariation) -> FormattedPrice {
+        let salePrice = Double(variation.sale_price) ?? 0.0
+        let regularPrice = Double(variation.regular_price) ?? 0.0
+        let displayPrice = Double(variation.price) ?? 0.0
+        if salePrice > 0 && regularPrice > salePrice {
+            return FormattedPrice(display: formatCurrency(value: salePrice), strikethrough: formatCurrency(value: regularPrice))
         }
-        
-        let finalDisplayPrice = formatCurrency(String(displayPrice ?? 0.0))
-        let finalStrikethroughPrice = strikethroughPrice != nil ? formatCurrency(String(strikethroughPrice!)) : nil
-
-        return FormattedPrice(display: finalDisplayPrice, strikethrough: finalStrikethroughPrice)
+        return FormattedPrice(display: formatCurrency(value: displayPrice), strikethrough: nil)
     }
-    // ===================================================================
-    // **ENDE OPERATION "PREIS-UPDATE"**
-    // ===================================================================
     
+    // --- WIEDERHERGESTELLTE FUNKTION ---
     public static func calculatePriceRange(from variations: [WooCommerceProductVariation]) -> String? {
         let prices = variations.compactMap { Double($0.price) }
         guard let minPrice = prices.min(), let maxPrice = prices.max(), minPrice != maxPrice else { return nil }
+        // Format as a simple string, to be parsed later
         return "\(minPrice)-\(maxPrice)"
     }
     
-    private static func formatCurrency(_ priceString: String) -> String {
-        let cleanedString = priceString.replacingOccurrences(of: ",", with: ".").filter("0123456789.".contains)
-        if let priceValue = Double(cleanedString) {
-            return String(format: "%.2f €", priceValue)
+    private static func formatPriceStringFromHtml(html: String) -> FormattedPrice {
+        let cleanHtml = html.strippingHTML()
+        let priceRegex = /([0-9]+(?:[.,][0-9]+)?)/
+        let matches = cleanHtml.matches(of: priceRegex)
+        let prices = matches.compactMap { Double(String($0.output.1).replacingOccurrences(of: ",", with: ".")) }.sorted()
+        
+        if prices.count >= 2 {
+            let min = prices[0]
+            let max = prices[prices.count - 1]
+            if min != max {
+                 return FormattedPrice(display: "\(formatCurrency(value: min)) – \(formatCurrency(value: max))", strikethrough: nil)
+            } else {
+                 return FormattedPrice(display: formatCurrency(value: min), strikethrough: nil)
+            }
+        } else if let price = prices.first {
+            return FormattedPrice(display: formatCurrency(value: price), strikethrough: nil)
         }
-        return "0.00 €"
+        
+        return FormattedPrice(display: "Auf Anfrage", strikethrough: nil)
     }
-
-    public static func formatPrice(_ price: String, currencySymbol: String = "€") -> String {
-        return formatCurrency(price)
+    
+    public static func formatPriceFromMinorUnit(value: String?, minorUnit: Int) -> String {
+        guard let valueString = value, let intValue = Int(valueString) else {
+            return formatCurrency(value: 0.0)
+        }
+        let doubleValue = Double(intValue) / pow(10, Double(minorUnit))
+        return formatCurrency(value: doubleValue)
+    }
+    
+    public static func formatCurrency(value: Double, symbol: String = "€") -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencySymbol = symbol
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+        formatter.locale = Locale(identifier: "de_DE")
+        return formatter.string(from: NSNumber(value: value)) ?? "\(String(format: "%.2f", value)) \(symbol)"
     }
 }
+

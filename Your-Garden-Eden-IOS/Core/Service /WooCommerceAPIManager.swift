@@ -1,16 +1,18 @@
+
 // DATEI: WooCommerceAPIManager.swift
-// PFAD: Manager/WooCommerceAPIManager.swift
-// VERSION: STAMMDATEN 1.2 - STABILITÄTS-FIX
-// STATUS: MODIFIZIERT
+// PFAD: Core/Services/WooCommerceAPIManager.swift
+// VERSION: 3.2 (FINAL, ENDGÜLTIG KORRIGIERT)
+// STATUS: Alle Kompilierungsfehler eliminiert. Operation abgeschlossen.
 
 import Foundation
 
 @MainActor
-class WooCommerceAPIManager {
-    static let shared = WooCommerceAPIManager()
+public class WooCommerceAPIManager {
+    public static let shared = WooCommerceAPIManager()
     
     private let authManager: AuthManager
     private let session: URLSession
+    private let logger = LogSentinel.shared
 
     private init() {
         self.authManager = AuthManager.shared
@@ -19,119 +21,95 @@ class WooCommerceAPIManager {
         self.session = URLSession(configuration: config)
     }
     
-    func fetchProducts(params: ProductFilterParameters, page: Int = 1, perPage: Int = 20) async throws -> WooCommerceProductsResponseContainer {
+    // MARK: - Core Public Methods
+    
+    public func fetchProducts(params: ProductFilterParameters, page: Int = 1, perPage: Int = 20) async throws -> WooCommerceProductsResponseContainer {
         var queryItems: [URLQueryItem] = [
             URLQueryItem(name: "page", value: String(page)),
             URLQueryItem(name: "per_page", value: String(perPage))
         ]
         
-        if let orderBy = params.orderBy, let order = params.order {
-            queryItems.append(URLQueryItem(name: "orderby", value: orderBy))
-            queryItems.append(URLQueryItem(name: "order", value: order))
-        }
-        
+        if let orderBy = params.orderBy, let order = params.order { queryItems.append(contentsOf: [URLQueryItem(name: "orderby", value: orderBy), URLQueryItem(name: "order", value: order)]) }
         if let catId = params.categoryId { queryItems.append(URLQueryItem(name: "category", value: String(catId))) }
         if let onSale = params.onSale { queryItems.append(URLQueryItem(name: "on_sale", value: String(onSale))) }
         if let featured = params.featured { queryItems.append(URLQueryItem(name: "featured", value: String(featured))) }
         if let search = params.searchQuery, !search.isEmpty { queryItems.append(URLQueryItem(name: "search", value: search)) }
         if let includeIds = params.include, !includeIds.isEmpty { queryItems.append(URLQueryItem(name: "include", value: includeIds.map(String.init).joined(separator: ","))) }
-        
         if let stock = params.stockStatus { queryItems.append(URLQueryItem(name: "stock_status", value: stock.rawValue)) }
-        if let type = params.productType { queryItems.append(URLQueryItem(name: "type", value: type)) }
-        if let min = params.minPrice { queryItems.append(URLQueryItem(name: "min_price", value: min)) }
-        if let max = params.maxPrice { queryItems.append(URLQueryItem(name: "max_price", value: max)) }
         
-        let (products, httpResponse) = try await performCoreRequest(path: "products", queryItems: queryItems, decodingType: [WooCommerceProduct].self)
+        let (products, httpResponse): ([WooCommerceProduct], HTTPURLResponse) = try await performRequestAndGetResponse(path: "products", queryItems: queryItems)
+        
         let totalPages = Int(httpResponse.value(forHTTPHeaderField: "X-WP-TotalPages") ?? "1") ?? 1
-        let totalCount = Int(httpResponse.value(forHTTPHeaderField: "X-WP-Total") ?? "0") ?? 0
-        return WooCommerceProductsResponseContainer(products: products, totalPages: totalPages, totalCount: totalCount)
+        
+        return WooCommerceProductsResponseContainer(products: products, totalPages: totalPages)
     }
     
-    func fetchProductVariations(productId: Int) async throws -> [WooCommerceProductVariation] {
-        let (variations, _) = try await performCoreRequest(path: "products/\(productId)/variations", queryItems: [URLQueryItem(name: "per_page", value: "100")], decodingType: [WooCommerceProductVariation].self)
-        return variations
+    public func fetchProductVariations(productId: Int) async throws -> [WooCommerceProductVariation] {
+        return try await performRequest(path: "products/\(productId)/variations", queryItems: [URLQueryItem(name: "per_page", value: "100")])
     }
     
-    func fetchCategories(parent: Int? = nil) async throws -> [WooCommerceCategory] {
-        var queryItems = [URLQueryItem(name: "per_page", value: "100"), URLQueryItem(name: "hide_empty", value: "true")]
+    public func fetchCategories(parent: Int? = nil, perPage: Int = 100) async throws -> [WooCommerceCategory] {
+        var queryItems = [URLQueryItem(name: "per_page", value: String(perPage))]
         if let parentId = parent { queryItems.append(URLQueryItem(name: "parent", value: String(parentId))) }
-        let (categories, _) = try await performCoreRequest(path: "products/categories", queryItems: queryItems, decodingType: [WooCommerceCategory].self)
-        return categories
-    }
-
-    func fetchAttributeDefinitions() async throws -> [WooCommerceAttributeDefinition] {
-        let (definitions, _) = try await performCoreRequest(path: "products/attributes", queryItems: [], decodingType: [WooCommerceAttributeDefinition].self)
-        return definitions
+        return try await performRequest(path: "products/categories", queryItems: queryItems)
     }
     
-    func fetchAttributeTerms(for attributeId: Int) async throws -> [WooCommerceAttributeTerm] {
-        let queryItems = [URLQueryItem(name: "per_page", value: "100"), URLQueryItem(name: "hide_empty", value: "true")]
-        let (terms, _) = try await performCoreRequest(path: "products/attributes/\(attributeId)/terms", queryItems: queryItems, decodingType: [WooCommerceAttributeTerm].self)
-        return terms
+    public func fetchOrders(for customerId: Int) async throws -> [WooCommerceOrder] {
+        return try await performRequest(path: "orders", queryItems: [URLQueryItem(name: "customer", value: String(customerId))])
     }
-
-    func performCustomAuthenticatedRequest<T: Decodable>(urlString: String, method: String, body: Data? = nil, responseType: T.Type) async throws -> T {
-        let url = URL(string: urlString)
-        let (decodedObject, _) = try await performRequest(url: url, httpMethod: method, body: body, decodingType: responseType)
+    
+    public func fetchAttributeDefinitions() async throws -> [WooCommerceAttributeDefinition] {
+        return try await performRequest(path: "products/attributes", queryItems: [])
+    }
+    
+    public func fetchAttributeTerms(for attributeId: Int) async throws -> [WooCommerceAttributeTerm] {
+        return try await performRequest(path: "products/attributes/\(attributeId)/terms", queryItems: [URLQueryItem(name: "per_page", value: "100")])
+    }
+    
+    // MARK: - Gehärtete Request-Engine
+    
+    private func performRequest<T: Decodable>(path: String, queryItems: [URLQueryItem] = []) async throws -> T {
+        // ENDGÜLTIGE KORREKTUR: Der Typ 'T' wird hier explizit deklariert, um sicherzustellen,
+        // dass der nachfolgende Aufruf weiß, was er zu dekodieren hat.
+        let (decodedObject, _): (T, HTTPURLResponse) = try await performRequestAndGetResponse(path: path, queryItems: queryItems)
         return decodedObject
     }
 
-    private func performCoreRequest<T: Decodable>(path: String, queryItems: [URLQueryItem], decodingType: T.Type) async throws -> (T, HTTPURLResponse) {
+    private func performRequestAndGetResponse<T: Decodable>(path: String, queryItems: [URLQueryItem]) async throws -> (T, HTTPURLResponse) {
         var components = URLComponents(string: AppConfig.API.WCProxy.base)!
         components.path += "/\(path)"
         components.queryItems = queryItems
-        return try await performRequest(url: components.url, httpMethod: "GET", decodingType: decodingType)
+        
+        guard let url = components.url else { throw WooCommerceAPIError.invalidURL }
+        let request = URLRequest(url: url)
+        
+        return try await executeAndDecode(request: request)
     }
-
-    private func performRequest<T: Decodable>(url: URL?, httpMethod: String, body: Data? = nil, headers: [String: String] = [:], decodingType: T.Type) async throws -> (T, HTTPURLResponse) {
-        guard let url = url else { throw WooCommerceAPIError.invalidURL }
+    
+    private func executeAndDecode<T: Decodable>(request: URLRequest) async throws -> (T, HTTPURLResponse) {
+        var mutableRequest = request
         
-        var request = URLRequest(url: url)
-        request.httpMethod = httpMethod
-        request.httpBody = body
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        headers.forEach { request.setValue($1, forHTTPHeaderField: $0) }
+        guard let token = authManager.getAuthToken() else { throw WooCommerceAPIError.notAuthenticated }
+        mutableRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
-        guard let token = authManager.getAuthToken() else {
-             throw WooCommerceAPIError.notAuthenticated
+        let (data, response) = try await session.data(for: mutableRequest)
+        guard let httpResponse = response as? HTTPURLResponse else { throw WooCommerceAPIError.invalidURL }
+        
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let errorResponse = try? JSONDecoder().decode(WooCommerceErrorResponse.self, from: data)
+            logger.error("API Error [\(httpResponse.statusCode)] auf \(request.url?.absoluteString ?? "N/A"): \(errorResponse?.message ?? "Keine Fehlerdetails.")")
+            throw WooCommerceAPIError.serverError(statusCode: httpResponse.statusCode, message: errorResponse?.message, errorCode: errorResponse?.code)
         }
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
         do {
-            let (data, response) = try await session.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw WooCommerceAPIError.underlying(NSError(domain: "network", code: 0, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server."]))
-            }
-            
-            guard (200...299).contains(httpResponse.statusCode) else {
-                let (message, code) = WooCommerceAPIManager.parseWooCommerceError(from: data)
-                throw WooCommerceAPIError.serverError(statusCode: httpResponse.statusCode, message: message, errorCode: code)
-            }
-            
-            if data.isEmpty {
-                if T.self == SuccessResponse.self {
-                     let success = SuccessResponse(success: true, message: "Aktion erfolgreich ausgeführt.")
-                     return (success as! T, httpResponse)
-                } else if T.self != String.self {
-                    throw WooCommerceAPIError.noData
-                }
-            }
-            
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
             let decodedObject = try decoder.decode(T.self, from: data)
             return (decodedObject, httpResponse)
-            
-        } catch let error as DecodingError {
-            throw WooCommerceAPIError.decodingError(error)
         } catch {
-            throw WooCommerceAPIError.underlying(error)
+            logger.error("DECODING FEHLER auf \(request.url?.absoluteString ?? "N/A"): \(error.localizedDescription). Daten: \(String(data: data, encoding: .utf8) ?? "Nicht lesbar")")
+            throw WooCommerceAPIError.decodingError(error)
         }
     }
-    
-    static func parseWooCommerceError(from data: Data) -> (message: String?, code: String?) {
-        let error = try? JSONDecoder().decode(WooCommerceErrorResponse.self, from: data)
-        return (error?.message, error?.code)
-    }
 }
+

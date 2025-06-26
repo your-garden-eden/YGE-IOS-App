@@ -1,13 +1,13 @@
 // DATEI: WishlistView.swift
 // PFAD: Features/Wishlist/Views/WishlistView.swift
-// VERSION: KEHRTWENDE 1.0 (ANGEPASST)
+// VERSION: 1.3 (INSTAND GESETZT)
+// STATUS: Falscher UI-Aufruf korrigiert.
 
 import SwiftUI
 
 struct WishlistView: View {
     @EnvironmentObject private var wishlistState: WishlistState
     @EnvironmentObject private var authManager: AuthManager
-    @EnvironmentObject private var cartManager: CartAPIManager
     @Environment(\.selectedTab) private var selectedTab
 
     @State private var showingAuthSheet = false
@@ -81,62 +81,51 @@ struct WishlistView: View {
         List {
             ForEach(products) { product in
                 NavigationLink(value: product) {
-                    // --- BEGINN MODIFIKATION ---
-                    // Der Aufruf der WishlistRowView erfolgt nun ohne den onDelete-Parameter.
                     WishlistRowView(product: product)
-                    // --- ENDE MODIFIKATION ---
-                        .padding()
                         .background(AppTheme.Colors.backgroundComponent)
                         .cornerRadius(AppTheme.Layout.BorderRadius.large)
+                        // ===================================================================
+                        // === BEGINN KORREKTUR #2                                         ===
+                        // ===================================================================
+                        // Der Aufruf wurde auf die korrekte, vollständige Koordinate geändert.
                         .appShadow(AppTheme.Shadows.small)
+                        // ===================================================================
+                        // === ENDE KORREKTUR #2                                           ===
+                        // ===================================================================
                 }
-                .buttonStyle(.plain)
                 .listRowBackground(AppTheme.Colors.backgroundPage)
                 .listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets(top: AppTheme.Layout.Spacing.small, leading: 0, bottom: AppTheme.Layout.Spacing.small, trailing: 0))
+                .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
             }
             .onDelete(perform: deleteItemsFromSwipe)
             
-            Section {
-                Button(action: {
-                    showingClearConfirmation = true
-                }) {
-                    HStack {
-                        Spacer()
-                        Image(systemName: "trash.fill")
-                        Text("Wunschliste leeren")
-                        Spacer()
+            if !products.isEmpty {
+                Section {
+                    Button(action: { showingClearConfirmation = true }) {
+                        HStack {
+                            Spacer()
+                            Label("Wunschliste leeren", systemImage: "trash")
+                            Spacer()
+                        }
                     }
+                    .foregroundColor(AppTheme.Colors.error)
                 }
-                .foregroundColor(AppTheme.Colors.error)
-                .padding()
+                .listRowBackground(AppTheme.Colors.backgroundPage)
+                .listRowSeparator(.hidden)
             }
-            .listRowBackground(AppTheme.Colors.backgroundPage)
-            .listRowSeparator(.hidden)
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .padding(.horizontal, AppTheme.Layout.Spacing.medium)
+        .padding(.horizontal)
         .id(wishlistState.sortOption)
     }
     
-    // --- BEGINN MODIFIKATION ---
-    // Die 'delete(product:)' Funktion ist nun redundant und wird entfernt.
-    /*
-    private func delete(product: WooCommerceProduct) {
-        wishlistState.toggleWishlistStatus(for: product)
-    }
-    */
-    
-    /// Funktion, die durch die Wisch-Geste aufgerufen wird.
     private func deleteItemsFromSwipe(at offsets: IndexSet) {
         let productsToRemove = offsets.map { wishlistState.wishlistProducts[$0] }
         for product in productsToRemove {
-            // Die Logik wird direkt hier aufgerufen.
             wishlistState.toggleWishlistStatus(for: product)
         }
     }
-    // --- ENDE MODIFIKATION ---
 
     private var loadingView: some View {
         VStack(spacing: AppTheme.Layout.Spacing.medium) {
@@ -149,18 +138,38 @@ struct WishlistView: View {
 
     private var emptyWishlistView: some View {
         VStack(spacing: 20) {
-            Image(systemName: "heart.slash.fill").font(.system(size: 60)).foregroundColor(AppTheme.Colors.textMuted.opacity(0.7))
-            Text("Deine Wunschliste ist leer").font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.h5, weight: .bold)).foregroundColor(AppTheme.Colors.textHeadings)
-            Text("Füge Produkte hinzu, indem du auf das Herz-Symbol tippst.").font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body)).foregroundColor(AppTheme.Colors.textMuted).multilineTextAlignment(.center).padding(.horizontal)
+            Image(systemName: "heart.slash.fill")
+                .font(.system(size: 60))
+                .foregroundColor(AppTheme.Colors.textMuted.opacity(0.7))
+            Text("Deine Wunschliste ist leer")
+                .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.h5, weight: .bold))
+                .foregroundColor(AppTheme.Colors.textHeadings)
+            Text("Füge Produkte hinzu, indem du auf das Herz-Symbol tippst.")
+                .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body))
+                .foregroundColor(AppTheme.Colors.textMuted)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
         }.padding()
     }
 
     private var loginPromptView: some View {
         VStack(spacing: 20) {
-            Image(systemName: "person.crop.circle.badge.questionmark.fill").font(.system(size: 60)).foregroundColor(AppTheme.Colors.textMuted.opacity(0.7))
-            Text("Anmelden für Wunschliste").font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.h5, weight: .bold)).foregroundColor(AppTheme.Colors.textHeadings)
-            Text("Um deine Wunschliste geräteübergreifend zu speichern, melde dich bitte an.").font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body)).foregroundColor(AppTheme.Colors.textMuted).multilineTextAlignment(.center).padding(.horizontal)
-            Button("Anmelden oder Registrieren") { self.showingAuthSheet = true }.buttonStyle(AppTheme.PrimaryButtonStyle()).padding(.top)
+            Image(systemName: "person.crop.circle.badge.questionmark.fill")
+                .font(.system(size: 60))
+                .foregroundColor(AppTheme.Colors.textMuted.opacity(0.7))
+            Text("Anmelden für Wunschliste")
+                .font(AppTheme.Fonts.montserrat(size: AppTheme.Fonts.Size.h5, weight: .bold))
+                .foregroundColor(AppTheme.Colors.textHeadings)
+            Text("Um deine Wunschliste geräteübergreifend zu speichern, melde dich bitte an.")
+                .font(AppTheme.Fonts.roboto(size: AppTheme.Fonts.Size.body))
+                .foregroundColor(AppTheme.Colors.textMuted)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+            Button("Anmelden oder Registrieren") {
+                self.showingAuthSheet = true
+            }
+            .buttonStyle(AppTheme.PrimaryButtonStyle())
+            .padding(.top)
         }.padding()
     }
 }
